@@ -19,13 +19,13 @@ $make && make install
 
 ## InIs
 
-   yac.enable 
+   yac.enable = 1
 
-   yac.keys_memory_size
+   yac.keys_memory_size = 4M
+  
+   yac.values_memory_size = 64M
  
-   yac.values_memory_size
-
-   yac.compress_threshold
+   yac.compress_threshold = -1 
 
 
 ## Methods
