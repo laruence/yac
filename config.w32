@@ -1,13 +1,28 @@
 // $Id$
 // vim:ft=javascript
 
-// If your extension references something external, use ARG_WITH
-// ARG_WITH("yac", "for yac support", "no");
-
-// Otherwise, use ARG_ENABLE
-// ARG_ENABLE("yac", "enable yac support", "no");
+ARG_ENABLE("yac", "enable yac support", "no");
 
 if (PHP_YAC != "no") {
-	EXTENSION("yac", "yac.c");
+	if( CHECK_HEADER_ADD_INCLUDE("fastlz.h", "CFLAGS_YAC", PHP_YAC + ";" + configure_module_dirname + "\\compressor\\fastlz") &&
+		CHECK_HEADER_ADD_INCLUDE("yac_serializer.h", "CFLAGS_YAC", PHP_YAC + ";" + configure_module_dirname + "\\serializer") &&
+		CHECK_HEADER_ADD_INCLUDE("yac_storage.h", "CFLAGS_YAC", PHP_YAC + ";" + configure_module_dirname + "\\storage") &&
+		CHECK_HEADER_ADD_INCLUDE("yac_allocator.h", "CFLAGS_YAC", PHP_YAC + ";" + configure_module_dirname + "\\storage\\allocator")) {
+
+	EXTENSION("yac", "yac.c"); 
+
+	ADD_SOURCES(configure_module_dirname + "\\compressor\\fastlz", "fastlz.c", "yac");
+	ADD_SOURCES(configure_module_dirname + "\\serializer", "php.c", "yac");
+	ADD_SOURCES(configure_module_dirname + "\\storage", "yac_storage.c", "yac");
+	ADD_SOURCES(configure_module_dirname + "\\storage\\allocator", "yac_allocator.c", "yac");
+	ADD_SOURCES(configure_module_dirname + "\\storage\\allocator\allocators", "mmap.c", "yac");
+
+	AC_DEFINE('HAVE_YAC', 1, 'Have yac library');
+
+	ADD_FLAG("CFLAGS_YAC", ' /D USE_MMAP ');
+	
+	} else {
+		WARNING("yac not enabled, headers not found");
+	}
 }
 
