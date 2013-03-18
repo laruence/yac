@@ -27,7 +27,7 @@
 static const yac_shared_memory_handlers *shared_memory_handler = NULL;
 static const char *shared_model;
 
-int yac_allocator_startup(size_t k_size, size_t size, char **msg) /* {{{ */ {
+int yac_allocator_startup(unsigned long k_size, unsigned long size, char **msg) /* {{{ */ {
 	char *p;
 	yac_shared_segment *segments = NULL;
     int i, segments_num, segments_array_size, segment_size;
@@ -92,7 +92,7 @@ void yac_allocator_shutdown(void) /* {{{ */ {
 }
 /* }}} */
 
-static inline void *yac_allocator_alloc_algo2(size_t size, int hash) /* {{{ */ {
+static inline void *yac_allocator_alloc_algo2(unsigned long size, int hash) /* {{{ */ {
     yac_shared_segment *segment;
 	unsigned int seg_size, retry, pos, current;
 
@@ -133,7 +133,7 @@ do_alloc:
 /* }}} */
 
 #if 0
-static inline void *yac_allocator_alloc_algo1(size_t size) /* {{{ */ {
+static inline void *yac_allocator_alloc_algo1(unsigned long size) /* {{{ */ {
     int i, j, picked_seg, atime;
     picked_seg = (YAC_SG(current_seg) + 1) & YAC_SG(segments_num_mask);
 
@@ -153,8 +153,8 @@ static inline void *yac_allocator_alloc_algo1(size_t size) /* {{{ */ {
 /* }}} */
 #endif
 
-size_t yac_allocator_real_size(size_t size) /* {{{ */ {
-	size_t real_size = YAC_SMM_TRUE_SIZE(size);
+unsigned long yac_allocator_real_size(unsigned long size) /* {{{ */ {
+	unsigned long real_size = YAC_SMM_TRUE_SIZE(size);
 
     if (real_size > YAC_SG(segments)[0]->size) {
         return 0;
@@ -164,7 +164,7 @@ size_t yac_allocator_real_size(size_t size) /* {{{ */ {
 }
 /* }}} */
 
-void * yac_allocator_raw_alloc(size_t real_size, int hash) /* {{{ */ {
+void * yac_allocator_raw_alloc(unsigned long real_size, int hash) /* {{{ */ {
 
 	return yac_allocator_alloc_algo2(real_size, hash);
 	/*
