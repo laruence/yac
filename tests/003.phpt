@@ -9,17 +9,17 @@ yac.values_memory_size=32M
 <?php 
 $yac = new Yac();
 
-$key = str_repeat("k", 63);
+$key = str_repeat("k", YAC_MAX_KEY_LEN - 1);
 $value = NULL;
 
 var_dump($yac->set($key, $value));
 var_dump($yac->get($key));
 
-$key = str_repeat("k", 64);
+$key = str_repeat("k", YAC_MAX_KEY_LEN);
 var_dump($yac->set($key, $value));
 var_dump($yac->get($key));
 
-$key = str_repeat("k", 65);
+$key = str_repeat("k", YAC_MAX_KEY_LEN + 1);
 var_dump($yac->set($key, $value));
 var_dump($yac->get($key));
 ?>
@@ -29,8 +29,8 @@ NULL
 bool(true)
 NULL
 
-Warning: Yac::set(): Key(include prefix) can not be longer than 64 bytes in /home/huixinchen/packages/php-5.2.17/ext/yac/tests/003.php on line 15
+Warning: Yac::set(): Key(include prefix) can not be longer than 64 bytes in %s003.php on line %d
 bool(false)
 
-Warning: Yac::get(): key(include prefix) can not be longer than 64 bytes in /home/huixinchen/packages/php-5.2.17/ext/yac/tests/003.php on line 16
+Warning: Yac::get(): key(include prefix) can not be longer than 64 bytes in %s003.php on line %d
 bool(false)
