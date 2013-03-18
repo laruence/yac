@@ -1,5 +1,5 @@
 #Yac - Yet Another Cache
-
+[![Build Status](https://secure.travis-ci.org/laruence/yac.png)](http://travis-ci.org/laruence/yac)
 
 Yac is a user data cache based on shared memory for PHP
 
