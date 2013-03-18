@@ -44,4 +44,8 @@ $make && make install
    Yac::info(void)
 ```
 
+## TODO
+   1. Windows supports
+   2. Test in real life applications
+
 
