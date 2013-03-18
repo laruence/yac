@@ -75,7 +75,7 @@ PHP_INI_BEGIN()
 PHP_INI_END()
 /* }}} */
 
-static inline int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval *value, int ttl) /* {{{ */ {
+static inline int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval *value, int ttl TSRMLS_DC) /* {{{ */ {
 	int ret = 0, flag = Z_TYPE_P(value);
 	char *msg, buf[YAC_STORAGE_MAX_KEY_LEN];
 
@@ -191,7 +191,7 @@ static inline int yac_add_impl(char *prefix, uint prefix_len, char *key, uint le
 }
 /* }}} */
 
-static int yac_add_multi_impl(char *prefix, uint prefix_len, zval *kvs, int ttl) /* {{{ */ {
+static int yac_add_multi_impl(char *prefix, uint prefix_len, zval *kvs, int ttl TSRMLS_DC) /* {{{ */ {
 	HashTable *ht = Z_ARRVAL_P(kvs);
 
 	for (zend_hash_internal_pointer_reset(ht);
@@ -211,7 +211,7 @@ static int yac_add_multi_impl(char *prefix, uint prefix_len, zval *kvs, int ttl)
 				len = spprintf(&key, 0, "%lu", idx) + 1;
 				should_free = 1;
 			case HASH_KEY_IS_STRING:
-				if (yac_add_impl(prefix, prefix_len, key, len - 1, *value, ttl)) {
+				if (yac_add_impl(prefix, prefix_len, key, len - 1, *value, ttl TSRMLS_CC)) {
 					if (should_free) {
 						efree(key);
 					}
@@ -231,7 +231,7 @@ static int yac_add_multi_impl(char *prefix, uint prefix_len, zval *kvs, int ttl)
 }
 /* }}} */
 
-static zval * yac_get_impl(char * prefix, uint prefix_len, char *key, uint len, uint *cas) /* {{{ */ {
+static zval * yac_get_impl(char * prefix, uint prefix_len, char *key, uint len, uint *cas TSRMLS_DC) /* {{{ */ {
 	zval *ret = NULL;
 	uint flag, size = 0;
 	char *data, *msg, buf[YAC_STORAGE_MAX_KEY_LEN];
@@ -331,7 +331,7 @@ static zval * yac_get_impl(char * prefix, uint prefix_len, char *key, uint len, 
 }
 /* }}} */
 
-static zval * yac_get_multi_impl(char *prefix, uint prefix_len, zval *keys, zval *cas) /* {{{ */ {
+static zval * yac_get_multi_impl(char *prefix, uint prefix_len, zval *keys, zval *cas TSRMLS_DC) /* {{{ */ {
 	zval *ret;
 	HashTable *ht = Z_ARRVAL_P(keys);
 
@@ -350,7 +350,7 @@ static zval * yac_get_multi_impl(char *prefix, uint prefix_len, zval *keys, zval
 
 		switch (Z_TYPE_PP(value)) {
 			case IS_STRING:
-				if ((v = yac_get_impl(prefix, prefix_len, Z_STRVAL_PP(value), Z_STRLEN_PP(value), &cas))) {
+				if ((v = yac_get_impl(prefix, prefix_len, Z_STRVAL_PP(value), Z_STRLEN_PP(value), &cas TSRMLS_CC))) {
 					add_assoc_zval_ex(ret, Z_STRVAL_PP(value), Z_STRLEN_PP(value) + 1, v);
 				} else {
 					add_assoc_bool_ex(ret, Z_STRVAL_PP(value), Z_STRLEN_PP(value) + 1, 0);
@@ -361,7 +361,7 @@ static zval * yac_get_multi_impl(char *prefix, uint prefix_len, zval *keys, zval
 					zval copy;
 					int use_copy;
 					zend_make_printable_zval(*value, &copy, &use_copy);
-					if ((v = yac_get_impl(prefix, prefix_len, Z_STRVAL(copy), Z_STRLEN(copy), &cas))) {
+					if ((v = yac_get_impl(prefix, prefix_len, Z_STRVAL(copy), Z_STRLEN(copy), &cas TSRMLS_CC))) {
 						add_assoc_zval_ex(ret, Z_STRVAL(copy), Z_STRLEN(copy) + 1, v);
 					} else {
 						add_assoc_bool_ex(ret, Z_STRVAL(copy), Z_STRLEN(copy) + 1, 0);
@@ -376,7 +376,7 @@ static zval * yac_get_multi_impl(char *prefix, uint prefix_len, zval *keys, zval
 }
 /* }}} */
 
-void yac_delete_impl(char *prefix, uint prefix_len, char *key, uint len, int ttl) /* {{{ */ {
+void yac_delete_impl(char *prefix, uint prefix_len, char *key, uint len, int ttl TSRMLS_DC) /* {{{ */ {
 	char buf[YAC_STORAGE_MAX_KEY_LEN];
 
 	if ((len + prefix_len) > YAC_STORAGE_MAX_KEY_LEN) {
@@ -393,7 +393,7 @@ void yac_delete_impl(char *prefix, uint prefix_len, char *key, uint len, int ttl
 }
 /* }}} */
 
-static void yac_delete_multi_impl(char *prefix, uint prefix_len, zval *keys, int ttl) /* {{{ */ {
+static void yac_delete_multi_impl(char *prefix, uint prefix_len, zval *keys, int ttl TSRMLS_DC) /* {{{ */ {
 	HashTable *ht = Z_ARRVAL_P(keys);
 
 	for (zend_hash_internal_pointer_reset(ht);
@@ -407,14 +407,14 @@ static void yac_delete_multi_impl(char *prefix, uint prefix_len, zval *keys, int
 
 		switch (Z_TYPE_PP(value)) {
 			case IS_STRING:
-				yac_delete_impl(prefix, prefix_len, Z_STRVAL_PP(value), Z_STRLEN_PP(value), ttl);
+				yac_delete_impl(prefix, prefix_len, Z_STRVAL_PP(value), Z_STRLEN_PP(value), ttl TSRMLS_CC);
 				continue;
 			default:
 				{
 					zval copy;
 					int use_copy;
 					zend_make_printable_zval(*value, &copy, &use_copy);
-					yac_delete_impl(prefix, prefix_len, Z_STRVAL(copy), Z_STRLEN(copy), ttl);
+					yac_delete_impl(prefix, prefix_len, Z_STRVAL(copy), Z_STRLEN(copy), ttl TSRMLS_CC);
 					zval_dtor(&copy);
 				}
 				continue;
