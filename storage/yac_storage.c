@@ -319,7 +319,6 @@ do_verify:
 				s = emalloc(YAC_KEY_VLEN(k) + 1);
 				memcpy(s, (char *)k.val->data, YAC_KEY_VLEN(k));
 				if (v.crc != yac_crc32(s, YAC_KEY_VLEN(k))) {
-					p->ttl = 1;
 					efree(s);
 					++YAC_SG(miss);
 					return 0;
