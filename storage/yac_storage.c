@@ -35,8 +35,8 @@ static inline unsigned int yac_storage_align_size(unsigned int size) /* {{{ */ {
 }
 /* }}} */
 
-int yac_storage_startup(size_t fsize, size_t size, char **msg) /* {{{ */ {
-	size_t real_size;
+int yac_storage_startup(unsigned long fsize, unsigned long size, char **msg) /* {{{ */ {
+	unsigned long real_size;
 		
 	if (!yac_allocator_startup(fsize, size, msg)) {
 		return 0;
@@ -277,8 +277,8 @@ static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
 	} else {
 		int i, j, step = size / sizeof(crc_contents);
 
-		for (i = 0, j = 0; i < size; i += step) {
-			crc_contents[j++] = data[i];
+		for (i = 0, j = 0; i < sizeof(crc_contents); i++, j+= step) {
+			crc_contents[i] = data[j];
 		}
 
 		return crc32(crc_contents, sizeof(crc_contents));
@@ -395,7 +395,7 @@ int yac_storage_update(char *key, unsigned int len, char *data, unsigned int siz
 	int idx = 0;
 	yac_kv_key *p, k, *paths[4];
 	yac_kv_val *val, *s;
-	size_t real_size;
+	unsigned long real_size;
 	time_t tv;
 
 	hash = h = yac_inline_hash_func1(key, len);
