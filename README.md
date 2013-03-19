@@ -30,8 +30,11 @@ $make && make install
 ## Constants
 
    YAC_VERSION
+   
    YAC_MAX_KEY_LEN  =  64
+   
    YAC_MAX_VALUE_RAW_LEN = 64M
+   
    YAC_MAX_VALUE_COMPRESSED_LEN = 1M
 
 ## Methods
