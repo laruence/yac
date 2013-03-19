@@ -21,8 +21,8 @@
 
 #include "config.h"
 
-#define YAC_SMM_ALIGNMENT           4 
-#define YAC_SMM_ALIGNMENT_LOG2      2
+#define YAC_SMM_ALIGNMENT           8
+#define YAC_SMM_ALIGNMENT_LOG2      3
 #define YAC_SMM_ALIGNMENT_MASK      ~(YAC_SMM_ALIGNMENT - 1)
 #define YAC_SMM_BLOCK_HEADER_SIZE   YAC_SMM_ALIGNED_SIZE(sizeof(yac_shared_block_header))
 
