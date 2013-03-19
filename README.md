@@ -27,21 +27,74 @@ $make && make install
  
    yac.compress_threshold = -1 
 
+## Constants
+
+   YAC_VERSION
+   YAC_MAX_KEY_LEN  =  64
+   YAC_MAX_VALUE_RAW_LEN = 64M
+   YAC_MAX_VALUE_COMPRESSED_LEN = 1M
 
 ## Methods
-```php
-
+```
    Yac::__construct([string $prefix = ""])
-
+```
+   Constructor of Yac, you can specific a prefix, which will used to prepend any keys when you doing set/get/delete
+```php
+<?php
+   $yac = new Yac("myproduct_");
+?>
+```
+```
    Yac::set($key, $value[, $ttl])
    Yac::set(array $kvs[, $ttl])
+```
+   Store a value into Yac cache, keys are cache-unique, so storing a second value with the same key will overwrite the original value. 
+```php
+<?php
+$yac = new Yac();
+$yac->set("foo", "bar");
+$yac->set(
+    array(
+        "dummy" => "foo",
+        "dummy2" => "foo",
+        )
+    );
+?>
+```
 
+```
    Yac::get(array|string $key)
+```
+   Fetchs a stored variable from the cache. If an array is passed then each element is fetched and returned.
 
-
+```
    Yac::delete(array|string $keys[, $delay=0])
+```
+   Removes a stored variable from the cache. If delay is specificed, then the value will be delete after $delay seconds.
 
+```
    Yac::info(void)
+```
+   Get cache info
+```php
+<?php
+  ....
+  var_dump($yac->info());
+  /* will return an array like:
+  array(11) {
+      ["memory_size"]=> int(541065216)   
+      ["slots_memory_size"]=> int(4194304)
+      ["values_memory_size"]=> int(536870912)
+      ["segment_size"]=> int(4194304)     
+      ["segment_num"]=> int(128)
+      ["miss"]=> int(0)
+      ["hits"]=> int(955)
+      ["fails"]=> int(0)
+      ["kicks"]=> int(0)
+      ["slots_size"]=> int(32768)
+      ["slots_used"]=> int(955)
+  }
+  */
 ```
 
 ## TODO
