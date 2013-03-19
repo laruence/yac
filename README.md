@@ -35,15 +35,19 @@ $make && make install
    YAC_MAX_VALUE_COMPRESSED_LEN = 1M
 
 ## Methods
+
+### Yac::__construct
 ```
    Yac::__construct([string $prefix = ""])
 ```
-   Constructor of Yac, you can specific a prefix, which will used to prepend any keys when you doing set/get/delete
+   Constructor of Yac, you can specific a prefix, which will used to prepend to any keys when you doing set/get/delete
 ```php
 <?php
    $yac = new Yac("myproduct_");
 ?>
 ```
+
+### Yac::set
 ```
    Yac::set($key, $value[, $ttl])
    Yac::set(array $kvs[, $ttl])
@@ -62,16 +66,20 @@ $yac->set(
 ?>
 ```
 
+### Yac::get
 ```
    Yac::get(array|string $key)
 ```
    Fetchs a stored variable from the cache. If an array is passed then each element is fetched and returned.
 
+
+### Yac::delete
 ```
    Yac::delete(array|string $keys[, $delay=0])
 ```
    Removes a stored variable from the cache. If delay is specificed, then the value will be delete after $delay seconds.
 
+### Yac::info
 ```
    Yac::info(void)
 ```
