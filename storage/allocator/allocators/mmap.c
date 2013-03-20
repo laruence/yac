@@ -86,7 +86,6 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 			allocate_size -= YAC_SMM_ALIGNED_SIZE(segment_size);
 		} else {
 			(*shared_segments_p)[i].common.size = allocate_size;
-			assert(i == (segments_num - 1));
 			break;
 		}
 	}
