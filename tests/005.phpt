@@ -9,7 +9,7 @@ yac.values_memory_size=32M
 <?php 
 $yac = new Yac();
 
-$key = 12345;
+$key = md5(12345);
 $value = "dummy";
 
 var_dump($yac->set($key, $value, 1));
