@@ -42,8 +42,8 @@ typedef struct {
 	unsigned int len;
 	unsigned int flag;
 	unsigned int size;
-	unsigned char key[64];
 	yac_kv_val *val;
+	unsigned char key[64];
 } yac_kv_key;
 
 typedef struct {
