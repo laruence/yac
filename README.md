@@ -16,6 +16,11 @@ $./configure --with-php-config=/path/to/php-config
 $make && make install
 ```
 
+### Restrictios
+
+   1. Cache key can not be longer than 32 (YAC_MAX_KEY_LEN) bytes
+   2. Cache Value can not be longer than 64M (YAC_MAX_VALUE_RAW_LEN) bytes
+   3. Cache Value after compressed can not be longer than 1M (YAC_MAX_VALUE_COMPRESSED_LEN) bytes
 
 ## InIs
 
