@@ -534,7 +534,7 @@ do_add:
 
 void yac_storage_flush(void) /* {{{ */ {
 	YAC_SG(slots_num) = 0;
-   	memset((char *)YAC_SG(slots), 0, sizeof(yac_kv_key) * YAC_SG(slots_size));
+	memset((char *)YAC_SG(slots), 0, sizeof(yac_kv_key) * YAC_SG(slots_size));
 }
 /* }}} */
 
