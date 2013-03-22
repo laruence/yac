@@ -29,8 +29,8 @@ NULL
 bool(true)
 NULL
 
-Warning: Yac::set(): Key(include prefix) can not be longer than 64 bytes in %s003.php on line %d
+Warning: Yac::set(): Key(include prefix) can not be longer than 32 bytes in %s003.php on line %d
 bool(false)
 
-Warning: Yac::get(): key(include prefix) can not be longer than 64 bytes in %s003.php on line %d
+Warning: Yac::get(): key(include prefix) can not be longer than 32 bytes in %s003.php on line %d
 bool(false)

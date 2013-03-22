@@ -31,7 +31,7 @@ $make && make install
 
    YAC_VERSION
    
-   YAC_MAX_KEY_LEN  =  64
+   YAC_MAX_KEY_LEN  =  32
    
    YAC_MAX_VALUE_RAW_LEN = 64M
    

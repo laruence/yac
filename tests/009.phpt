@@ -12,7 +12,7 @@ $yac = new Yac();
 $values = array();
 $chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
 for ($i = 0; $i < 100; $i++) {
-    $key = substr(str_shuffle($chars), 0, rand(16, 64));
+    $key = substr(str_shuffle($chars), 0, rand(16, 32));
     $value = md5($key . rand(1, 10000));
     $values[$key] = $value;
 }

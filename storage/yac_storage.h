@@ -22,7 +22,7 @@
 #define YAC_STORAGE_H
 
 #define YAC_STORAGE_MAX_ENTRY_LEN  	(1 << 20)
-#define YAC_STORAGE_MAX_KEY_LEN		(64)
+#define YAC_STORAGE_MAX_KEY_LEN		(32)
 #define YAC_STORAGE_FACTOR 			(1.25)
 #define YAC_KEY_KLEN_MASK			(255)
 #define YAC_KEY_VLEN_BITS			(8)
@@ -36,6 +36,7 @@ typedef struct {
 	char data[1];
 } yac_kv_val;
 
+/* 64 bytes */
 typedef struct {
 	unsigned long h;
 	unsigned int ttl;
@@ -43,7 +44,7 @@ typedef struct {
 	unsigned int flag;
 	unsigned int size;
 	yac_kv_val *val;
-	unsigned char key[64];
+	unsigned char key[32];
 } yac_kv_key;
 
 typedef struct {
