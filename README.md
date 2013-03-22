@@ -16,7 +16,7 @@ $./configure --with-php-config=/path/to/php-config
 $make && make install
 ```
 
-### Restrictios
+## Restrictios
 
    1. Cache key can not be longer than 32 (YAC_MAX_KEY_LEN) bytes
    2. Cache Value can not be longer than 64M (YAC_MAX_VALUE_RAW_LEN) bytes
@@ -26,7 +26,7 @@ $make && make install
 
    yac.enable = 1
 
-   yac.keys_memory_size = 4M
+   yac.keys_memory_size = 4M  ; 4M can get 30K key slots, 32M can get 100K key slots
   
    yac.values_memory_size = 64M
  
@@ -36,7 +36,7 @@ $make && make install
 
    YAC_VERSION
    
-   YAC_MAX_KEY_LEN  =  32
+   YAC_MAX_KEY_LEN  =  32  ; if your key is longer than this, maybe you can use md5 result as the key
    
    YAC_MAX_VALUE_RAW_LEN = 64M
    
