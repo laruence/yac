@@ -90,6 +90,7 @@ void yac_storage_shutdown(void);
 int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas);
 int yac_storage_update(char *key, unsigned int len, char *data, unsigned int size, unsigned int falg, int ttl);
 void yac_storage_delete(char *key, unsigned int len, int ttl);
+void yac_storage_flush(void);
 const char * yac_storage_shared_memory_name(void);
 yac_storage_info * yac_storage_get_info(void);
 void yac_storage_free_info(yac_storage_info *info);

@@ -37,6 +37,31 @@ zend_class_entry *yac_class_ce;
 
 ZEND_DECLARE_MODULE_GLOBALS(yac);
 
+/** {{{ ARG_INFO
+ */
+ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_constructor, 0, 0, 0)
+	ZEND_ARG_INFO(0, prefix)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_add, 0, 0, 1)
+	ZEND_ARG_INFO(0, keys)
+	ZEND_ARG_INFO(0, value)
+	ZEND_ARG_INFO(0, ttl)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_get, 0, 0, 1)
+	ZEND_ARG_INFO(0, keys)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_delete, 0, 0, 1)
+	ZEND_ARG_INFO(0, keys)
+	ZEND_ARG_INFO(0, ttl)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_void, 0, 0, 0)
+ZEND_END_ARG_INFO()
+/* }}} */
+
 static PHP_INI_MH(OnChangeKeysMemoryLimit) /* {{{ */ {
 	if (new_value) {
 		YAC_G(k_msize) = zend_atol(new_value, new_value_length);
@@ -573,6 +598,20 @@ PHP_METHOD(yac, delete) {
 }
 /* }}} */
 
+/** {{{ proto public Yac::flush(void)
+*/
+PHP_METHOD(yac, flush) {
+
+	if (!YAC_G(enable)) {
+		RETURN_FALSE;
+	}
+
+	yac_storage_flush();
+
+	RETURN_TRUE;
+}
+/* }}} */
+
 /** {{{ proto public Yac::info(void)
 */
 PHP_METHOD(yac, info) {
@@ -605,11 +644,12 @@ PHP_METHOD(yac, info) {
 /** {{{ yac_methods
 */
 zend_function_entry yac_methods[] = {
-	PHP_ME(yac, __construct, NULL, ZEND_ACC_PUBLIC|ZEND_ACC_CTOR)
-	PHP_ME(yac, set, NULL, ZEND_ACC_PUBLIC)
-	PHP_ME(yac, get, NULL, ZEND_ACC_PUBLIC)
-	PHP_ME(yac, delete, NULL, ZEND_ACC_PUBLIC)
-	PHP_ME(yac, info, NULL, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, __construct, arginfo_yac_constructor, ZEND_ACC_PUBLIC|ZEND_ACC_CTOR)
+	PHP_ME(yac, set, arginfo_yac_add, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, get, arginfo_yac_get, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, delete, arginfo_yac_delete, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, flush, arginfo_yac_void, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, info, arginfo_yac_void, ZEND_ACC_PUBLIC)
 	{NULL, NULL, NULL}
 };
 /* }}} */
