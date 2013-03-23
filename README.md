@@ -1,7 +1,7 @@
 #Yac - Yet Another Cache
 [![Build Status](https://secure.travis-ci.org/laruence/yac.png)](http://travis-ci.org/laruence/yac)
 
-Yac is a user data cache based on shared memory for PHP
+Yac is a shared memory user data cache for PHP
 
 it can be used to replace APC or local memcached.
 
@@ -18,9 +18,9 @@ $make && make install
 
 ## Restrictios
 
-   1. Cache key can not be longer than 32 (YAC_MAX_KEY_LEN) bytes
-   2. Cache Value can not be longer than 64M (YAC_MAX_VALUE_RAW_LEN) bytes
-   3. Cache Value after compressed can not be longer than 1M (YAC_MAX_VALUE_COMPRESSED_LEN) bytes
+   1. Cache key cannot be longer than 32 (YAC_MAX_KEY_LEN) bytes
+   2. Cache Value cannot be longer than 64M (YAC_MAX_VALUE_RAW_LEN) bytes
+   3. Cache Value after compressed cannot be longer than 1M (YAC_MAX_VALUE_COMPRESSED_LEN) bytes
 
 ## InIs
 
@@ -48,7 +48,7 @@ $make && make install
 ```
    Yac::__construct([string $prefix = ""])
 ```
-   Constructor of Yac, you can specific a prefix, which will used to prepend to any keys when you doing set/get/delete
+   Constructor of Yac, you can specify a prefix which will used to prepend to any keys when doing set/get/delete
 ```php
 <?php
    $yac = new Yac("myproduct_");
@@ -78,7 +78,7 @@ $yac->set(
 ```
    Yac::get(array|string $key)
 ```
-   Fetchs a stored variable from the cache. If an array is passed then each element is fetched and returned.
+   Fetches a stored variable from the cache. If an array is passed then each element is fetched and returned.
 ```php
 <?php
 $yac = new Yac();
@@ -99,7 +99,7 @@ $yac->get(array("dummy", "dummy2"));
 ```
    Yac::delete(array|string $keys[, $delay=0])
 ```
-   Removes a stored variable from the cache. If delay is specificed, then the value will be delete after $delay seconds.
+   Removes a stored variable from the cache. If delay is specified, then the value will be deleted after $delay seconds.
 
 ### Yac::flush
 ```
@@ -134,7 +134,7 @@ $yac->get(array("dummy", "dummy2"));
 ```
 
 ## TODO
-   1. Windows supports
+   1. Windows support
    2. Test in real life applications
 
 
