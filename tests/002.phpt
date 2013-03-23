@@ -82,7 +82,7 @@ bool(true)
 object(stdClass)#3 (0) {
 }
 
-Warning: Yac::set(): Type 'IS_RESOURCE' can not be storaged in %s002.php on line %d
+Warning: Yac::set(): Type 'IS_RESOURCE' cannot be stored in %s002.php on line %d
 bool(false)
 bool(true)
 bool(true)
