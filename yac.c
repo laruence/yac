@@ -205,10 +205,10 @@ static inline int yac_add_impl(char *prefix, uint prefix_len, char *key, uint le
 			}
 			break;
 		case IS_RESOURCE:
-			php_error_docref(NULL TSRMLS_CC, E_WARNING, "Type 'IS_RESOURCE' can not be storaged");
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "Type 'IS_RESOURCE' cannot be stored");
 			break;
 		default:
-			php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unsupported valued type to be storaged '%d'", flag);
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unsupported valued type to be stored '%d'", flag);
 			break;
 	}
 
@@ -497,7 +497,7 @@ PHP_METHOD(yac, set) {
 					ttl = Z_LVAL_P(value);
 					value = NULL;
 				} else {
-					php_error_docref(NULL TSRMLS_CC, E_WARNING, "Second paramenter ttl should be a long number");
+					php_error_docref(NULL TSRMLS_CC, E_WARNING, "ttl parameter must be an integer");
 					return;
 				}
 			}
@@ -677,7 +677,7 @@ PHP_MINIT_FUNCTION(yac)
 
 	if (YAC_G(enable)) {
 		if (!yac_storage_startup(YAC_G(k_msize), YAC_G(v_msize), &msg)) {
-			php_error(E_ERROR, "Startup shared memory allocator failed at '%s': %s", msg, strerror(errno));
+			php_error(E_ERROR, "Shared memory allocator startup failed at '%s': %s", msg, strerror(errno));
 			return FAILURE;
 		}
 	}
@@ -703,22 +703,6 @@ PHP_MSHUTDOWN_FUNCTION(yac)
 	if (YAC_G(enable)) {
 		yac_storage_shutdown();
 	}
-	return SUCCESS;
-}
-/* }}} */
-
-/* {{{ PHP_RINIT_FUNCTION
- */
-PHP_RINIT_FUNCTION(yac)
-{
-	return SUCCESS;
-}
-/* }}} */
-
-/* {{{ PHP_RSHUTDOWN_FUNCTION
- */
-PHP_RSHUTDOWN_FUNCTION(yac)
-{
 	return SUCCESS;
 }
 /* }}} */
@@ -751,7 +735,7 @@ PHP_MINFO_FUNCTION(yac)
 		snprintf(buf, sizeof(buf), "%ld", inf->segment_size);
 		php_info_print_table_row(2, "Size of Shared Memory Segment(segment_size)", buf);
 		snprintf(buf, sizeof(buf), "%ld", inf->segments_num);
-		php_info_print_table_row(2, "Total Segment Number(segment_num)", buf);
+		php_info_print_table_row(2, "Number of Segments (segment_num)", buf);
 		snprintf(buf, sizeof(buf), "%ld", inf->slots_size);
 		php_info_print_table_row(2, "Total Slots Number(slots_size)", buf);
 		snprintf(buf, sizeof(buf), "%ld", inf->slots_num);
@@ -775,8 +759,8 @@ zend_module_entry yac_module_entry = {
 	NULL,
 	PHP_MINIT(yac),
 	PHP_MSHUTDOWN(yac),
-	PHP_RINIT(yac),
-	PHP_RSHUTDOWN(yac),
+	NULL,
+	NULL,
 	PHP_MINFO(yac),
 	YAC_VERSION,
 	PHP_MODULE_GLOBALS(yac),
