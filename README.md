@@ -79,6 +79,20 @@ $yac->set(
    Yac::get(array|string $key)
 ```
    Fetchs a stored variable from the cache. If an array is passed then each element is fetched and returned.
+```php
+<?php
+$yac = new Yac();
+$yac->set("foo", "bar");
+$yac->set(
+    array(
+        "dummy" => "foo",
+        "dummy2" => "foo",
+        )
+    );
+$yac->get("dummy");
+$yac->get(array("dummy", "dummy2"));
+?>
+```
 
 
 ### Yac::delete
@@ -86,6 +100,12 @@ $yac->set(
    Yac::delete(array|string $keys[, $delay=0])
 ```
    Removes a stored variable from the cache. If delay is specificed, then the value will be delete after $delay seconds.
+
+### Yac::flush
+```
+   Yac::flush()
+```
+   Immediately invalidates all existing items. it doesn't actually free any resources, it only marks all the items as invalid.
 
 ### Yac::info
 ```
