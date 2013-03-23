@@ -390,7 +390,7 @@ void yac_storage_delete(char *key, unsigned int len, int ttl) /* {{{ */ {
 }
 /* }}} */
 
-int yac_storage_update(char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl) /* {{{ */ {
+int yac_storage_update(char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add) /* {{{ */ {
 	ulong hash, h;
 	int idx = 0;
 	yac_kv_key *p, k, *paths[4];
@@ -405,6 +405,10 @@ int yac_storage_update(char *key, unsigned int len, char *data, unsigned int siz
 		if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
 do_update:
 			tv = time(NULL);
+			if (add && (!k.ttl || (k.ttl != 1 && k.ttl > tv))
+				&& k.val->crc == yac_crc32(k.val->data, YAC_KEY_VLEN(k))) {
+				return 0;
+			}
 			if (k.size >= size) {
 				s = emalloc(sizeof(yac_kv_val) + size - 1);
 				memcpy(s->data, data, size);
