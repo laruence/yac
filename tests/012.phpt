@@ -3,7 +3,7 @@ Check for functional apis
 --SKIPIF--
 <?php 
 if (!extension_loaded("yac")) print "skip";
-print "skip";
+print "skip Functional style APIs are not enabled";
 ?>
 --INI--
 yac.keys_memory_size=4M
