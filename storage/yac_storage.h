@@ -32,6 +32,7 @@
 
 typedef struct { 
 	unsigned long atime;
+	unsigned int len;
 	char data[1];
 } yac_kv_val;
 
