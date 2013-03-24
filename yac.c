@@ -105,7 +105,8 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 	char *msg, buf[YAC_STORAGE_MAX_KEY_LEN];
 
 	if ((len + prefix_len) > YAC_STORAGE_MAX_KEY_LEN) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Key(include prefix) can not be longer than %d bytes", YAC_STORAGE_MAX_KEY_LEN);
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Key%s can not be longer than %d bytes",
+				prefix_len? "(include prefix)" : "", YAC_STORAGE_MAX_KEY_LEN);
 		return ret;
 	}
 
@@ -262,7 +263,8 @@ static zval * yac_get_impl(char * prefix, uint prefix_len, char *key, uint len, 
 	char *data, *msg, buf[YAC_STORAGE_MAX_KEY_LEN];
 
 	if ((len + prefix_len) > YAC_STORAGE_MAX_KEY_LEN) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "key(include prefix) can not be longer than %d bytes", YAC_STORAGE_MAX_KEY_LEN);
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Key%s can not be longer than %d bytes",
+				prefix_len? "(include prefix)" : "", YAC_STORAGE_MAX_KEY_LEN);
 		return ret;
 	}
 
@@ -405,7 +407,8 @@ void yac_delete_impl(char *prefix, uint prefix_len, char *key, uint len, int ttl
 	char buf[YAC_STORAGE_MAX_KEY_LEN];
 
 	if ((len + prefix_len) > YAC_STORAGE_MAX_KEY_LEN) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "key(include prefix) can not be longer than %d bytes", YAC_STORAGE_MAX_KEY_LEN);
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Key%s can not be longer than %d bytes",
+				prefix_len? "(include prefix)" : "", YAC_STORAGE_MAX_KEY_LEN);
 		return;
 	}
 
@@ -475,67 +478,9 @@ PHP_METHOD(yac, __construct) {
 */
 PHP_METHOD(yac, add) {
     long ttl = 0;
-	int ret;
 	zval *keys, *prefix, *value = NULL;
-
-	if (!YAC_G(enable)) {
-		RETURN_FALSE;
-	}
-
-	switch (ZEND_NUM_ARGS()) {
-		case 1:
-			if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "a", &keys) == FAILURE) {
-				return;
-			}
-			break;
-		case 2:
-			if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zz", &keys, &value) == FAILURE) {
-				return;
-			}
-			if (Z_TYPE_P(keys) == IS_ARRAY) {
-				if (Z_TYPE_P(value) == IS_LONG) {
-					ttl = Z_LVAL_P(value);
-					value = NULL;
-				} else {
-					php_error_docref(NULL TSRMLS_CC, E_WARNING, "Second paramenter ttl should be a long number");
-					return;
-				}
-			}
-			break;
-		case 3:
-			if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zzl", &keys, &value, &ttl) == FAILURE) {
-				return;
-			}
-			break;
-		default:
-			WRONG_PARAM_COUNT;
-	}
-
-
-	prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
-
-	if (Z_TYPE_P(keys) == IS_ARRAY) {
-		ret = yac_add_multi_impl(Z_STRVAL_P(prefix), Z_STRLEN_P(prefix), keys, ttl, 1 TSRMLS_CC);
-	} else if (Z_TYPE_P(keys) == IS_STRING) {
-		ret = yac_add_impl(Z_STRVAL_P(prefix), Z_STRLEN_P(prefix), Z_STRVAL_P(keys), Z_STRLEN_P(keys), value, ttl, 1 TSRMLS_CC);
-	} else {
-		zval copy;
-		int use_copy;
-		zend_make_printable_zval(keys, &copy, &use_copy);
-		ret = yac_add_impl(Z_STRVAL_P(prefix), Z_STRLEN_P(prefix), Z_STRVAL(copy), Z_STRLEN(copy), value, ttl, 1 TSRMLS_CC);
-		zval_dtor(&copy);
-	}
-
-	RETURN_BOOL(ret? 1 : 0);
-}
-/* }}} */
-
-/** {{{ proto public Yac::set(mixed $keys, mixed $value[, int $ttl])
-*/
-PHP_METHOD(yac, set) {
-    long ttl = 0;
-	int ret;
-	zval *keys, *prefix, *value = NULL;
+	char *sprefix = NULL;
+	uint ret, prefix_len = 0;
 
 	if (!YAC_G(enable)) {
 		RETURN_FALSE;
@@ -570,18 +515,84 @@ PHP_METHOD(yac, set) {
 			WRONG_PARAM_COUNT;
 	}
 
-
-	prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
+	if (getThis()) {
+		prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
+		sprefix = Z_STRVAL_P(prefix);
+		prefix_len = Z_STRLEN_P(prefix);
+	}
 
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
-		ret = yac_add_multi_impl(Z_STRVAL_P(prefix), Z_STRLEN_P(prefix), keys, ttl, 0 TSRMLS_CC);
+		ret = yac_add_multi_impl(sprefix, prefix_len, keys, ttl, 1 TSRMLS_CC);
 	} else if (Z_TYPE_P(keys) == IS_STRING) {
-		ret = yac_add_impl(Z_STRVAL_P(prefix), Z_STRLEN_P(prefix), Z_STRVAL_P(keys), Z_STRLEN_P(keys), value, ttl, 0 TSRMLS_CC);
+		ret = yac_add_impl(sprefix, prefix_len, Z_STRVAL_P(keys), Z_STRLEN_P(keys), value, ttl, 1 TSRMLS_CC);
 	} else {
 		zval copy;
 		int use_copy;
 		zend_make_printable_zval(keys, &copy, &use_copy);
-		ret = yac_add_impl(Z_STRVAL_P(prefix), Z_STRLEN_P(prefix), Z_STRVAL(copy), Z_STRLEN(copy), value, ttl, 0 TSRMLS_CC);
+		ret = yac_add_impl(sprefix, prefix_len, Z_STRVAL(copy), Z_STRLEN(copy), value, ttl, 1 TSRMLS_CC);
+		zval_dtor(&copy);
+	}
+
+	RETURN_BOOL(ret? 1 : 0);
+}
+/* }}} */
+
+/** {{{ proto public Yac::set(mixed $keys, mixed $value[, int $ttl])
+*/
+PHP_METHOD(yac, set) {
+    long ttl = 0;
+	zval *keys, *prefix, *value = NULL;
+	char *sprefix = NULL;
+	uint ret, prefix_len = 0;
+
+	if (!YAC_G(enable)) {
+		RETURN_FALSE;
+	}
+
+	switch (ZEND_NUM_ARGS()) {
+		case 1:
+			if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "a", &keys) == FAILURE) {
+				return;
+			}
+			break;
+		case 2:
+			if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zz", &keys, &value) == FAILURE) {
+				return;
+			}
+			if (Z_TYPE_P(keys) == IS_ARRAY) {
+				if (Z_TYPE_P(value) == IS_LONG) {
+					ttl = Z_LVAL_P(value);
+					value = NULL;
+				} else {
+					php_error_docref(NULL TSRMLS_CC, E_WARNING, "ttl parameter must be an integer");
+					return;
+				}
+			}
+			break;
+		case 3:
+			if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zzl", &keys, &value, &ttl) == FAILURE) {
+				return;
+			}
+			break;
+		default:
+			WRONG_PARAM_COUNT;
+	}
+
+	if (getThis()) {
+		prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
+		sprefix = Z_STRVAL_P(prefix);
+		prefix_len = Z_STRLEN_P(prefix);
+	}
+
+	if (Z_TYPE_P(keys) == IS_ARRAY) {
+		ret = yac_add_multi_impl(sprefix, prefix_len, keys, ttl, 0 TSRMLS_CC);
+	} else if (Z_TYPE_P(keys) == IS_STRING) {
+		ret = yac_add_impl(sprefix, prefix_len, Z_STRVAL_P(keys), Z_STRLEN_P(keys), value, ttl, 0 TSRMLS_CC);
+	} else {
+		zval copy;
+		int use_copy;
+		zend_make_printable_zval(keys, &copy, &use_copy);
+		ret = yac_add_impl(sprefix, prefix_len, Z_STRVAL(copy), Z_STRLEN(copy), value, ttl, 0 TSRMLS_CC);
 		zval_dtor(&copy);
 	}
 
@@ -592,7 +603,8 @@ PHP_METHOD(yac, set) {
 /** {{{ proto public Yac::get(mixed $keys[, int &$cas])
 */
 PHP_METHOD(yac, get) {
-	uint lcas = 0;
+	char *sprefix = NULL;
+	uint prefix_len = 0, lcas = 0;
 	zval *ret, *keys, *prefix, *cas = NULL;
 
 	if (!YAC_G(enable)) {
@@ -603,17 +615,21 @@ PHP_METHOD(yac, get) {
 		return;
 	}
 
-	prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
+	if (getThis()) {
+		prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
+		sprefix = Z_STRVAL_P(prefix);
+		prefix_len = Z_STRLEN_P(prefix);
+	}
 
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
-		ret = yac_get_multi_impl(Z_STRVAL_P(prefix), Z_STRLEN_P(prefix), keys, cas TSRMLS_CC);
+		ret = yac_get_multi_impl(sprefix, prefix_len, keys, cas TSRMLS_CC);
 	} else if (Z_TYPE_P(keys) == IS_STRING) {
-		ret = yac_get_impl(Z_STRVAL_P(prefix), Z_STRLEN_P(prefix), Z_STRVAL_P(keys), Z_STRLEN_P(keys), &lcas TSRMLS_CC);
+		ret = yac_get_impl(sprefix, prefix_len, Z_STRVAL_P(keys), Z_STRLEN_P(keys), &lcas TSRMLS_CC);
 	} else {
 		zval copy;
 		int use_copy;
 		zend_make_printable_zval(keys, &copy, &use_copy);
-		ret = yac_get_impl(Z_STRVAL_P(prefix), Z_STRLEN_P(prefix), Z_STRVAL(copy), Z_STRLEN(copy), &lcas TSRMLS_CC);
+		ret = yac_get_impl(sprefix, prefix_len, Z_STRVAL(copy), Z_STRLEN(copy), &lcas TSRMLS_CC);
 		zval_dtor(&copy);
 	}
 
@@ -625,11 +641,13 @@ PHP_METHOD(yac, get) {
 }
 /* }}} */
 
-/** {{{ proto public Yac::delete(mixed $key[, int $time = 0])
+/** {{{ proto public Yac::delete(mixed $key[, int $delay = 0])
 */
 PHP_METHOD(yac, delete) {
 	long time = 0;
 	zval *keys, *prefix;
+	char *sprefix = NULL;
+	uint prefix_len = 0;
 
 	if (!YAC_G(enable)) {
 		RETURN_FALSE;
@@ -639,17 +657,21 @@ PHP_METHOD(yac, delete) {
 		return;
 	}
 
-	prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
+	if (getThis()) {
+		prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
+		sprefix = Z_STRVAL_P(prefix);
+		prefix_len = Z_STRLEN_P(prefix);
+	}
 
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
-		yac_delete_multi_impl(Z_STRVAL_P(prefix), Z_STRLEN_P(prefix), keys, time TSRMLS_CC);
+		yac_delete_multi_impl(sprefix, prefix_len, keys, time TSRMLS_CC);
 	} else if (Z_TYPE_P(keys) == IS_STRING) {
-		yac_delete_impl(Z_STRVAL_P(prefix), Z_STRLEN_P(prefix), Z_STRVAL_P(keys), Z_STRLEN_P(keys), time TSRMLS_CC);
+		yac_delete_impl(sprefix, prefix_len, Z_STRVAL_P(keys), Z_STRLEN_P(keys), time TSRMLS_CC);
 	} else {
 		zval copy;
 		int use_copy;
 		zend_make_printable_zval(keys, &copy, &use_copy);
-		yac_delete_impl(Z_STRVAL_P(prefix), Z_STRLEN_P(prefix), Z_STRVAL(copy), Z_STRLEN(copy), time TSRMLS_CC);
+		yac_delete_impl(sprefix, prefix_len, Z_STRVAL(copy), Z_STRLEN(copy), time TSRMLS_CC);
 		zval_dtor(&copy);
 	}
 
@@ -698,6 +720,66 @@ PHP_METHOD(yac, info) {
 
 	yac_storage_free_info(inf);
 }
+/* }}} */
+
+/* {{{{ proto bool yac_add(mixed $keys, mixed $value[, int $ttl])
+ */
+PHP_FUNCTION(yac_add)
+{
+	PHP_MN(yac_add)(INTERNAL_FUNCTION_PARAM_PASSTHRU);
+}
+/* }}} */
+
+/* {{{ proto bool yac_set(mixed $keys, mixed $value[, int $ttl])
+ */
+PHP_FUNCTION(yac_set)
+{
+	PHP_MN(yac_set)(INTERNAL_FUNCTION_PARAM_PASSTHRU);
+}
+/* }}} */
+
+/* {{{ proto bool yac_get(mixed $keys[, int &$cas])
+ */
+PHP_FUNCTION(yac_get)
+{
+	PHP_MN(yac_get)(INTERNAL_FUNCTION_PARAM_PASSTHRU);
+}
+/* }}} */
+
+/* {{{ proto bool yac_delete(mixed $keys[, int $delay = 0])
+ */
+PHP_FUNCTION(yac_delete)
+{
+	PHP_MN(yac_delete)(INTERNAL_FUNCTION_PARAM_PASSTHRU);
+}
+/* }}} */
+
+/* {{{ proto bool yac_flush(void)
+ */
+PHP_FUNCTION(yac_flush)
+{
+	PHP_MN(yac_flush)(INTERNAL_FUNCTION_PARAM_PASSTHRU);
+}
+/* }}} */
+
+/* {{{ proto bool yac_info(void)
+ */
+PHP_FUNCTION(yac_info)
+{
+	PHP_MN(yac_info)(INTERNAL_FUNCTION_PARAM_PASSTHRU);
+}
+/* }}} */
+
+/* {{{ yac_functions[] */
+zend_function_entry yac_functions[] = {
+	PHP_FE(yac_add, arginfo_yac_add)
+	PHP_FE(yac_set, arginfo_yac_add)
+	PHP_FE(yac_get, arginfo_yac_get)
+	PHP_FE(yac_delete, arginfo_yac_delete)
+	PHP_FE(yac_flush, arginfo_yac_void)
+	PHP_FE(yac_info, arginfo_yac_void)
+	{NULL, NULL}
+};
 /* }}} */
 
 /** {{{ yac_methods
@@ -816,7 +898,7 @@ ZEND_GET_MODULE(yac)
 zend_module_entry yac_module_entry = {
 	STANDARD_MODULE_HEADER,
 	"yac",
-	NULL,
+	yac_functions,
 	PHP_MINIT(yac),
 	PHP_MSHUTDOWN(yac),
 	NULL,
