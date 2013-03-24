@@ -302,7 +302,7 @@ int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *siz
 			if (!memcmp(k.key, key, len)) {
 				char *s;
 do_verify:
-				if (k.ttl == 1 || v.key != p) {
+				if (k.ttl == 1) {
 					++YAC_SG(miss);
 					return 0;
 				}
@@ -418,7 +418,6 @@ do_update:
 					k.ttl = 0;
 				}
 				s->atime = tv;
-				s->key = p;
 				memcpy((char *)k.val, (char *)s, sizeof(yac_kv_val) + size - 1);
 				k.crc = yac_crc32(s->data, size);
 				k.flag = flag;
@@ -438,7 +437,6 @@ do_update:
 				s = emalloc(sizeof(yac_kv_val) + size - 1);
 				memcpy(s->data, data, size);
 				s->atime = tv;
-				s->key = p;
 				val = yac_allocator_raw_alloc(real_size, (int)hash);
 				if (val) {
 					memcpy((char *)val, (char *)s, msize);
@@ -482,7 +480,7 @@ do_update:
 			p = paths[idx];
 			if (p->ttl != 1) {
 				for (i = 0; i < idx; i++) {
-					if (paths[i]->ttl == 1 || paths[i]->val->key != paths[i]) {
+					if (paths[i]->ttl == 1) {
 						p = paths[i];
 						goto do_add;
 					} else if (paths[i]->val->atime < max_atime) {
@@ -508,7 +506,6 @@ do_add:
 		s = emalloc(sizeof(yac_kv_val) + size - 1);
 		memcpy(s->data, data, size);
 		s->atime = tv;
-		s->key = p;
 		val = yac_allocator_raw_alloc(real_size, (int)hash);
 		if (val) {
 			memcpy((char *)val, (char *)s, sizeof(yac_kv_val) + size - 1);

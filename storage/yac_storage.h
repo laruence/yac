@@ -32,7 +32,6 @@
 
 typedef struct { 
 	unsigned long atime;
-	void *key;
 	char data[1];
 } yac_kv_val;
 
