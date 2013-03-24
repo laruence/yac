@@ -318,7 +318,7 @@ do_verify:
 
 				s = emalloc(YAC_KEY_VLEN(k) + 1);
 				memcpy(s, (char *)k.val->data, YAC_KEY_VLEN(k));
-				if (v.crc != yac_crc32(s, YAC_KEY_VLEN(k))) {
+				if (k.h != k.val->h || v.crc != yac_crc32(s, YAC_KEY_VLEN(k))) {
 					efree(s);
 					++YAC_SG(miss);
 					return 0;
@@ -417,6 +417,7 @@ do_update:
 				} else {
 					k.ttl = 0;
 				}
+				s->h = hash;
 				s->atime = tv;
 				s->crc = yac_crc32(s->data, size);
 				memcpy((char *)k.val, (char *)s, sizeof(yac_kv_val) + size - 1);
@@ -436,6 +437,7 @@ do_update:
 				msize = sizeof(yac_kv_val) + size - 1;
 				s = emalloc(sizeof(yac_kv_val) + size - 1);
 				memcpy(s->data, data, size);
+				s->h = hash;
 				s->crc = yac_crc32(s->data, size);
 				s->atime = tv;
 				val = yac_allocator_raw_alloc(real_size, (int)hash);
@@ -505,6 +507,7 @@ do_add:
 		tv = time(NULL);
 		s = emalloc(sizeof(yac_kv_val) + size - 1);
 		memcpy(s->data, data, size);
+		s->h = hash;
 		s->atime = tv;
 		s->crc = yac_crc32(s->data, size);
 		val = yac_allocator_raw_alloc(real_size, (int)hash);
