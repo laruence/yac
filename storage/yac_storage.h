@@ -31,15 +31,14 @@
 #define YAC_KEY_SET_LEN(k, kl, vl)	((k).len = (vl << YAC_KEY_VLEN_BITS) | (kl & YAC_KEY_KLEN_MASK))
 
 typedef struct { 
-	unsigned long crc;
 	unsigned long atime;
-	unsigned long h;
 	char data[1];
 } yac_kv_val;
 
-/* 64 bytes */
+/* 72 bytes */
 typedef struct {
 	unsigned long h;
+	unsigned long crc;
 	unsigned int ttl;
 	unsigned int len;
 	unsigned int flag;

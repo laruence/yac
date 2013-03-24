@@ -318,7 +318,7 @@ do_verify:
 
 				s = emalloc(YAC_KEY_VLEN(k) + 1);
 				memcpy(s, (char *)k.val->data, YAC_KEY_VLEN(k));
-				if (k.h != k.val->h || v.crc != yac_crc32(s, YAC_KEY_VLEN(k))) {
+				if (k.crc != yac_crc32(s, YAC_KEY_VLEN(k))) {
 					efree(s);
 					++YAC_SG(miss);
 					return 0;
@@ -406,7 +406,7 @@ int yac_storage_update(char *key, unsigned int len, char *data, unsigned int siz
 do_update:
 			tv = time(NULL);
 			if (add && (!k.ttl || (k.ttl != 1 && k.ttl > tv))
-				&& k.val->crc == yac_crc32(k.val->data, YAC_KEY_VLEN(k))) {
+				&& k.crc == yac_crc32(k.val->data, YAC_KEY_VLEN(k))) {
 				return 0;
 			}
 			if (k.size >= size) {
@@ -417,10 +417,9 @@ do_update:
 				} else {
 					k.ttl = 0;
 				}
-				s->h = hash;
 				s->atime = tv;
-				s->crc = yac_crc32(s->data, size);
 				memcpy((char *)k.val, (char *)s, sizeof(yac_kv_val) + size - 1);
+				k.crc = yac_crc32(s->data, size);
 				k.flag = flag;
 				memcpy(k.key, key, len);
 				YAC_KEY_SET_LEN(k, len, size);
@@ -437,8 +436,6 @@ do_update:
 				msize = sizeof(yac_kv_val) + size - 1;
 				s = emalloc(sizeof(yac_kv_val) + size - 1);
 				memcpy(s->data, data, size);
-				s->h = hash;
-				s->crc = yac_crc32(s->data, size);
 				s->atime = tv;
 				val = yac_allocator_raw_alloc(real_size, (int)hash);
 				if (val) {
@@ -448,6 +445,7 @@ do_update:
 					} else {
 						k.ttl = 0;
 					}
+					k.crc = yac_crc32(s->data, size);
 					k.val = val;
 					k.flag = flag;
 					k.size = real_size;
@@ -507,19 +505,18 @@ do_add:
 		tv = time(NULL);
 		s = emalloc(sizeof(yac_kv_val) + size - 1);
 		memcpy(s->data, data, size);
-		s->h = hash;
 		s->atime = tv;
-		s->crc = yac_crc32(s->data, size);
 		val = yac_allocator_raw_alloc(real_size, (int)hash);
 		if (val) {
+			memcpy((char *)val, (char *)s, sizeof(yac_kv_val) + size - 1);
 			if (p->val == NULL) {
 				++YAC_SG(slots_num);
 			}
-			memcpy((char *)val, (char *)s, sizeof(yac_kv_val) + size - 1);
 			k.h = hash;
 			k.val = val;
 			k.flag = flag;
 			k.size = real_size;
+			k.crc = yac_crc32(s->data, size);
 			memcpy(k.key, key, len);
 			YAC_KEY_SET_LEN(k, len, size);
 			if (ttl) {
