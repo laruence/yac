@@ -898,7 +898,7 @@ ZEND_GET_MODULE(yac)
 zend_module_entry yac_module_entry = {
 	STANDARD_MODULE_HEADER,
 	"yac",
-	yac_functions,
+	NULL, /* yac_functions, */
 	PHP_MINIT(yac),
 	PHP_MSHUTDOWN(yac),
 	NULL,

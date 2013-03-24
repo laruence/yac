@@ -1,7 +1,10 @@
 --TEST--
 Check for functional apis
 --SKIPIF--
-<?php if (!extension_loaded("yac")) print "skip"; ?>
+<?php 
+if (!extension_loaded("yac")) print "skip";
+print "skip";
+?>
 --INI--
 yac.keys_memory_size=4M
 yac.values_memory_size=32M
