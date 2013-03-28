@@ -30,6 +30,9 @@
 #define YAC_KEY_VLEN(k)				((k).len >> YAC_KEY_VLEN_BITS)
 #define YAC_KEY_SET_LEN(k, kl, vl)	((k).len = (vl << YAC_KEY_VLEN_BITS) | (kl & YAC_KEY_KLEN_MASK))
 
+#define USER_ALLOC					emalloc
+#define USER_FREE					efree
+
 typedef struct { 
 	unsigned long atime;
 	unsigned int len;
@@ -45,7 +48,7 @@ typedef struct {
 	unsigned int flag;
 	unsigned int size;
 	yac_kv_val *val;
-	unsigned char key[32];
+	unsigned char key[YAC_STORAGE_MAX_KEY_LEN];
 } yac_kv_key;
 
 typedef struct {

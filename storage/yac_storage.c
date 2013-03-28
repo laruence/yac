@@ -316,10 +316,10 @@ do_verify:
 					}
 				}
 
-				s = emalloc(YAC_KEY_VLEN(k) + 1);
+				s = USER_ALLOC(YAC_KEY_VLEN(k) + 1);
 				memcpy(s, (char *)k.val->data, YAC_KEY_VLEN(k));
 				if (k.crc != yac_crc32(s, YAC_KEY_VLEN(k))) {
-					efree(s);
+					USER_FREE(s);
 					++YAC_SG(miss);
 					return 0;
 				}
@@ -410,7 +410,7 @@ do_update:
 				return 0;
 			}
 			if (k.size >= size) {
-				s = emalloc(sizeof(yac_kv_val) + size - 1);
+				s = USER_ALLOC(sizeof(yac_kv_val) + size - 1);
 				memcpy(s->data, data, size);
 				if (ttl) {
 					k.ttl = (ulong)tv + ttl;
@@ -425,7 +425,7 @@ do_update:
 				memcpy(k.key, key, len);
 				YAC_KEY_SET_LEN(k, len, size);
 				*p = k;
-				efree(s);
+				USER_FREE(s);
 				return 1;
 			} else {
 				uint msize;
@@ -435,7 +435,7 @@ do_update:
 					return 0;
 				}
 				msize = sizeof(yac_kv_val) + size - 1;
-				s = emalloc(sizeof(yac_kv_val) + size - 1);
+				s = USER_ALLOC(sizeof(yac_kv_val) + size - 1);
 				memcpy(s->data, data, size);
 				s->atime = tv;
 				YAC_KEY_SET_LEN(*s, len, size);
@@ -454,11 +454,11 @@ do_update:
 					memcpy(k.key, key, len);
 					YAC_KEY_SET_LEN(k, len, size);
 					*p = k;
-					efree(s);
+					USER_FREE(s);
 					return 1;
 				}
 				++YAC_SG(fails);
-				efree(s);
+				USER_FREE(s);
 				return 0;
 			}
 		} else {
@@ -505,7 +505,7 @@ do_add:
 			return 0;
 		}
 		tv = time(NULL);
-		s = emalloc(sizeof(yac_kv_val) + size - 1);
+		s = USER_ALLOC(sizeof(yac_kv_val) + size - 1);
 		memcpy(s->data, data, size);
 		s->atime = tv;
 		YAC_KEY_SET_LEN(*s, len, size);
@@ -528,11 +528,11 @@ do_add:
 				k.ttl = 0;
 			}
 			*p = k;
-			efree(s);
+			USER_FREE(s);
 			return 1;
 		}
 		++YAC_SG(fails);
-		efree(s);
+		USER_FREE(s);
 	}
 
 	return 0;
@@ -546,7 +546,7 @@ void yac_storage_flush(void) /* {{{ */ {
 /* }}} */
 
 yac_storage_info * yac_storage_get_info(void) /* {{{ */ {
-	yac_storage_info *info = emalloc(sizeof(yac_storage_info));
+	yac_storage_info *info = USER_ALLOC(sizeof(yac_storage_info));
 
 	info->k_msize = YAC_SG(first_seg).size;
     info->v_msize = YAC_SG(segments)[0]->size * YAC_SG(segments_num);
@@ -564,7 +564,7 @@ yac_storage_info * yac_storage_get_info(void) /* {{{ */ {
 /* }}} */
 
 void yac_storage_free_info(yac_storage_info *info) /* {{{ */ {
-	efree(info);
+	USER_FREE(info);
 }
 /* }}} */
 
