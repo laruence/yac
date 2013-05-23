@@ -867,7 +867,7 @@ PHP_MINFO_FUNCTION(yac)
 		inf = yac_storage_get_info();
 
 		php_info_print_table_start();
-		php_info_print_table_header(1, "Cache info");
+		php_info_print_table_colspan_header(2, "Cache info");
 		snprintf(buf, sizeof(buf), "%ld", inf->k_msize + inf->v_msize);
 		php_info_print_table_row(2, "Total Shared Memory Usage(memory_size)", buf);
 		snprintf(buf, sizeof(buf), "%ld", inf->k_msize);
