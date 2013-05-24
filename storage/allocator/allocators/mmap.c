@@ -42,7 +42,7 @@ typedef struct  {
 
 static int create_segments(unsigned long k_size, unsigned long v_size, yac_shared_segment_mmap **shared_segments_p, int *shared_segments_count, char **error_in) /* {{{ */ {
 	yac_shared_segment *shared_segment;
-	unsigned long allocate_size;
+	unsigned long allocate_size, occupied_size =  0;;
 	unsigned int i, segment_size, segments_num = 1024;
 	yac_shared_segment_mmap first_segment;
 
@@ -76,16 +76,16 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 	}
 	*shared_segments_count = segments_num;
 
-	allocate_size -= k_size;
+	occupied_size = k_size;
 	for (i = 1; i < segments_num; i++) {
 		(*shared_segments_p)[i].size = 0;
 		(*shared_segments_p)[i].common.pos = 0;
-		(*shared_segments_p)[i].common.p = first_segment.common.p + allocate_size;
-		if (allocate_size >= YAC_SMM_ALIGNED_SIZE(segment_size)) {
+		(*shared_segments_p)[i].common.p = first_segment.common.p + occupied_size;
+		if ((allocate_size - occupied_size) >= YAC_SMM_ALIGNED_SIZE(segment_size)) {
 			(*shared_segments_p)[i].common.size = YAC_SMM_ALIGNED_SIZE(segment_size);
-			allocate_size -= YAC_SMM_ALIGNED_SIZE(segment_size);
+			occupied_size += YAC_SMM_ALIGNED_SIZE(segment_size);
 		} else {
-			(*shared_segments_p)[i].common.size = allocate_size;
+			(*shared_segments_p)[i].common.size = (allocate_size - occupied_size);
 			break;
 		}
 	}
