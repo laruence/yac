@@ -82,10 +82,10 @@ void yac_allocator_shutdown(void) /* {{{ */ {
     segments = YAC_SG(segments);
     if (segments) {
         if ((he = &yac_shared_memory_handler)) {
-            int i = 0;
-            for (i = 0; i < YAC_SG(segments_num); i++) {
-                he->detach_segment(segments[i]);
-            }
+			int i = 0;
+			for (i = 0; i < YAC_SG(segments_num); i++) {
+				he->detach_segment(segments[i]);
+			}
     		he->detach_segment(&YAC_SG(first_seg));
         }
     }
@@ -108,7 +108,7 @@ do_alloc:
 		pos += size;
 		segment->pos = pos;
 		if (segment->pos >= pos) {
-			return (void *)(segment->p + (pos - size));
+			return (void *)((char *)segment->p + pos - size);
 		} else if (retry--) {
 			goto do_retry;
 		}
@@ -129,6 +129,8 @@ do_alloc:
 		pos = 0;
 		goto do_alloc;
 	}
+
+	return (void *)0;
 }
 /* }}} */
 
