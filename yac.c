@@ -117,14 +117,14 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 
 	switch (Z_TYPE_P(value)) {
 		case IS_NULL:
-			ret = yac_storage_update(key, len, (char *)&flag, sizeof(int), flag, add, ttl);
+			ret = yac_storage_update(key, len, (char *)&flag, sizeof(int), flag, ttl, add);
 			break;
 		case IS_BOOL:
 		case IS_LONG:
-			ret = yac_storage_update(key, len, (char *)&Z_LVAL_P(value), sizeof(long), flag, add, ttl);
+			ret = yac_storage_update(key, len, (char *)&Z_LVAL_P(value), sizeof(long), flag, ttl, add);
 			break;
 		case IS_DOUBLE:
-			ret = yac_storage_update(key, len, (char *)&Z_DVAL_P(value), sizeof(double), flag, add, ttl);
+			ret = yac_storage_update(key, len, (char *)&Z_DVAL_P(value), sizeof(double), flag, ttl, add);
 			break;
 		case IS_STRING:
 		case IS_CONSTANT:
