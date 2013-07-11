@@ -58,7 +58,7 @@ int yac_allocator_startup(unsigned long k_size, unsigned long size, char **msg) 
 
     YAC_SG(segments_num) 		= segments_num - 1;
 	YAC_SG(segments_num_mask) 	= YAC_SG(segments_num) - 1;
-    YAC_SG(segments)     		= (yac_shared_segment **)((char *)yac_storage + YAC_SMM_ALIGNED_SIZE(sizeof(yac_storage_globals)));
+    YAC_SG(segments)     		= (yac_shared_segment **)((char *)yac_storage + YAC_SMM_ALIGNED_SIZE(sizeof(yac_storage_globals) + segment_size - sizeof(yac_shared_segment)));
 
 	p = (char *)YAC_SG(segments) + (sizeof(void *) * YAC_SG(segments_num));
     memcpy(p, (char *)segments + segment_size, segments_array_size);

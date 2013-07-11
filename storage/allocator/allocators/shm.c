@@ -99,6 +99,9 @@ static int create_segments(size_t k_size, size_t v_size, yac_shared_segment_shm 
         shm_id = shmget(IPC_PRIVATE, allocate_size, shmget_flags);
         if (shm_id == -1) {
             *error_in = "shmget";
+            for (j = 0; j < i; j++) {
+                shmdt(shared_segments[j].common.p);
+            }
             free(shared_segments);
             return 0;
         }
@@ -110,7 +113,7 @@ static int create_segments(size_t k_size, size_t v_size, yac_shared_segment_shm 
         if (shared_segments[i].common.p == (void *)-1) {
             *error_in = "shmat";
             for (j = 0; j < i; j++) {
-                shmdt(shared_segments[i].common.p);
+                shmdt(shared_segments[j].common.p);
             }
             free(shared_segments);
             return 0;
