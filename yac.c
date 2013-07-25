@@ -715,6 +715,7 @@ PHP_METHOD(yac, info) {
 	add_assoc_long(return_value, "hits", inf->hits);
 	add_assoc_long(return_value, "fails", inf->fails);
 	add_assoc_long(return_value, "kicks", inf->kicks);
+	add_assoc_long(return_value, "recycles", inf->recycles);
 	add_assoc_long(return_value, "slots_size", inf->slots_size);
 	add_assoc_long(return_value, "slots_used", inf->slots_num);
 
