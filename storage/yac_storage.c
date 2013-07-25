@@ -549,7 +549,7 @@ yac_storage_info * yac_storage_get_info(void) /* {{{ */ {
 	yac_storage_info *info = USER_ALLOC(sizeof(yac_storage_info));
 
 	info->k_msize = (unsigned long)YAC_SG(first_seg).size;
-    info->v_msize = (unsigned long)YAC_SG(segments)[0]->size * YAC_SG(segments_num);
+	info->v_msize = (unsigned long)YAC_SG(segments)[0]->size * (unsigned long)YAC_SG(segments_num);
 	info->segment_size = YAC_SG(segments)[0]->size;
 	info->segments_num = YAC_SG(segments_num);
 	info->hits = YAC_SG(hits);
