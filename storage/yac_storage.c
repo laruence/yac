@@ -19,7 +19,6 @@
 /* $Id$ */
 
 #include <time.h>
-#include <assert.h>
 
 #include "php.h"
 #include "yac_storage.h"
