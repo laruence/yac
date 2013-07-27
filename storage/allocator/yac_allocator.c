@@ -48,7 +48,9 @@ int yac_allocator_startup(unsigned long k_size, unsigned long size, char **msg) 
             }
             return 0;
         }
-    }
+    } else {
+		return 0;
+	}
 
 	segment_size = he->segment_type_size();
 	segments_array_size = (segments_num - 1) * segment_size;

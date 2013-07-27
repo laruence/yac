@@ -123,6 +123,7 @@ static int create_segments(size_t k_size, size_t v_size, yac_shared_segment_shm 
     ++segments_num;
     *shared_segments_p = (yac_shared_segment_shm *)calloc(1, segments_num * sizeof(yac_shared_segment_shm));
     if (!*shared_segments_p) {
+		free(shared_segments);
         *error_in = "calloc";
         return 0;
     } else {
