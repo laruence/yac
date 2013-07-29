@@ -66,6 +66,7 @@ typedef struct {
 	unsigned int miss;
 	unsigned int fails;
 	unsigned int kicks;
+	unsigned int recycles;
 	unsigned long hits;
 } yac_storage_info;
 
@@ -77,6 +78,7 @@ typedef struct {
 	unsigned int miss;
 	unsigned int fails;
 	unsigned int kicks;
+	unsigned int recycles;
 	unsigned long hits;
 	yac_shared_segment **segments;
 	unsigned int segments_num;
