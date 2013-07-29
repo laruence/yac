@@ -548,14 +548,15 @@ void yac_storage_flush(void) /* {{{ */ {
 yac_storage_info * yac_storage_get_info(void) /* {{{ */ {
 	yac_storage_info *info = USER_ALLOC(sizeof(yac_storage_info));
 
-	info->k_msize = YAC_SG(first_seg).size;
-    info->v_msize = YAC_SG(segments)[0]->size * YAC_SG(segments_num);
+	info->k_msize = (unsigned long)YAC_SG(first_seg).size;
+	info->v_msize = (unsigned long)YAC_SG(segments)[0]->size * (unsigned long)YAC_SG(segments_num);
 	info->segment_size = YAC_SG(segments)[0]->size;
 	info->segments_num = YAC_SG(segments_num);
 	info->hits = YAC_SG(hits);
 	info->miss = YAC_SG(miss);
 	info->fails = YAC_SG(fails);
 	info->kicks = YAC_SG(kicks);
+	info->recycles = YAC_SG(recycles);
 	info->slots_size = YAC_SG(slots_size);
 	info->slots_num = YAC_SG(slots_num);
 
