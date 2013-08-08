@@ -515,11 +515,9 @@ PHP_METHOD(yac, add) {
 			WRONG_PARAM_COUNT;
 	}
 
-	if (getThis()) {
-		prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
-		sprefix = Z_STRVAL_P(prefix);
-		prefix_len = Z_STRLEN_P(prefix);
-	}
+	prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
+	sprefix = Z_STRVAL_P(prefix);
+	prefix_len = Z_STRLEN_P(prefix);
 
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
 		ret = yac_add_multi_impl(sprefix, prefix_len, keys, ttl, 1 TSRMLS_CC);
@@ -578,11 +576,9 @@ PHP_METHOD(yac, set) {
 			WRONG_PARAM_COUNT;
 	}
 
-	if (getThis()) {
-		prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
-		sprefix = Z_STRVAL_P(prefix);
-		prefix_len = Z_STRLEN_P(prefix);
-	}
+	prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
+	sprefix = Z_STRVAL_P(prefix);
+	prefix_len = Z_STRLEN_P(prefix);
 
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
 		ret = yac_add_multi_impl(sprefix, prefix_len, keys, ttl, 0 TSRMLS_CC);
@@ -615,11 +611,9 @@ PHP_METHOD(yac, get) {
 		return;
 	}
 
-	if (getThis()) {
-		prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
-		sprefix = Z_STRVAL_P(prefix);
-		prefix_len = Z_STRLEN_P(prefix);
-	}
+	prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
+	sprefix = Z_STRVAL_P(prefix);
+	prefix_len = Z_STRLEN_P(prefix);
 
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
 		ret = yac_get_multi_impl(sprefix, prefix_len, keys, cas TSRMLS_CC);
@@ -657,11 +651,9 @@ PHP_METHOD(yac, delete) {
 		return;
 	}
 
-	if (getThis()) {
-		prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
-		sprefix = Z_STRVAL_P(prefix);
-		prefix_len = Z_STRLEN_P(prefix);
-	}
+	prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
+	sprefix = Z_STRVAL_P(prefix);
+	prefix_len = Z_STRLEN_P(prefix);
 
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
 		yac_delete_multi_impl(sprefix, prefix_len, keys, time TSRMLS_CC);
@@ -723,6 +715,8 @@ PHP_METHOD(yac, info) {
 }
 /* }}} */
 
+#if 0
+only OO-style APIs is supported now
 /* {{{{ proto bool yac_add(mixed $keys, mixed $value[, int $ttl])
  */
 PHP_FUNCTION(yac_add)
@@ -782,6 +776,7 @@ zend_function_entry yac_functions[] = {
 	{NULL, NULL}
 };
 /* }}} */
+#endif
 
 /** {{{ yac_methods
 */
