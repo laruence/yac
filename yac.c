@@ -636,7 +636,7 @@ PHP_METHOD(yac, get) {
 	if (ret) {
 		RETURN_ZVAL(ret, 1, 1);
 	} else {
-		RETURN_NULL();
+		RETURN_FALSE;
 	}
 }
 /* }}} */
