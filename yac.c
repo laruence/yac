@@ -147,7 +147,7 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 						return ret;
 					}
 
-					if (compressed_len > YAC_G(compress_threshold) || compressed_len > YAC_STORAGE_MAX_ENTRY_LEN) {
+					if (compressed_len > YAC_STORAGE_MAX_ENTRY_LEN) {
 						php_error_docref(NULL TSRMLS_CC, E_WARNING, "Value is too long(%d bytes) to be stored", Z_STRLEN_P(value));
 						efree(compressed);
 						return ret;
@@ -185,7 +185,7 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 							return ret;
 						}
 
-						if (compressed_len > YAC_G(compress_threshold) || compressed_len > YAC_STORAGE_MAX_ENTRY_LEN) {
+						if (compressed_len > YAC_STORAGE_MAX_ENTRY_LEN) {
 							php_error_docref(NULL TSRMLS_CC, E_WARNING, "Value is too big to be stored");
 							efree(compressed);
 							return ret;
