@@ -490,10 +490,10 @@ do_update:
 						p = paths[i];
 					}
 				}
+				++YAC_SG(kicks);
 			}
 			k = *p;
 			k.h = hash;
-			++YAC_SG(kicks);
 
 			goto do_update;
 		}
