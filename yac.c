@@ -726,6 +726,43 @@ PHP_METHOD(yac, info) {
 }
 /* }}} */
 
+/** {{{ proto public Yac::dump(int $limit)
+*/
+PHP_METHOD(yac, dump) {
+	long limit = 100;
+	yac_item_list *list, *l;
+
+	if (!YAC_G(enable)) {
+		RETURN_FALSE;
+	}
+	
+	array_init(return_value);
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|l", &limit) == FAILURE) {
+		return;
+	}
+
+	list = l = yac_storage_dump(limit);
+	for (; l; l = l->next) {
+		zval *item;
+		MAKE_STD_ZVAL(item);
+		array_init(item);
+		add_assoc_long(item, "index", l->index);
+		add_assoc_long(item, "hash", l->h);
+		add_assoc_long(item, "crc", l->crc);
+		add_assoc_long(item, "ttl", l->ttl);
+		add_assoc_long(item, "k_len", l->k_len);
+		add_assoc_long(item, "v_len", l->v_len);
+		add_assoc_long(item, "size", l->size);
+		add_assoc_string(item, "key", l->key, 1);
+		add_next_index_zval(return_value, item);
+	}
+
+	yac_storage_free_list(list);
+	return;
+}
+/* }}} */
+
 #if 0
 only OO-style APIs is supported now
 /* {{{{ proto bool yac_add(mixed $keys, mixed $value[, int $ttl])
@@ -799,6 +836,7 @@ zend_function_entry yac_methods[] = {
 	PHP_ME(yac, delete, arginfo_yac_delete, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, flush, arginfo_yac_void, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, info, arginfo_yac_void, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, dump, arginfo_yac_void, ZEND_ACC_PUBLIC)
 	{NULL, NULL, NULL}
 };
 /* }}} */

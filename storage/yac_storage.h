@@ -50,6 +50,19 @@ typedef struct {
 	unsigned char key[YAC_STORAGE_MAX_KEY_LEN];
 } yac_kv_key;
 
+typedef struct _yac_item_list {
+	unsigned int index;
+	unsigned long h;
+	unsigned long crc;
+	unsigned int ttl;
+	unsigned int k_len;
+	unsigned int v_len;
+	unsigned int flag;
+	unsigned int size;
+	unsigned char key[YAC_STORAGE_MAX_KEY_LEN];
+	struct _yac_item_list *next;
+} yac_item_list;
+
 typedef struct {
 	volatile unsigned int pos; 
 	unsigned int size;
@@ -99,6 +112,8 @@ void yac_storage_flush(void);
 const char * yac_storage_shared_memory_name(void);
 yac_storage_info * yac_storage_get_info(void);
 void yac_storage_free_info(yac_storage_info *info);
+yac_item_list * yac_storage_dump(unsigned int limit);
+void yac_storage_free_list(yac_item_list *list);
 #define yac_storage_exists(ht, key, len)  yac_storage_find(ht, key, len, NULL)
 
 #endif	/* YAC_STORAGE_H */

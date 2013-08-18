@@ -402,6 +402,7 @@ int yac_storage_update(char *key, unsigned int len, char *data, unsigned int siz
 	paths[idx++] = p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
 	k = *p;
 	if (k.val) {
+		/* Found the exact match */
 		if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
 do_update:
 			if (add && (!k.ttl || (k.ttl != 1 && k.ttl > tv))
@@ -472,6 +473,7 @@ do_update:
 				if (k.val == NULL) {
 					goto do_add;
 				} else if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
+					/* Found the exact match */
 					goto do_update;
 				}
 			}
@@ -564,6 +566,46 @@ yac_storage_info * yac_storage_get_info(void) /* {{{ */ {
 
 void yac_storage_free_info(yac_storage_info *info) /* {{{ */ {
 	USER_FREE(info);
+}
+/* }}} */
+
+yac_item_list * yac_storage_dump(unsigned int limit) /* {{{ */ {
+	yac_kv_key k;
+	yac_item_list *item, *list = NULL;
+
+	if (YAC_SG(slots_num)) {
+		unsigned int i = 0, n = 0;
+		for (; i<YAC_SG(slots_size) && n < YAC_SG(slots_num) && n < limit; i++) {
+			k = YAC_SG(slots)[i];
+			if (k.val) {
+				item = USER_ALLOC(sizeof(yac_item_list));
+				item->index = i;
+				item->h = k.h;
+				item->crc = k.crc;
+				item->ttl = k.ttl;
+				item->k_len = YAC_KEY_KLEN(k);
+				item->v_len = YAC_KEY_VLEN(k);
+				item->flag = k.flag;
+				item->size = k.size;
+				memcpy(item->key, k.key, YAC_STORAGE_MAX_KEY_LEN);
+				item->next = list;
+				list = item;
+				++n;
+			}
+		}
+	}
+
+	return list;
+}
+/* }}} */
+
+void yac_storage_free_list(yac_item_list *list) /* {{{ */ {
+	yac_item_list *l;
+	while (list) {
+		l = list;
+		list = list->next;
+		USER_FREE(l);
+	}
 }
 /* }}} */
 
