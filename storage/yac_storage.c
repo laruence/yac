@@ -18,8 +18,6 @@
 
 /* $Id$ */
 
-#include <time.h>
-
 #include "php.h"
 #include "yac_storage.h"
 #include "allocator/yac_allocator.h"
@@ -286,38 +284,40 @@ static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
 }
 /* }}} */
 
-int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas) /* {{{ */ {
+int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas, unsigned long tv) /* {{{ */ {
 	ulong h, hash, seed;
 	yac_kv_key k, *p;
 	yac_kv_val v;
-	time_t tv;
 
 	hash = h = yac_inline_hash_func1(key, len);
 	p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
 	k = *p;
 	if (k.val) {
+		char *s;
 		uint i;
 		if (k.h == hash && YAC_KEY_KLEN(k) == len) {
 			v = *(k.val);
 			if (!memcmp(k.key, key, len)) {
-				char *s;
+				s = USER_ALLOC(YAC_KEY_VLEN(k) + 1);
+				memcpy(s, (char *)k.val->data, YAC_KEY_VLEN(k));
 do_verify:
 				if (k.ttl == 1 || k.len != v.len) {
+					USER_FREE(s);
 					++YAC_SG(miss);
 					return 0;
 				}
 
-				tv = time(NULL);
 				if (k.ttl) {
 					if (k.ttl <= tv) {
+				/*
 						p->ttl = 1;
 						++YAC_SG(miss);
+				*/
+						USER_FREE(s);
 						return 0;
 					}
 				}
 
-				s = USER_ALLOC(YAC_KEY_VLEN(k) + 1);
-				memcpy(s, (char *)k.val->data, YAC_KEY_VLEN(k));
 				if (k.crc != yac_crc32(s, YAC_KEY_VLEN(k))) {
 					USER_FREE(s);
 					++YAC_SG(miss);
@@ -341,6 +341,8 @@ do_verify:
 				v = *(p->val);
 				if (!memcmp(p->key, key, len)) {
 					k = *p;
+					s = USER_ALLOC(YAC_KEY_VLEN(k) + 1);
+					memcpy(s, (char *)k.val->data, YAC_KEY_VLEN(k));
 					goto do_verify;
 				}
 			}
@@ -367,8 +369,7 @@ void yac_storage_delete(char *key, unsigned int len, int ttl) /* {{{ */ {
 				if (ttl == 0) {
 					p->ttl = 1;
 				} else {
-					time_t tv = time(NULL);
-					p->ttl = tv + ttl;
+					p->ttl = ttl;
 				}
 				return;
 			}
@@ -390,13 +391,12 @@ void yac_storage_delete(char *key, unsigned int len, int ttl) /* {{{ */ {
 }
 /* }}} */
 
-int yac_storage_update(char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add) /* {{{ */ {
+int yac_storage_update(char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add, unsigned long tv) /* {{{ */ {
 	ulong hash, h;
 	int idx = 0;
 	yac_kv_key *p, k, *paths[4];
 	yac_kv_val *val, *s;
 	unsigned long real_size;
-	time_t tv;
 
 	hash = h = yac_inline_hash_func1(key, len);
 	paths[idx++] = p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
@@ -404,7 +404,6 @@ int yac_storage_update(char *key, unsigned int len, char *data, unsigned int siz
 	if (k.val) {
 		if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
 do_update:
-			tv = time(NULL);
 			if (add && (!k.ttl || (k.ttl != 1 && k.ttl > tv))
 				&& k.crc == yac_crc32(k.val->data, YAC_KEY_VLEN(k))) {
 				return 0;
@@ -504,7 +503,6 @@ do_add:
 			++YAC_SG(fails);
 			return 0;
 		}
-		tv = time(NULL);
 		s = USER_ALLOC(sizeof(yac_kv_val) + size - 1);
 		memcpy(s->data, data, size);
 		s->atime = tv;

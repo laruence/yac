@@ -22,6 +22,8 @@
 #include "config.h"
 #endif
 
+#include <time.h>
+
 #include "php.h"
 #include "php_ini.h"
 #include "ext/standard/info.h"
@@ -103,6 +105,7 @@ PHP_INI_END()
 static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval *value, int ttl, int add TSRMLS_DC) /* {{{ */ {
 	int ret = 0, flag = Z_TYPE_P(value);
 	char *msg, buf[YAC_STORAGE_MAX_KEY_LEN];
+	time_t tv;
 
 	if ((len + prefix_len) > YAC_STORAGE_MAX_KEY_LEN) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Key%s can not be longer than %d bytes",
@@ -115,16 +118,18 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 		key = (char *)buf;
 	}
 
+	
+	tv = time(NULL);
 	switch (Z_TYPE_P(value)) {
 		case IS_NULL:
-			ret = yac_storage_update(key, len, (char *)&flag, sizeof(int), flag, ttl, add);
+			ret = yac_storage_update(key, len, (char *)&flag, sizeof(int), flag, ttl, add, tv);
 			break;
 		case IS_BOOL:
 		case IS_LONG:
-			ret = yac_storage_update(key, len, (char *)&Z_LVAL_P(value), sizeof(long), flag, ttl, add);
+			ret = yac_storage_update(key, len, (char *)&Z_LVAL_P(value), sizeof(long), flag, ttl, add, tv);
 			break;
 		case IS_DOUBLE:
-			ret = yac_storage_update(key, len, (char *)&Z_DVAL_P(value), sizeof(double), flag, ttl, add);
+			ret = yac_storage_update(key, len, (char *)&Z_DVAL_P(value), sizeof(double), flag, ttl, add, tv);
 			break;
 		case IS_STRING:
 		case IS_CONSTANT:
@@ -155,10 +160,10 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 
 					flag |= YAC_ENTRY_COMPRESSED;
 					flag |= (Z_STRLEN_P(value) << YAC_ENTRY_ORIG_LEN_SHIT);
-					ret = yac_storage_update(key, len, compressed, compressed_len, flag, ttl, add);
+					ret = yac_storage_update(key, len, compressed, compressed_len, flag, ttl, add, tv);
 					efree(compressed);
 				} else {
-					ret = yac_storage_update(key, len, Z_STRVAL_P(value), Z_STRLEN_P(value), flag, ttl, add);
+					ret = yac_storage_update(key, len, Z_STRVAL_P(value), Z_STRLEN_P(value), flag, ttl, add, tv);
 				}
 			}
 			break;
@@ -193,10 +198,10 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 
 						flag |= YAC_ENTRY_COMPRESSED;
 						flag |= (buf.len << YAC_ENTRY_ORIG_LEN_SHIT);
-						ret = yac_storage_update(key, len, compressed, compressed_len, flag, ttl, add);
+						ret = yac_storage_update(key, len, compressed, compressed_len, flag, ttl, add, tv);
 						efree(compressed);
 					} else {
-						ret = yac_storage_update(key, len, buf.c, buf.len, flag, ttl, add);
+						ret = yac_storage_update(key, len, buf.c, buf.len, flag, ttl, add, tv);
 					}
 					smart_str_free(&buf);
 				} else {
@@ -261,6 +266,7 @@ static zval * yac_get_impl(char * prefix, uint prefix_len, char *key, uint len, 
 	zval *ret = NULL;
 	uint flag, size = 0;
 	char *data, *msg, buf[YAC_STORAGE_MAX_KEY_LEN];
+	time_t tv;
 
 	if ((len + prefix_len) > YAC_STORAGE_MAX_KEY_LEN) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Key%s can not be longer than %d bytes",
@@ -273,7 +279,8 @@ static zval * yac_get_impl(char * prefix, uint prefix_len, char *key, uint len, 
 		key = (char *)buf;
 	}
 
-	if (yac_storage_find(key, len, &data, &size, &flag, (int *)cas)) {
+	tv = time(NULL);
+	if (yac_storage_find(key, len, &data, &size, &flag, (int *)cas, tv)) {
 		switch ((flag & YAC_ENTRY_TYPE_MASK)) {
 			case IS_NULL:
 				if (size == sizeof(int)) {
@@ -415,6 +422,10 @@ void yac_delete_impl(char *prefix, uint prefix_len, char *key, uint len, int ttl
 	if (prefix_len) {
 		len = snprintf(buf, sizeof(buf), "%s%s", prefix, key);
 		key = (char *)buf;
+	}
+
+	if (ttl) {
+		ttl += (ulong)time(NULL);
 	}
 
 	yac_storage_delete(key, len, ttl);
