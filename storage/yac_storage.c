@@ -282,7 +282,7 @@ static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
 
 		memcpy(crc_contents, data, head);
 		for (; i < tail; i++, j+= step) {
-			q[i] = p[i];
+			q[i] = p[j];
 		}
 
 		return crc32(crc_contents, YAC_FULL_CRC_THRESHOLD);
