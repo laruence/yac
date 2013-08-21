@@ -29,6 +29,7 @@
 #define YAC_KEY_KLEN(k)				((k).len & YAC_KEY_KLEN_MASK)
 #define YAC_KEY_VLEN(k)				((k).len >> YAC_KEY_VLEN_BITS)
 #define YAC_KEY_SET_LEN(k, kl, vl)	((k).len = (vl << YAC_KEY_VLEN_BITS) | (kl & YAC_KEY_KLEN_MASK))
+#define YAC_FULL_CRC_THRESHOLD      128
 
 #define USER_ALLOC					emalloc
 #define USER_FREE					efree
@@ -107,7 +108,7 @@ int yac_storage_startup(unsigned long first_size, unsigned long size, char **err
 void yac_storage_shutdown(void);
 int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas, unsigned long tv);
 int yac_storage_update(char *key, unsigned int len, char *data, unsigned int size, unsigned int falg, int ttl, int add, unsigned long tv);
-void yac_storage_delete(char *key, unsigned int len, int ttl);
+void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv);
 void yac_storage_flush(void);
 const char * yac_storage_shared_memory_name(void);
 yac_storage_info * yac_storage_get_info(void);

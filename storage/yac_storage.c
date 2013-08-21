@@ -269,17 +269,23 @@ static inline unsigned int crc32(char *buf, unsigned int size) {
 /* }}} */
 
 static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
-	char crc_contents[128];
-	if (size < sizeof(crc_contents)) {
+	if (size < YAC_FULL_CRC_THRESHOLD) {
 		return crc32(data, size);
 	} else {
-		int i, j, step = size / sizeof(crc_contents);
+		int i = 0, j = 0;
+		char crc_contents[YAC_FULL_CRC_THRESHOLD];
+		int head = YAC_FULL_CRC_THRESHOLD >> 2;
+		int tail = YAC_FULL_CRC_THRESHOLD - head;
+		char *p = data + head;
+		char *q = crc_contents + head;
+		int step = (size - head) / tail;
 
-		for (i = 0, j = 0; i < sizeof(crc_contents); i++, j+= step) {
-			crc_contents[i] = data[j];
+		memcpy(crc_contents, data, head);
+		for (; i < tail; i++, j+= step) {
+			q[i] = p[i];
 		}
 
-		return crc32(crc_contents, sizeof(crc_contents));
+		return crc32(crc_contents, YAC_FULL_CRC_THRESHOLD);
 	}
 }
 /* }}} */
@@ -301,7 +307,7 @@ int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *siz
 				s = USER_ALLOC(YAC_KEY_VLEN(k) + 1);
 				memcpy(s, (char *)k.val->data, YAC_KEY_VLEN(k));
 do_verify:
-				if (k.ttl == 1 || k.len != v.len) {
+				if (k.len != v.len) {
 					USER_FREE(s);
 					++YAC_SG(miss);
 					return 0;
@@ -309,10 +315,7 @@ do_verify:
 
 				if (k.ttl) {
 					if (k.ttl <= tv) {
-				/*
-						p->ttl = 1;
 						++YAC_SG(miss);
-				*/
 						USER_FREE(s);
 						return 0;
 					}
@@ -355,7 +358,7 @@ do_verify:
 }
 /* }}} */
 
-void yac_storage_delete(char *key, unsigned int len, int ttl) /* {{{ */ {
+void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) /* {{{ */ {
 	ulong hash, h, seed;
 	yac_kv_key k, *p;
 
@@ -369,7 +372,7 @@ void yac_storage_delete(char *key, unsigned int len, int ttl) /* {{{ */ {
 				if (ttl == 0) {
 					p->ttl = 1;
 				} else {
-					p->ttl = ttl;
+					p->ttl = ttl + tv;
 				}
 				return;
 			}
@@ -405,7 +408,7 @@ int yac_storage_update(char *key, unsigned int len, char *data, unsigned int siz
 		/* Found the exact match */
 		if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
 do_update:
-			if (add && (!k.ttl || (k.ttl != 1 && k.ttl > tv))
+			if (add && (!k.ttl || k.ttl > tv)
 				&& k.crc == yac_crc32(k.val->data, YAC_KEY_VLEN(k))) {
 				return 0;
 			}
@@ -480,19 +483,16 @@ do_update:
 			
 			--idx;
 			max_atime = paths[idx]->val->atime;
-			p = paths[idx];
-			if (p->ttl != 1) {
-				for (i = 0; i < idx; i++) {
-					if (paths[i]->ttl == 1 || paths[i]->len != paths[i]->val->len) {
-						p = paths[i];
-						goto do_add;
-					} else if (paths[i]->val->atime < max_atime) {
-						max_atime = paths[i]->val->atime;
-						p = paths[i];
-					}
+			for (i = 0; i < idx; i++) {
+				if ((paths[i]->ttl && paths[i]->ttl <= tv) || paths[i]->len != paths[i]->val->len) {
+					p = paths[i];
+					goto do_add;
+				} else if (paths[i]->val->atime < max_atime) {
+					max_atime = paths[i]->val->atime;
+					p = paths[i];
 				}
-				++YAC_SG(kicks);
 			}
+			++YAC_SG(kicks);
 			k = *p;
 			k.h = hash;
 

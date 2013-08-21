@@ -412,6 +412,7 @@ static zval * yac_get_multi_impl(char *prefix, uint prefix_len, zval *keys, zval
 
 void yac_delete_impl(char *prefix, uint prefix_len, char *key, uint len, int ttl TSRMLS_DC) /* {{{ */ {
 	char buf[YAC_STORAGE_MAX_KEY_LEN];
+	time_t tv = 0;
 
 	if ((len + prefix_len) > YAC_STORAGE_MAX_KEY_LEN) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Key%s can not be longer than %d bytes",
@@ -425,10 +426,10 @@ void yac_delete_impl(char *prefix, uint prefix_len, char *key, uint len, int ttl
 	}
 
 	if (ttl) {
-		ttl += (ulong)time(NULL);
+		tv = (ulong)time(NULL);
 	}
 
-	yac_storage_delete(key, len, ttl);
+	yac_storage_delete(key, len, ttl, tv);
 }
 /* }}} */
 
