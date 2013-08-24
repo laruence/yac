@@ -27,6 +27,7 @@
 #include "ext/standard/info.h"
 #include "ext/standard/php_var.h" /* for serialize */
 #include "ext/standard/php_smart_str.h" /* for smart_str */
+#include "SAPI.h"
 
 #include "php_yac.h"
 #include "storage/yac_storage.h"
