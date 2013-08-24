@@ -97,6 +97,7 @@ PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("yac.keys_memory_size", "4M", PHP_INI_SYSTEM, OnChangeKeysMemoryLimit, k_msize, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.values_memory_size", "64M", PHP_INI_SYSTEM, OnChangeValsMemoryLimit, v_msize, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.compress_threshold", "-1", PHP_INI_SYSTEM, OnChangeCompressThreshold, compress_threshold, zend_yac_globals, yac_globals)
+    STD_PHP_INI_ENTRY("yac.enable_cli", "0", PHP_INI_SYSTEM, OnUpdateBool, enable_cli, zend_yac_globals, yac_globals)
 PHP_INI_END()
 /* }}} */
 
@@ -805,6 +806,7 @@ PHP_GINIT_FUNCTION(yac)
 	yac_globals->v_msize = (64 * 1024 * 1024);
 	yac_globals->debug = 0;
 	yac_globals->compress_threshold = -1;
+	yac_globals->enable_cli = 0;
 }
 /* }}} */
 
@@ -816,6 +818,11 @@ PHP_MINIT_FUNCTION(yac)
 	zend_class_entry ce;
 
 	REGISTER_INI_ENTRIES();
+
+	//make disabled when in cli and enable_cli = 0
+    if(!YAC_G(enable_cli) && !strcmp(sapi_module.name, "cli")) {
+        YAC_G(enable) = 0;
+    }
 
 	if (YAC_G(enable)) {
 		if (!yac_storage_startup(YAC_G(k_msize), YAC_G(v_msize), &msg)) {
