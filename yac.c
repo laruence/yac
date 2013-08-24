@@ -821,9 +821,9 @@ PHP_MINIT_FUNCTION(yac)
 	REGISTER_INI_ENTRIES();
 
 	//make disabled when in cli and enable_cli = 0
-    if(!YAC_G(enable_cli) && !strcmp(sapi_module.name, "cli")) {
-        YAC_G(enable) = 0;
-    }
+	if(!YAC_G(enable_cli) && !strcmp(sapi_module.name, "cli")) {
+		YAC_G(enable) = 0;
+	}
 
 	if (YAC_G(enable)) {
 		if (!yac_storage_startup(YAC_G(k_msize), YAC_G(v_msize), &msg)) {
