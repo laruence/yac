@@ -27,7 +27,6 @@
 #include "php.h"
 #include "php_ini.h"
 #include "ext/standard/info.h"
-//#include "ext/standard/php_var.h" /* for serialize */
 #include "ext/standard/php_smart_str.h" /* for smart_str */
 #include "SAPI.h"
 
@@ -875,7 +874,6 @@ PHP_MINIT_FUNCTION(yac)
 
 	REGISTER_INI_ENTRIES();
 
-	//make disabled when in cli and enable_cli = 0
 	if(!YAC_G(enable_cli) && !strcmp(sapi_module.name, "cli")) {
 		YAC_G(enable) = 0;
 	}
