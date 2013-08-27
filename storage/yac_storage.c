@@ -272,18 +272,20 @@ static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
 	if (size < YAC_FULL_CRC_THRESHOLD) {
 		return crc32(data, size);
 	} else {
-		int i = 0, j = 0;
+		int i = 0;
 		char crc_contents[YAC_FULL_CRC_THRESHOLD];
 		int head = YAC_FULL_CRC_THRESHOLD >> 2;
-		int tail = YAC_FULL_CRC_THRESHOLD - head;
+		int tail = YAC_FULL_CRC_THRESHOLD >> 4;
+		int body = YAC_FULL_CRC_THRESHOLD - head - tail;
 		char *p = data + head;
 		char *q = crc_contents + head;
-		int step = (size - head) / tail;
+		int step = (size - tail - head) / body;
 
 		memcpy(crc_contents, data, head);
-		for (; i < tail; i++, j+= step) {
-			q[i] = p[j];
+		for (; i < body; i++, q++, p+= step) {
+			*q = *p;
 		}
+		memcpy(q, p, tail);
 
 		return crc32(crc_contents, YAC_FULL_CRC_THRESHOLD);
 	}
