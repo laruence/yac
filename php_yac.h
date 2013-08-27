@@ -49,6 +49,7 @@ ZEND_BEGIN_MODULE_GLOBALS(yac)
 	size_t k_msize;
 	size_t v_msize;
 	ulong compress_threshold;
+	zend_bool enable_cli;
 ZEND_END_MODULE_GLOBALS(yac)
 
 PHP_MINIT_FUNCTION(yac);
