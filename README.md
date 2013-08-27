@@ -37,6 +37,8 @@ $make && make install
  
    yac.compress_threshold = -1 
 
+   yac.enable_cli = 0 ; whether enable yac with cli, default 0
+
 ## Constants
 
    YAC_VERSION
