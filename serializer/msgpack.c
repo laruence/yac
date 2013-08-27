@@ -1,8 +1,8 @@
 /*
   +----------------------------------------------------------------------+
-  | Yet Another Cache                                                    |
+  | Yar - Light, concurrent RPC framework                                |
   +----------------------------------------------------------------------+
-  | Copyright (c) 2013-2013 The PHP Group                                |
+  | Copyright (c) 2012-2013 The PHP Group                                |
   +----------------------------------------------------------------------+
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
@@ -13,23 +13,40 @@
   | license@php.net so we can mail you a copy immediately.               |
   +----------------------------------------------------------------------+
   | Author:  Xinchen Hui   <laruence@php.net>                            |
+  |          Zhenyu  Zhang <zhangzhenyu@php.net>                         |
   +----------------------------------------------------------------------+
 */
 
 /* $Id$ */
 
-#ifndef YAC_SERIALIZER_H
-#define YAC_SERIALIZER_H
-
-#if ENABLE_MSGPACK
-int yac_serializer_msgpack_pack(zval *pzval, smart_str *buf, char **msg TSRMLS_DC);
-zval * yac_serializer_msgpack_unpack(char *content, size_t len, char **msg TSRMLS_DC);
-#else
-int yac_serializer_php_pack(zval *pzval, smart_str *buf, char **msg TSRMLS_DC);
-zval * yac_serializer_php_unpack(char *content, size_t len, char **msg TSRMLS_DC);
+#ifdef HAVE_CONFIG_H
+#include "config.h"
 #endif
 
-#endif	/* YAC_SERIALIZER_H */
+#ifdef ENABLE_MSGPACK
+
+#include "php.h"
+#include "ext/standard/php_smart_str.h" /* for smart_str */
+
+#include "yac_serializer.h"
+
+extern void php_msgpack_serialize(smart_str *buf, zval *val TSRMLS_DC);
+extern void php_msgpack_unserialize(zval *return_value, char *str, size_t str_len TSRMLS_DC);
+
+int yac_serializer_msgpack_pack(zval *pzval, smart_str *buf, char **msg TSRMLS_DC) /* {{{ */ {
+	php_msgpack_serialize(buf, pzval TSRMLS_CC);
+	return 1;
+} /* }}} */
+
+zval * yac_serializer_msgpack_unpack(char *content, size_t len, char **msg TSRMLS_DC) /* {{{ */ {
+	zval *return_value;
+	MAKE_STD_ZVAL(return_value);
+	ZVAL_NULL(return_value);
+	php_msgpack_unserialize(return_value, content, len TSRMLS_CC);
+	return return_value;
+} /* }}} */
+
+#endif
 
 /*
  * Local variables:

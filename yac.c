@@ -27,7 +27,7 @@
 #include "php.h"
 #include "php_ini.h"
 #include "ext/standard/info.h"
-#include "ext/standard/php_var.h" /* for serialize */
+//#include "ext/standard/php_var.h" /* for serialize */
 #include "ext/standard/php_smart_str.h" /* for smart_str */
 
 #include "php_yac.h"
@@ -172,7 +172,12 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 		case IS_OBJECT:
 			{
 				smart_str buf = {0};
+#if ENABLE_MSGPACK
+				if (yac_serializer_msgpack_pack(value, &buf, &msg TSRMLS_CC)) {
+#else
+
 				if (yac_serializer_php_pack(value, &buf, &msg TSRMLS_CC)) {
+#endif
 					if (buf.len > YAC_G(compress_threshold) || buf.len > YAC_STORAGE_MAX_ENTRY_LEN) {
 						int compressed_len;
 						char *compressed;
@@ -348,7 +353,11 @@ static zval * yac_get_impl(char * prefix, uint prefix_len, char *key, uint len, 
 						data = origin;
 						size = length;
 					}
+#if ENABLE_MSGPACK
+					ret = yac_serializer_msgpack_unpack(data, size, &msg TSRMLS_CC);
+#else
 					ret = yac_serializer_php_unpack(data, size, &msg TSRMLS_CC);
+#endif
 					if (!ret) {
 						php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unserialization failed");
 					}
@@ -874,6 +883,11 @@ PHP_MINIT_FUNCTION(yac)
 	REGISTER_LONG_CONSTANT("YAC_MAX_KEY_LEN", YAC_STORAGE_MAX_KEY_LEN, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_MAX_VALUE_RAW_LEN", YAC_ENTRY_MAX_ORIG_LEN, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_MAX_RAW_COMPRESSED_LEN", YAC_STORAGE_MAX_ENTRY_LEN, CONST_PERSISTENT | CONST_CS);
+#if ENABLE_MSGPACK
+	REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "PHP", sizeof("MSGPACK") -1, CONST_PERSISTENT | CONST_CS);
+#else
+	REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "PHP", sizeof("PHP") -1, CONST_PERSISTENT | CONST_CS);
+#endif
 
 	INIT_CLASS_ENTRY(ce, "Yac", yac_methods);
 	yac_class_ce = zend_register_internal_class(&ce TSRMLS_CC);
@@ -903,6 +917,11 @@ PHP_MINFO_FUNCTION(yac)
 	php_info_print_table_header(2, "yac support", "enabled");
 	php_info_print_table_row(2, "Version", YAC_VERSION);
 	php_info_print_table_row(2, "Shared Memory", yac_storage_shared_memory_name());
+#if ENABLE_MSGPACK
+	php_info_print_table_row(2, "Serializer", "msgpack");
+#else
+	php_info_print_table_row(2, "Serializer", "php");
+#endif
 	php_info_print_table_end();
 
 	DISPLAY_INI_ENTRIES();

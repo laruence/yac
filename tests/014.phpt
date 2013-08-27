@@ -1,5 +1,8 @@
 --TEST--
 Check for ttl bug 
+--SKIPIF--
+<?php if (!extension_loaded("yac")) print "skip"; ?>
+<?php if (YAC_SERIALIZER != "PHP") print "skip"; ?>
 --INI--
 yac.keys_memory_size=4M
 yac.values_memory_size=32M
