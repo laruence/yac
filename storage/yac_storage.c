@@ -398,7 +398,7 @@ void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) 
 
 int yac_storage_update(char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add, unsigned long tv) /* {{{ */ {
 	ulong hash, h;
-	int idx = 0;
+	int idx = 0, is_valid;
 	yac_kv_key *p, k, *paths[4];
 	yac_kv_val *val, *s;
 	unsigned long real_size;
@@ -410,11 +410,14 @@ int yac_storage_update(char *key, unsigned int len, char *data, unsigned int siz
 		/* Found the exact match */
 		if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
 do_update:
-			if (add && (!k.ttl || k.ttl > tv)
-				&& k.crc == yac_crc32(k.val->data, YAC_KEY_VLEN(k))) {
+			is_valid = 0;
+			if (k.crc == yac_crc32(k.val->data, YAC_KEY_VLEN(k))) {
+				is_valid = 1;
+			}
+			if (add && (!k.ttl || k.ttl > tv) && is_valid) {
 				return 0;
 			}
-			if (k.size >= size) {
+			if (k.size >= size && is_valid) {
 				s = USER_ALLOC(sizeof(yac_kv_val) + size - 1);
 				memcpy(s->data, data, size);
 				if (ttl) {
