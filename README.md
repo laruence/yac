@@ -19,7 +19,8 @@ $make && make install
 ```
 
 ## Note
-   Yac is a lockless cache, you should try to avoid or reduce the probability of multiple processes set one key
+   1. Yac is a lockless cache, you should try to avoid or reduce the probability of multiple processes set one key
+   2. Yac use partial crc, you'd better re-arrange your cache content, place the most mutable bytes at the head or tail
 
 ## Restrictions
 
