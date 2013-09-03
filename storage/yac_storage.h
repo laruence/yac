@@ -29,7 +29,7 @@
 #define YAC_KEY_KLEN(k)				((k).len & YAC_KEY_KLEN_MASK)
 #define YAC_KEY_VLEN(k)				((k).len >> YAC_KEY_VLEN_BITS)
 #define YAC_KEY_SET_LEN(k, kl, vl)	((k).len = (vl << YAC_KEY_VLEN_BITS) | (kl & YAC_KEY_KLEN_MASK))
-#define YAC_FULL_CRC_THRESHOLD      128
+#define YAC_FULL_CRC_THRESHOLD      256
 
 #define USER_ALLOC					emalloc
 #define USER_FREE					efree
