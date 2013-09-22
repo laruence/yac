@@ -862,6 +862,9 @@ PHP_GINIT_FUNCTION(yac)
 	yac_globals->debug = 0;
 	yac_globals->compress_threshold = -1;
 	yac_globals->enable_cli = 0;
+#ifdef PHP_WIN32
+	yac_globals->mmap_base = NULL;
+#endif
 }
 /* }}} */
 
