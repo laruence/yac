@@ -50,6 +50,9 @@ ZEND_BEGIN_MODULE_GLOBALS(yac)
 	size_t v_msize;
 	ulong compress_threshold;
 	zend_bool enable_cli;
+#ifdef PHP_WIN32
+	char *mmap_base;
+#endif
 ZEND_END_MODULE_GLOBALS(yac)
 
 PHP_MINIT_FUNCTION(yac);
@@ -60,8 +63,10 @@ PHP_MINFO_FUNCTION(yac);
 
 #ifdef ZTS
 #define YAC_G(v) TSRMG(yac_globals_id, zend_yac_globals *, v)
+extern int yac_globals_id;
 #else
 #define YAC_G(v) (yac_globals.v)
+extern zend_yac_globals yac_globals;
 #endif
 
 #endif	/* PHP_YAC_H */
