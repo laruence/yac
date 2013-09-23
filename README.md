@@ -1,10 +1,12 @@
 #Yac - Yet Another Cache
 [![Build Status](https://secure.travis-ci.org/laruence/yac.png)](http://travis-ci.org/laruence/yac)
 
-Yac is a shared memory user data cache for PHP
+Yac is a shared and lockless memory user data cache for PHP.
 
 it can be used to replace APC or local memcached.
 
+## Experimental
+Yac is under developing, please *DO NOT* use in real productions
 
 ## Requirement
 - PHP 5.2 +
@@ -16,7 +18,11 @@ $./configure --with-php-config=/path/to/php-config
 $make && make install
 ```
 
-## Restrictios
+## Note
+   1. Yac is a lockless cache, you should try to avoid or reduce the probability of multiple processes set one key
+   2. Yac use partial crc, you'd better re-arrange your cache content, place the most mutable bytes at the head or tail
+
+## Restrictions
 
    1. Cache key cannot be longer than 48 (YAC_MAX_KEY_LEN) bytes
    2. Cache Value cannot be longer than 64M (YAC_MAX_VALUE_RAW_LEN) bytes
@@ -31,6 +37,8 @@ $make && make install
    yac.values_memory_size = 64M
  
    yac.compress_threshold = -1 
+
+   yac.enable_cli = 0 ; whether enable yac with cli, default 0
 
 ## Constants
 

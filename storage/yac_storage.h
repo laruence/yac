@@ -29,6 +29,7 @@
 #define YAC_KEY_KLEN(k)				((k).len & YAC_KEY_KLEN_MASK)
 #define YAC_KEY_VLEN(k)				((k).len >> YAC_KEY_VLEN_BITS)
 #define YAC_KEY_SET_LEN(k, kl, vl)	((k).len = (vl << YAC_KEY_VLEN_BITS) | (kl & YAC_KEY_KLEN_MASK))
+#define YAC_FULL_CRC_THRESHOLD      128
 
 #define USER_ALLOC					emalloc
 #define USER_FREE					efree
@@ -50,6 +51,19 @@ typedef struct {
 	unsigned char key[YAC_STORAGE_MAX_KEY_LEN];
 } yac_kv_key;
 
+typedef struct _yac_item_list {
+	unsigned int index;
+	unsigned long h;
+	unsigned long crc;
+	unsigned int ttl;
+	unsigned int k_len;
+	unsigned int v_len;
+	unsigned int flag;
+	unsigned int size;
+	unsigned char key[YAC_STORAGE_MAX_KEY_LEN];
+	struct _yac_item_list *next;
+} yac_item_list;
+
 typedef struct {
 	volatile unsigned int pos; 
 	unsigned int size;
@@ -66,6 +80,7 @@ typedef struct {
 	unsigned int miss;
 	unsigned int fails;
 	unsigned int kicks;
+	unsigned int recycles;
 	unsigned long hits;
 } yac_storage_info;
 
@@ -77,6 +92,7 @@ typedef struct {
 	unsigned int miss;
 	unsigned int fails;
 	unsigned int kicks;
+	unsigned int recycles;
 	unsigned long hits;
 	yac_shared_segment **segments;
 	unsigned int segments_num;
@@ -90,13 +106,15 @@ extern yac_storage_globals *yac_storage;
 
 int yac_storage_startup(unsigned long first_size, unsigned long size, char **err);
 void yac_storage_shutdown(void);
-int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas);
-int yac_storage_update(char *key, unsigned int len, char *data, unsigned int size, unsigned int falg, int ttl, int add);
-void yac_storage_delete(char *key, unsigned int len, int ttl);
+int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas, unsigned long tv);
+int yac_storage_update(char *key, unsigned int len, char *data, unsigned int size, unsigned int falg, int ttl, int add, unsigned long tv);
+void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv);
 void yac_storage_flush(void);
 const char * yac_storage_shared_memory_name(void);
 yac_storage_info * yac_storage_get_info(void);
 void yac_storage_free_info(yac_storage_info *info);
+yac_item_list * yac_storage_dump(unsigned int limit);
+void yac_storage_free_list(yac_item_list *list);
 #define yac_storage_exists(ht, key, len)  yac_storage_find(ht, key, len, NULL)
 
 #endif	/* YAC_STORAGE_H */

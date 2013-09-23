@@ -4,6 +4,9 @@ dnl config.m4 for extension yac
 PHP_ARG_ENABLE(yac, whether to enable yac support,
     [  --enable-yac           Enable yac support])
 
+PHP_ARG_ENABLE(yac, whether to use msgpack as serializer,
+    [  --enable-msgpack       Use Messagepack as serializer])
+
 dnl copied from Zend Optimizer Plus
   AC_MSG_CHECKING(for sysvipc shared memory support)
   AC_TRY_RUN([
@@ -182,6 +185,14 @@ int main() {
     msg=yes,msg=no,msg=no)
   AC_MSG_RESULT([$msg])
 
+  if test "$PHP_MSGPACK" != "no"; then
+    AC_DEFINE(ENABLE_MSGPACK,1,[enable msgpack packager])
+    ifdef([PHP_ADD_EXTENSION_DEP],
+    [
+    PHP_ADD_EXTENSION_DEP(yac, msgpack, true)
+    ])
+  fi
+
   if test "$PHP_YAC" != "no"; then
-  PHP_NEW_EXTENSION(yac, yac.c storage/yac_storage.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c compressor/fastlz/fastlz.c, $ext_shared)
+  PHP_NEW_EXTENSION(yac, yac.c storage/yac_storage.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c compressor/fastlz/fastlz.c, $ext_shared)
 fi

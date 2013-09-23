@@ -35,9 +35,9 @@
 #define YAC_SMM_ALIGNED_SIZE(x)     (((x) + YAC_SMM_ALIGNMENT - 1) & YAC_SMM_ALIGNMENT_MASK)
 #define YAC_SMM_TRUE_SIZE(x)        ((x < YAC_SMM_MIN_BLOCK_SIZE)? (YAC_SMM_MIN_BLOCK_SIZE) : (YAC_SMM_ALIGNED_SIZE(x)))
 
-#if defined PHP_WIN32
+#ifdef PHP_WIN32
 #  define USE_FILE_MAPPING	1
-#  define inline	__inline
+#  define inline __inline
 #elif defined(HAVE_SHM_MMAP_ANON)
 #  define USE_MMAP      1
 #elif defined(HAVE_SHM_IPC)
@@ -51,15 +51,6 @@
 #define FAILED_REATTACHED       2
 #define SUCCESSFULLY_REATTACHED 4
 #define ALLOC_FAIL_MAPPING      8
-
-#ifndef MAXPATHLEN
-# define MAXPATHLEN     _MAX_PATH
-#endif
-
-#ifndef snprintf
-# define snprintf     _snprintf
-#endif
-
 
 typedef int (*create_segments_t)(unsigned long k_size, unsigned long v_size, yac_shared_segment **shared_segments, int *shared_segment_count, char **error_in);
 typedef int (*detach_segment_t)(yac_shared_segment *shared_segment);

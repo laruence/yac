@@ -56,7 +56,7 @@ static int create_segments(size_t k_size, size_t v_size, yac_shared_segment_shm 
     segment_size = v_size / segments_num;
     allocate_size = YAC_SMM_SEGMENT_MAX_SIZE;
 
-    while ((shm_id = shmget(IPC_PRIVATE, k_size, shmget_flags)) < 0) {
+    while ((shm_id = shmget(IPC_PRIVATE, allocate_size, shmget_flags)) < 0) {
         allocate_size >>= 1;
     }
 
@@ -72,7 +72,7 @@ static int create_segments(size_t k_size, size_t v_size, yac_shared_segment_shm 
         return 0;
     }
 
-    if (k_size >= allocate_size) {
+    if (k_size <= allocate_size) {
         first_segment.shm_id = shm_id;
         first_segment.common.pos = 0;
         first_segment.common.size = allocate_size;
@@ -84,20 +84,8 @@ static int create_segments(size_t k_size, size_t v_size, yac_shared_segment_shm 
         }
     } else {
         shmctl(shm_id, IPC_RMID, &sds);
-        shm_id = shmget(IPC_PRIVATE, k_size, shmget_flags);
-        if (shm_id == -1) {
-            *error_in = "shmget";
-            return 0;
-        }
-        first_segment.shm_id = shm_id;
-        first_segment.common.pos = 0;
-        first_segment.common.size = k_size;
-        first_segment.common.p = shmat(shm_id, NULL, 0);
-        shmctl(shm_id, IPC_RMID, &sds);
-        if (first_segment.common.p == (void *)-1) {
-            *error_in = "shmat";
-            return 0;
-        }
+        *error_in = "shmget";
+        return 0;
     }
 
     allocated_num = (v_size % allocate_size)? (v_size / allocate_size) + 1 : (v_size / allocate_size);
@@ -111,6 +99,9 @@ static int create_segments(size_t k_size, size_t v_size, yac_shared_segment_shm 
         shm_id = shmget(IPC_PRIVATE, allocate_size, shmget_flags);
         if (shm_id == -1) {
             *error_in = "shmget";
+            for (j = 0; j < i; j++) {
+                shmdt(shared_segments[j].common.p);
+            }
             free(shared_segments);
             return 0;
         }
@@ -122,7 +113,7 @@ static int create_segments(size_t k_size, size_t v_size, yac_shared_segment_shm 
         if (shared_segments[i].common.p == (void *)-1) {
             *error_in = "shmat";
             for (j = 0; j < i; j++) {
-                shmdt(shared_segments[i].common.p);
+                shmdt(shared_segments[j].common.p);
             }
             free(shared_segments);
             return 0;
@@ -132,6 +123,7 @@ static int create_segments(size_t k_size, size_t v_size, yac_shared_segment_shm 
     ++segments_num;
     *shared_segments_p = (yac_shared_segment_shm *)calloc(1, segments_num * sizeof(yac_shared_segment_shm));
     if (!*shared_segments_p) {
+		free(shared_segments);
         *error_in = "calloc";
         return 0;
     } else {

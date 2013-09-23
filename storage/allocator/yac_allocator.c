@@ -48,7 +48,9 @@ int yac_allocator_startup(unsigned long k_size, unsigned long size, char **msg) 
             }
             return 0;
         }
-    }
+    } else {
+		return 0;
+	}
 
 	segment_size = he->segment_type_size();
 	segments_array_size = (segments_num - 1) * segment_size;
@@ -58,7 +60,7 @@ int yac_allocator_startup(unsigned long k_size, unsigned long size, char **msg) 
 
     YAC_SG(segments_num) 		= segments_num - 1;
 	YAC_SG(segments_num_mask) 	= YAC_SG(segments_num) - 1;
-    YAC_SG(segments)     		= (yac_shared_segment **)((char *)yac_storage + YAC_SMM_ALIGNED_SIZE(sizeof(yac_storage_globals)));
+    YAC_SG(segments)     		= (yac_shared_segment **)((char *)yac_storage + YAC_SMM_ALIGNED_SIZE(sizeof(yac_storage_globals) + segment_size - sizeof(yac_shared_segment)));
 
 	p = (char *)YAC_SG(segments) + (sizeof(void *) * YAC_SG(segments_num));
     memcpy(p, (char *)segments + segment_size, segments_array_size);
@@ -82,10 +84,10 @@ void yac_allocator_shutdown(void) /* {{{ */ {
     segments = YAC_SG(segments);
     if (segments) {
         if ((he = &yac_shared_memory_handler)) {
-			int i = 0;
-			for (i = 0; i < YAC_SG(segments_num); i++) {
-				he->detach_segment(segments[i]);
-			}
+            int i = 0;
+            for (i = 0; i < YAC_SG(segments_num); i++) {
+                he->detach_segment(segments[i]);
+            }
     		he->detach_segment(&YAC_SG(first_seg));
         }
     }
@@ -107,8 +109,8 @@ do_retry:
 do_alloc:
 		pos += size;
 		segment->pos = pos;
-		if (segment->pos >= pos) {
-			return (void *)((char *)segment->p + pos - size);
+		if (segment->pos == pos) {
+			return (void *)(segment->p + (pos - size));
 		} else if (retry--) {
 			goto do_retry;
 		}
@@ -116,7 +118,7 @@ do_alloc:
     } else { 
 		int i, max;
 		max = (YAC_SG(segments_num) > 4)? 4 : YAC_SG(segments_num);
-		for (i = 0; i < max; i++) {
+		for (i = 1; i < max; i++) {
 			segment = YAC_SG(segments)[(current + i) & YAC_SG(segments_num_mask)];
 			seg_size = segment->size;
 			pos = segment->pos;
@@ -127,10 +129,9 @@ do_alloc:
 		}
 		segment->pos = 0;
 		pos = 0;
+		++YAC_SG(recycles);
 		goto do_alloc;
 	}
-
-	return (void *)0;
 }
 /* }}} */
 

@@ -22,11 +22,13 @@
 #include "config.h"
 #endif
 
+#include <time.h>
+
 #include "php.h"
 #include "php_ini.h"
 #include "ext/standard/info.h"
-#include "ext/standard/php_var.h" /* for serialize */
 #include "ext/standard/php_smart_str.h" /* for smart_str */
+#include "SAPI.h"
 
 #include "php_yac.h"
 #include "storage/yac_storage.h"
@@ -97,12 +99,14 @@ PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("yac.keys_memory_size", "4M", PHP_INI_SYSTEM, OnChangeKeysMemoryLimit, k_msize, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.values_memory_size", "64M", PHP_INI_SYSTEM, OnChangeValsMemoryLimit, v_msize, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.compress_threshold", "-1", PHP_INI_SYSTEM, OnChangeCompressThreshold, compress_threshold, zend_yac_globals, yac_globals)
+    STD_PHP_INI_ENTRY("yac.enable_cli", "0", PHP_INI_SYSTEM, OnUpdateBool, enable_cli, zend_yac_globals, yac_globals)
 PHP_INI_END()
 /* }}} */
 
 static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval *value, int ttl, int add TSRMLS_DC) /* {{{ */ {
 	int ret = 0, flag = Z_TYPE_P(value);
 	char *msg, buf[YAC_STORAGE_MAX_KEY_LEN];
+	time_t tv;
 
 	if ((len + prefix_len) > YAC_STORAGE_MAX_KEY_LEN) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Key%s can not be longer than %d bytes",
@@ -115,16 +119,18 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 		key = (char *)buf;
 	}
 
+	
+	tv = time(NULL);
 	switch (Z_TYPE_P(value)) {
 		case IS_NULL:
-			ret = yac_storage_update(key, len, (char *)&flag, sizeof(int), flag, add, ttl);
+			ret = yac_storage_update(key, len, (char *)&flag, sizeof(int), flag, ttl, add, tv);
 			break;
 		case IS_BOOL:
 		case IS_LONG:
-			ret = yac_storage_update(key, len, (char *)&Z_LVAL_P(value), sizeof(long), flag, add, ttl);
+			ret = yac_storage_update(key, len, (char *)&Z_LVAL_P(value), sizeof(long), flag, ttl, add, tv);
 			break;
 		case IS_DOUBLE:
-			ret = yac_storage_update(key, len, (char *)&Z_DVAL_P(value), sizeof(double), flag, add, ttl);
+			ret = yac_storage_update(key, len, (char *)&Z_DVAL_P(value), sizeof(double), flag, ttl, add, tv);
 			break;
 		case IS_STRING:
 		case IS_CONSTANT:
@@ -147,7 +153,7 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 						return ret;
 					}
 
-					if (compressed_len > YAC_G(compress_threshold) || compressed_len > YAC_STORAGE_MAX_ENTRY_LEN) {
+					if (compressed_len > YAC_STORAGE_MAX_ENTRY_LEN) {
 						php_error_docref(NULL TSRMLS_CC, E_WARNING, "Value is too long(%d bytes) to be stored", Z_STRLEN_P(value));
 						efree(compressed);
 						return ret;
@@ -155,10 +161,10 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 
 					flag |= YAC_ENTRY_COMPRESSED;
 					flag |= (Z_STRLEN_P(value) << YAC_ENTRY_ORIG_LEN_SHIT);
-					ret = yac_storage_update(key, len, compressed, compressed_len, flag, ttl, add);
+					ret = yac_storage_update(key, len, compressed, compressed_len, flag, ttl, add, tv);
 					efree(compressed);
 				} else {
-					ret = yac_storage_update(key, len, Z_STRVAL_P(value), Z_STRLEN_P(value), flag, ttl, add);
+					ret = yac_storage_update(key, len, Z_STRVAL_P(value), Z_STRLEN_P(value), flag, ttl, add, tv);
 				}
 			}
 			break;
@@ -167,7 +173,12 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 		case IS_OBJECT:
 			{
 				smart_str buf = {0};
+#if ENABLE_MSGPACK
+				if (yac_serializer_msgpack_pack(value, &buf, &msg TSRMLS_CC)) {
+#else
+
 				if (yac_serializer_php_pack(value, &buf, &msg TSRMLS_CC)) {
+#endif
 					if (buf.len > YAC_G(compress_threshold) || buf.len > YAC_STORAGE_MAX_ENTRY_LEN) {
 						int compressed_len;
 						char *compressed;
@@ -185,7 +196,7 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 							return ret;
 						}
 
-						if (compressed_len > YAC_G(compress_threshold) || compressed_len > YAC_STORAGE_MAX_ENTRY_LEN) {
+						if (compressed_len > YAC_STORAGE_MAX_ENTRY_LEN) {
 							php_error_docref(NULL TSRMLS_CC, E_WARNING, "Value is too big to be stored");
 							efree(compressed);
 							return ret;
@@ -193,10 +204,10 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 
 						flag |= YAC_ENTRY_COMPRESSED;
 						flag |= (buf.len << YAC_ENTRY_ORIG_LEN_SHIT);
-						ret = yac_storage_update(key, len, compressed, compressed_len, flag, ttl, add);
+						ret = yac_storage_update(key, len, compressed, compressed_len, flag, ttl, add, tv);
 						efree(compressed);
 					} else {
-						ret = yac_storage_update(key, len, buf.c, buf.len, flag, ttl, add);
+						ret = yac_storage_update(key, len, buf.c, buf.len, flag, ttl, add, tv);
 					}
 					smart_str_free(&buf);
 				} else {
@@ -261,6 +272,7 @@ static zval * yac_get_impl(char * prefix, uint prefix_len, char *key, uint len, 
 	zval *ret = NULL;
 	uint flag, size = 0;
 	char *data, *msg, buf[YAC_STORAGE_MAX_KEY_LEN];
+	time_t tv;
 
 	if ((len + prefix_len) > YAC_STORAGE_MAX_KEY_LEN) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Key%s can not be longer than %d bytes",
@@ -273,7 +285,8 @@ static zval * yac_get_impl(char * prefix, uint prefix_len, char *key, uint len, 
 		key = (char *)buf;
 	}
 
-	if (yac_storage_find(key, len, &data, &size, &flag, (int *)cas)) {
+	tv = time(NULL);
+	if (yac_storage_find(key, len, &data, &size, &flag, (int *)cas, tv)) {
 		switch ((flag & YAC_ENTRY_TYPE_MASK)) {
 			case IS_NULL:
 				if (size == sizeof(int)) {
@@ -341,7 +354,11 @@ static zval * yac_get_impl(char * prefix, uint prefix_len, char *key, uint len, 
 						data = origin;
 						size = length;
 					}
+#if ENABLE_MSGPACK
+					ret = yac_serializer_msgpack_unpack(data, size, &msg TSRMLS_CC);
+#else
 					ret = yac_serializer_php_unpack(data, size, &msg TSRMLS_CC);
+#endif
 					if (!ret) {
 						php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unserialization failed");
 					}
@@ -405,6 +422,7 @@ static zval * yac_get_multi_impl(char *prefix, uint prefix_len, zval *keys, zval
 
 void yac_delete_impl(char *prefix, uint prefix_len, char *key, uint len, int ttl TSRMLS_DC) /* {{{ */ {
 	char buf[YAC_STORAGE_MAX_KEY_LEN];
+	time_t tv = 0;
 
 	if ((len + prefix_len) > YAC_STORAGE_MAX_KEY_LEN) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Key%s can not be longer than %d bytes",
@@ -417,7 +435,11 @@ void yac_delete_impl(char *prefix, uint prefix_len, char *key, uint len, int ttl
 		key = (char *)buf;
 	}
 
-	yac_storage_delete(key, len, ttl);
+	if (ttl) {
+		tv = (ulong)time(NULL);
+	}
+
+	yac_storage_delete(key, len, ttl, tv);
 }
 /* }}} */
 
@@ -515,11 +537,9 @@ PHP_METHOD(yac, add) {
 			WRONG_PARAM_COUNT;
 	}
 
-	if (getThis()) {
-		prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
-		sprefix = Z_STRVAL_P(prefix);
-		prefix_len = Z_STRLEN_P(prefix);
-	}
+	prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
+	sprefix = Z_STRVAL_P(prefix);
+	prefix_len = Z_STRLEN_P(prefix);
 
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
 		ret = yac_add_multi_impl(sprefix, prefix_len, keys, ttl, 1 TSRMLS_CC);
@@ -578,11 +598,9 @@ PHP_METHOD(yac, set) {
 			WRONG_PARAM_COUNT;
 	}
 
-	if (getThis()) {
-		prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
-		sprefix = Z_STRVAL_P(prefix);
-		prefix_len = Z_STRLEN_P(prefix);
-	}
+	prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
+	sprefix = Z_STRVAL_P(prefix);
+	prefix_len = Z_STRLEN_P(prefix);
 
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
 		ret = yac_add_multi_impl(sprefix, prefix_len, keys, ttl, 0 TSRMLS_CC);
@@ -615,11 +633,9 @@ PHP_METHOD(yac, get) {
 		return;
 	}
 
-	if (getThis()) {
-		prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
-		sprefix = Z_STRVAL_P(prefix);
-		prefix_len = Z_STRLEN_P(prefix);
-	}
+	prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
+	sprefix = Z_STRVAL_P(prefix);
+	prefix_len = Z_STRLEN_P(prefix);
 
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
 		ret = yac_get_multi_impl(sprefix, prefix_len, keys, cas TSRMLS_CC);
@@ -657,11 +673,9 @@ PHP_METHOD(yac, delete) {
 		return;
 	}
 
-	if (getThis()) {
-		prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
-		sprefix = Z_STRVAL_P(prefix);
-		prefix_len = Z_STRLEN_P(prefix);
-	}
+	prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, 0 TSRMLS_CC);
+	sprefix = Z_STRVAL_P(prefix);
+	prefix_len = Z_STRLEN_P(prefix);
 
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
 		yac_delete_multi_impl(sprefix, prefix_len, keys, time TSRMLS_CC);
@@ -715,6 +729,7 @@ PHP_METHOD(yac, info) {
 	add_assoc_long(return_value, "hits", inf->hits);
 	add_assoc_long(return_value, "fails", inf->fails);
 	add_assoc_long(return_value, "kicks", inf->kicks);
+	add_assoc_long(return_value, "recycles", inf->recycles);
 	add_assoc_long(return_value, "slots_size", inf->slots_size);
 	add_assoc_long(return_value, "slots_used", inf->slots_num);
 
@@ -722,6 +737,45 @@ PHP_METHOD(yac, info) {
 }
 /* }}} */
 
+/** {{{ proto public Yac::dump(int $limit)
+*/
+PHP_METHOD(yac, dump) {
+	long limit = 100;
+	yac_item_list *list, *l;
+
+	if (!YAC_G(enable)) {
+		RETURN_FALSE;
+	}
+	
+	array_init(return_value);
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|l", &limit) == FAILURE) {
+		return;
+	}
+
+	list = l = yac_storage_dump(limit);
+	for (; l; l = l->next) {
+		zval *item;
+		MAKE_STD_ZVAL(item);
+		array_init(item);
+		add_assoc_long(item, "index", l->index);
+		add_assoc_long(item, "hash", l->h);
+		add_assoc_long(item, "crc", l->crc);
+		add_assoc_long(item, "ttl", l->ttl);
+		add_assoc_long(item, "k_len", l->k_len);
+		add_assoc_long(item, "v_len", l->v_len);
+		add_assoc_long(item, "size", l->size);
+		add_assoc_string(item, "key", l->key, 1);
+		add_next_index_zval(return_value, item);
+	}
+
+	yac_storage_free_list(list);
+	return;
+}
+/* }}} */
+
+#if 0
+only OO-style APIs is supported now
 /* {{{{ proto bool yac_add(mixed $keys, mixed $value[, int $ttl])
  */
 PHP_FUNCTION(yac_add)
@@ -781,6 +835,7 @@ zend_function_entry yac_functions[] = {
 	{NULL, NULL}
 };
 /* }}} */
+#endif
 
 /** {{{ yac_methods
 */
@@ -792,6 +847,7 @@ zend_function_entry yac_methods[] = {
 	PHP_ME(yac, delete, arginfo_yac_delete, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, flush, arginfo_yac_void, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, info, arginfo_yac_void, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, dump, arginfo_yac_void, ZEND_ACC_PUBLIC)
 	{NULL, NULL, NULL}
 };
 /* }}} */
@@ -805,6 +861,10 @@ PHP_GINIT_FUNCTION(yac)
 	yac_globals->v_msize = (64 * 1024 * 1024);
 	yac_globals->debug = 0;
 	yac_globals->compress_threshold = -1;
+	yac_globals->enable_cli = 0;
+#ifdef PHP_WIN32
+	yac_globals->mmap_base = NULL;
+#endif
 }
 /* }}} */
 
@@ -817,6 +877,10 @@ PHP_MINIT_FUNCTION(yac)
 
 	REGISTER_INI_ENTRIES();
 
+	if(!YAC_G(enable_cli) && !strcmp(sapi_module.name, "cli")) {
+		YAC_G(enable) = 0;
+	}
+
 	if (YAC_G(enable)) {
 		if (!yac_storage_startup(YAC_G(k_msize), YAC_G(v_msize), &msg)) {
 			php_error(E_ERROR, "Shared memory allocator startup failed at '%s': %s", msg, strerror(errno));
@@ -828,6 +892,11 @@ PHP_MINIT_FUNCTION(yac)
 	REGISTER_LONG_CONSTANT("YAC_MAX_KEY_LEN", YAC_STORAGE_MAX_KEY_LEN, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_MAX_VALUE_RAW_LEN", YAC_ENTRY_MAX_ORIG_LEN, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_MAX_RAW_COMPRESSED_LEN", YAC_STORAGE_MAX_ENTRY_LEN, CONST_PERSISTENT | CONST_CS);
+#if ENABLE_MSGPACK
+	REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "PHP", sizeof("MSGPACK") -1, CONST_PERSISTENT | CONST_CS);
+#else
+	REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "PHP", sizeof("PHP") -1, CONST_PERSISTENT | CONST_CS);
+#endif
 
 	INIT_CLASS_ENTRY(ce, "Yac", yac_methods);
 	yac_class_ce = zend_register_internal_class(&ce TSRMLS_CC);
@@ -857,6 +926,11 @@ PHP_MINFO_FUNCTION(yac)
 	php_info_print_table_header(2, "yac support", "enabled");
 	php_info_print_table_row(2, "Version", YAC_VERSION);
 	php_info_print_table_row(2, "Shared Memory", yac_storage_shared_memory_name());
+#if ENABLE_MSGPACK
+	php_info_print_table_row(2, "Serializer", "msgpack");
+#else
+	php_info_print_table_row(2, "Serializer", "php");
+#endif
 	php_info_print_table_end();
 
 	DISPLAY_INI_ENTRIES();
