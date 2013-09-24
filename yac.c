@@ -734,6 +734,7 @@ PHP_METHOD(yac, info) {
 	add_assoc_long(return_value, "slots_used", inf->slots_num);
 
 	yac_storage_free_info(inf);
+	return;
 }
 /* }}} */
 
