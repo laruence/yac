@@ -110,7 +110,7 @@ do_alloc:
 		pos += size;
 		segment->pos = pos;
 		if (segment->pos == pos) {
-			return (void *)(segment->p + (pos - size));
+			return (void *)((char *)segment->p + (pos - size));
 		} else if (retry--) {
 			goto do_retry;
 		}
