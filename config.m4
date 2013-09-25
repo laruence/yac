@@ -4,8 +4,8 @@ dnl config.m4 for extension yac
 PHP_ARG_ENABLE(yac, whether to enable yac support,
     [  --enable-yac           Enable yac support])
 
-PHP_ARG_ENABLE(yac, whether to use msgpack as serializer,
-    [  --enable-msgpack       Use Messagepack as serializer])
+dnl PHP_ARG_ENABLE(yac, whether to use msgpack as serializer,
+dnl    [  --enable-msgpack       Use Messagepack as serializer])
 
 dnl copied from Zend Optimizer Plus
   AC_MSG_CHECKING(for sysvipc shared memory support)
