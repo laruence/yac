@@ -888,7 +888,7 @@ PHP_MINIT_FUNCTION(yac)
 		}
 	}
 
-	REGISTER_STRINGL_CONSTANT("YAC_VERSION", YAC_VERSION, 	sizeof(YAC_VERSION) - 1, 	CONST_PERSISTENT | CONST_CS);
+	REGISTER_STRINGL_CONSTANT("PHP_YAC_VERSION", PHP_YAC_VERSION, 	sizeof(PHP_YAC_VERSION) - 1, 	CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_MAX_KEY_LEN", YAC_STORAGE_MAX_KEY_LEN, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_MAX_VALUE_RAW_LEN", YAC_ENTRY_MAX_ORIG_LEN, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_MAX_RAW_COMPRESSED_LEN", YAC_STORAGE_MAX_ENTRY_LEN, CONST_PERSISTENT | CONST_CS);
@@ -924,7 +924,7 @@ PHP_MINFO_FUNCTION(yac)
 {
 	php_info_print_table_start();
 	php_info_print_table_header(2, "yac support", "enabled");
-	php_info_print_table_row(2, "Version", YAC_VERSION);
+	php_info_print_table_row(2, "Version", PHP_YAC_VERSION);
 	php_info_print_table_row(2, "Shared Memory", yac_storage_shared_memory_name());
 #if ENABLE_MSGPACK
 	php_info_print_table_row(2, "Serializer", "msgpack");
@@ -978,7 +978,7 @@ zend_module_entry yac_module_entry = {
 	NULL,
 	NULL,
 	PHP_MINFO(yac),
-	YAC_VERSION,
+	PHP_YAC_VERSION,
 	PHP_MODULE_GLOBALS(yac),
 	PHP_GINIT(yac),
 	NULL,
