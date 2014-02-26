@@ -96,6 +96,7 @@ static PHP_INI_MH(OnChangeCompressThreshold) /* {{{ */ {
 PHP_INI_BEGIN()
     STD_PHP_INI_BOOLEAN("yac.enable", "1", PHP_INI_SYSTEM, OnUpdateBool, enable, zend_yac_globals, yac_globals)
     STD_PHP_INI_BOOLEAN("yac.debug", "0", PHP_INI_ALL, OnUpdateBool, debug, zend_yac_globals, yac_globals)
+    STD_PHP_INI_BOOLEAN("yac.default_null", "0", PHP_INI_ALL, OnUpdateBool, default_null, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.keys_memory_size", "4M", PHP_INI_SYSTEM, OnChangeKeysMemoryLimit, k_msize, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.values_memory_size", "64M", PHP_INI_SYSTEM, OnChangeValsMemoryLimit, v_msize, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.compress_threshold", "-1", PHP_INI_SYSTEM, OnChangeCompressThreshold, compress_threshold, zend_yac_globals, yac_globals)
@@ -119,7 +120,7 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 		key = (char *)buf;
 	}
 
-	
+
 	tv = time(NULL);
 	switch (Z_TYPE_P(value)) {
 		case IS_NULL:
@@ -138,7 +139,7 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 				if (Z_STRLEN_P(value) > YAC_G(compress_threshold) || Z_STRLEN_P(value) > YAC_STORAGE_MAX_ENTRY_LEN) {
 					int compressed_len;
 					char *compressed;
-				   
+
 					/* if longer than this, then we can not stored the length in flag */
 					if (Z_STRLEN_P(value) > YAC_ENTRY_MAX_ORIG_LEN) {
 						php_error_docref(NULL TSRMLS_CC, E_WARNING, "Value is too long(%d bytes) to be stored", Z_STRLEN_P(value));
@@ -626,7 +627,11 @@ PHP_METHOD(yac, get) {
 	zval *ret, *keys, *prefix, *cas = NULL;
 
 	if (!YAC_G(enable)) {
-		RETURN_FALSE;
+		if (YAC_G(default_null)) {
+			RETURN_NULL();
+		} else {
+			RETURN_FALSE;
+		}
 	}
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z|z", &keys, &cas) == FAILURE) {
@@ -652,7 +657,11 @@ PHP_METHOD(yac, get) {
 	if (ret) {
 		RETURN_ZVAL(ret, 1, 1);
 	} else {
-		RETURN_FALSE;
+		if (YAC_G(default_null)) {
+			RETURN_NULL();
+		} else {
+			RETURN_FALSE;
+		}
 	}
 }
 /* }}} */
@@ -715,7 +724,7 @@ PHP_METHOD(yac, info) {
 	if (!YAC_G(enable)) {
 		RETURN_FALSE;
 	}
-	
+
 	inf = yac_storage_get_info();
 
 	array_init(return_value);
@@ -746,7 +755,7 @@ PHP_METHOD(yac, dump) {
 	if (!YAC_G(enable)) {
 		RETURN_FALSE;
 	}
-	
+
 	array_init(return_value);
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|l", &limit) == FAILURE) {
@@ -857,6 +866,7 @@ zend_function_entry yac_methods[] = {
 PHP_GINIT_FUNCTION(yac)
 {
 	yac_globals->enable = 1;
+	yac_globals->default_null = 0;
 	yac_globals->k_msize = (4 * 1024 * 1024);
 	yac_globals->v_msize = (64 * 1024 * 1024);
 	yac_globals->debug = 0;
