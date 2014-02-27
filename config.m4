@@ -185,13 +185,13 @@ int main() {
     msg=yes,msg=no,msg=no)
   AC_MSG_RESULT([$msg])
 
-  if test "$PHP_MSGPACK" != "no"; then
-    AC_DEFINE(ENABLE_MSGPACK,1,[enable msgpack packager])
-    ifdef([PHP_ADD_EXTENSION_DEP],
-    [
-    PHP_ADD_EXTENSION_DEP(yac, msgpack, true)
-    ])
-  fi
+dnl  if test "$PHP_MSGPACK" != "no"; then
+dnl    AC_DEFINE(ENABLE_MSGPACK,1,[enable msgpack packager])
+dnl    ifdef([PHP_ADD_EXTENSION_DEP],
+dnl    [
+dnl    PHP_ADD_EXTENSION_DEP(yac, msgpack, true)
+dnl    ])
+dnl  fi
 
   if test "$PHP_YAC" != "no"; then
   PHP_NEW_EXTENSION(yac, yac.c storage/yac_storage.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c compressor/fastlz/fastlz.c, $ext_shared)
