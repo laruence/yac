@@ -169,7 +169,9 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 			}
 			break;
 		case IS_ARRAY:
+#ifdef IS_CONSTANT_ARRAY
 		case IS_CONSTANT_ARRAY:
+#endif
 		case IS_OBJECT:
 			{
 				smart_str buf = {0};
@@ -337,7 +339,9 @@ static zval * yac_get_impl(char * prefix, uint prefix_len, char *key, uint len, 
 				}
 				break;
 			case IS_ARRAY:
+#ifdef IS_CONSTANT_ARRAY
 			case IS_CONSTANT_ARRAY:
+#endif
 			case IS_OBJECT:
 				{
 					if ((flag & YAC_ENTRY_COMPRESSED)) {
