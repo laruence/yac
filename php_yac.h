@@ -34,7 +34,7 @@ extern zend_module_entry yac_module_entry;
 #include "TSRM.h"
 #endif
 
-#define PHP_YAC_VERSION "0.1.1"
+#define PHP_YAC_VERSION "0.1.1-lock"
 
 #define YAC_CLASS_PROPERTY_PREFIX  "_prefix"
 #define YAC_ENTRY_COMPRESSED	   0x0020
@@ -46,6 +46,7 @@ extern zend_module_entry yac_module_entry;
 ZEND_BEGIN_MODULE_GLOBALS(yac)
 	zend_bool enable;
 	zend_bool debug;
+	zend_bool use_lock;
 	size_t k_msize;
 	size_t v_msize;
 	ulong compress_threshold;

@@ -34,6 +34,11 @@ static inline unsigned int yac_storage_align_size(unsigned int size) /* {{{ */ {
 /* }}} */
 
 int yac_storage_startup(unsigned long fsize, unsigned long size, char **msg) /* {{{ */ {
+	return yac_storage_startup_flags(fsize, size, msg, 0);
+}
+/* }}} */
+
+int yac_storage_startup_flags(unsigned long fsize, unsigned long size, char **msg, unsigned long flags) /* {{{ */ {
 	unsigned long real_size;
 		
 	if (!yac_allocator_startup(fsize, size, msg)) {
@@ -56,7 +61,11 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, char **msg) /* 
 
    	memset((char *)YAC_SG(slots), 0, sizeof(yac_kv_key) * real_size);
 
-	YAC_SG(slots_mono_mutex).nelms = 1;
+	if (flags&YAC_FLAGS_USE_LOCK) {
+		YAC_SG(slots_mono_mutex).nelms = 1;
+	} else {
+		YAC_SG(slots_mono_mutex).nelms = 0;
+	}
 	yac_mutexarray_init(&YAC_SG(slots_mono_mutex));
 
 	return 1;

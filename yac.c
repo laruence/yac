@@ -100,6 +100,7 @@ PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("yac.values_memory_size", "64M", PHP_INI_SYSTEM, OnChangeValsMemoryLimit, v_msize, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.compress_threshold", "-1", PHP_INI_SYSTEM, OnChangeCompressThreshold, compress_threshold, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.enable_cli", "0", PHP_INI_SYSTEM, OnUpdateBool, enable_cli, zend_yac_globals, yac_globals)
+    STD_PHP_INI_ENTRY("yac.use_lock", "0", PHP_INI_SYSTEM, OnUpdateBool, use_lock, zend_yac_globals, yac_globals)
 PHP_INI_END()
 /* }}} */
 
@@ -482,12 +483,13 @@ static void yac_delete_multi_impl(char *prefix, uint prefix_len, zval *keys, int
 PHP_METHOD(yac, __construct) {
 	char *prefix;
 	uint len = 0;
+	int use_lock = 0;
 
 	if (!YAC_G(enable)) {
 		return;
 	}
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|s", &prefix, &len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|s", &prefix, &len, &use_lock) == FAILURE) {
 		return;
 	}
 
@@ -496,7 +498,6 @@ PHP_METHOD(yac, __construct) {
 	}
 
 	zend_update_property_stringl(yac_class_ce, getThis(), ZEND_STRS(YAC_CLASS_PROPERTY_PREFIX) - 1, prefix, len TSRMLS_CC);
-
 }
 /* }}} */
 
@@ -861,6 +862,7 @@ zend_function_entry yac_methods[] = {
 PHP_GINIT_FUNCTION(yac)
 {
 	yac_globals->enable = 1;
+	yac_globals->use_lock = 0;
 	yac_globals->k_msize = (4 * 1024 * 1024);
 	yac_globals->v_msize = (64 * 1024 * 1024);
 	yac_globals->debug = 0;
@@ -886,9 +888,16 @@ PHP_MINIT_FUNCTION(yac)
 	}
 
 	if (YAC_G(enable)) {
-		if (!yac_storage_startup(YAC_G(k_msize), YAC_G(v_msize), &msg)) {
-			php_error(E_ERROR, "Shared memory allocator startup failed at '%s': %s", msg, strerror(errno));
-			return FAILURE;
+		if (YAC_G(use_lock)) {
+			if (!yac_storage_startup_flags(YAC_G(k_msize), YAC_G(v_msize), &msg, YAC_FLAGS_USE_LOCK)) {
+				php_error(E_ERROR, "Shared memory allocator startup failed at '%s': %s", msg, strerror(errno));
+				return FAILURE;
+			}
+		} else {
+			if (!yac_storage_startup(YAC_G(k_msize), YAC_G(v_msize), &msg)) {
+				php_error(E_ERROR, "Shared memory allocator startup failed at '%s': %s", msg, strerror(errno));
+				return FAILURE;
+			}
 		}
 	}
 

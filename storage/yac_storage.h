@@ -107,7 +107,10 @@ extern yac_storage_globals *yac_storage;
 
 #define YAC_SG(element) (yac_storage->element)
 
+#define	YAC_FLAGS_USE_LOCK	0x00000001UL
+
 int yac_storage_startup(unsigned long first_size, unsigned long size, char **err);
+int yac_storage_startup_flags(unsigned long first_size, unsigned long size, char **err, unsigned long flags);
 void yac_storage_shutdown(void);
 int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas, unsigned long tv);
 int yac_storage_update(char *key, unsigned int len, char *data, unsigned int size, unsigned int falg, int ttl, int add, unsigned long tv);
