@@ -56,11 +56,15 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, char **msg) /* 
 
    	memset((char *)YAC_SG(slots), 0, sizeof(yac_kv_key) * real_size);
 
+	YAC_SG(slots_mono_mutex).nelms = 1;
+	yac_mutexarray_init(&YAC_SG(slots_mono_mutex));
+
 	return 1;
 }
 /* }}} */
 
 void yac_storage_shutdown(void) /* {{{ */ {
+	yac_mutexarray_destroy(&YAC_SG(slots_mono_mutex));
 	yac_allocator_shutdown();
 }
 /* }}} */
@@ -298,6 +302,7 @@ int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *siz
 	yac_kv_val v;
 
 	hash = h = yac_inline_hash_func1(key, len);
+	yac_mutex_lock(&YAC_SG(slots_mono_mutex), 0);
 	p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
 	k = *p;
 	if (k.val) {
@@ -312,21 +317,21 @@ do_verify:
 				if (k.len != v.len) {
 					USER_FREE(s);
 					++YAC_SG(miss);
-					return 0;
+					goto return_0;
 				}
 
 				if (k.ttl) {
 					if (k.ttl <= tv) {
 						++YAC_SG(miss);
 						USER_FREE(s);
-						return 0;
+						goto return_0;
 					}
 				}
 
 				if (k.crc != yac_crc32(s, YAC_KEY_VLEN(k))) {
 					USER_FREE(s);
 					++YAC_SG(miss);
-					return 0;
+					goto return_0;
 				}
 				s[YAC_KEY_VLEN(k)] = '\0';
 				k.val->atime = tv;
@@ -334,7 +339,7 @@ do_verify:
 				*size = YAC_KEY_VLEN(k);
 				*flag = k.flag;
 				++YAC_SG(hits);
-				return 1;
+				goto return_1;
 			}
 		} 
 
@@ -355,8 +360,12 @@ do_verify:
 	}
 
 	++YAC_SG(miss);
-
+return_0:
+	yac_mutex_unlock(&YAC_SG(slots_mono_mutex), 0);
 	return 0;
+return_1:
+	yac_mutex_unlock(&YAC_SG(slots_mono_mutex), 0);
+	return 1;
 }
 /* }}} */
 
@@ -366,6 +375,7 @@ void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) 
 
 	hash = h = yac_inline_hash_func1(key, len);
 	p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
+	yac_mutex_lock(&YAC_SG(slots_mono_mutex), 0);
 	k = *p;
 	if (k.val) {
 		uint i;
@@ -376,7 +386,7 @@ void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) 
 				} else {
 					p->ttl = ttl + tv;
 				}
-				return;
+				goto end;
 			}
 		} 
 
@@ -386,13 +396,15 @@ void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) 
 			p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
 			k = *p;
 			if (k.val == NULL) {
-				return;
+				goto end;
 			} else if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
 				p->ttl = 1;
-				return;
+				goto end;
 			}
 		}
 	}
+end:
+	yac_mutex_unlock(&YAC_SG(slots_mono_mutex), 0);
 }
 /* }}} */
 
@@ -405,6 +417,7 @@ int yac_storage_update(char *key, unsigned int len, char *data, unsigned int siz
 
 	hash = h = yac_inline_hash_func1(key, len);
 	paths[idx++] = p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
+	yac_mutex_lock(&YAC_SG(slots_mono_mutex), 0);
 	k = *p;
 	if (k.val) {
 		/* Found the exact match */
@@ -415,7 +428,7 @@ do_update:
 				is_valid = 1;
 			}
 			if (add && (!k.ttl || k.ttl > tv) && is_valid) {
-				return 0;
+				goto return_0;
 			}
 			if (k.size >= size && is_valid) {
 				s = USER_ALLOC(sizeof(yac_kv_val) + size - 1);
@@ -434,13 +447,13 @@ do_update:
 				YAC_KEY_SET_LEN(k, len, size);
 				*p = k;
 				USER_FREE(s);
-				return 1;
+				goto return_1;
 			} else {
 				uint msize;
 				real_size = yac_allocator_real_size(sizeof(yac_kv_val) + (size * YAC_STORAGE_FACTOR) - 1);
 				if (!real_size) {
 					++YAC_SG(fails);
-					return 0;
+					goto return_0;
 				}
 				msize = sizeof(yac_kv_val) + size - 1;
 				s = USER_ALLOC(sizeof(yac_kv_val) + size - 1);
@@ -463,11 +476,11 @@ do_update:
 					YAC_KEY_SET_LEN(k, len, size);
 					*p = k;
 					USER_FREE(s);
-					return 1;
+					goto return_1;
 				}
 				++YAC_SG(fails);
 				USER_FREE(s);
-				return 0;
+				goto return_0;
 			}
 		} else {
 			uint i;
@@ -508,7 +521,7 @@ do_add:
 		real_size = yac_allocator_real_size(sizeof(yac_kv_val) + (size * YAC_STORAGE_FACTOR) - 1);
 		if (!real_size) {
 			++YAC_SG(fails);
-			return 0;
+			goto return_0;
 		}
 		s = USER_ALLOC(sizeof(yac_kv_val) + size - 1);
 		memcpy(s->data, data, size);
@@ -534,18 +547,24 @@ do_add:
 			}
 			*p = k;
 			USER_FREE(s);
-			return 1;
+			goto return_1;
 		}
 		++YAC_SG(fails);
 		USER_FREE(s);
 	}
-
+return_0:
+	yac_mutex_unlock(&YAC_SG(slots_mono_mutex), 0);
 	return 0;
+return_1:
+	yac_mutex_unlock(&YAC_SG(slots_mono_mutex), 0);
+	return 1;
 }
 /* }}} */
 
 void yac_storage_flush(void) /* {{{ */ {
 	YAC_SG(slots_num) = 0;
+	yac_mutexarray_destroy(&YAC_SG(slots_mono_mutex));
+	yac_mutexarray_init(&YAC_SG(slots_mono_mutex));
 	memset((char *)YAC_SG(slots), 0, sizeof(yac_kv_key) * YAC_SG(slots_size));
 }
 /* }}} */

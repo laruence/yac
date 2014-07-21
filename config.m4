@@ -194,5 +194,5 @@ dnl    ])
 dnl  fi
 
   if test "$PHP_YAC" != "no"; then
-  PHP_NEW_EXTENSION(yac, yac.c storage/yac_storage.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c compressor/fastlz/fastlz.c, $ext_shared)
+  PHP_NEW_EXTENSION(yac, yac.c storage/yac_storage.c storage/yac_lock.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c compressor/fastlz/fastlz.c, $ext_shared)
 fi

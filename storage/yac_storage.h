@@ -18,6 +18,8 @@
 
 /* $Id$ */
 
+#include "yac_lock.h"
+
 #ifndef YAC_STORAGE_H
 #define YAC_STORAGE_H
 
@@ -86,6 +88,7 @@ typedef struct {
 
 typedef struct {
 	yac_kv_key  *slots;
+	yac_mutexarray_t	slots_mono_mutex;
 	unsigned int slots_mask;
 	unsigned int slots_num;
 	unsigned int slots_size;
