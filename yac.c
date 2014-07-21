@@ -483,13 +483,12 @@ static void yac_delete_multi_impl(char *prefix, uint prefix_len, zval *keys, int
 PHP_METHOD(yac, __construct) {
 	char *prefix;
 	uint len = 0;
-	int use_lock = 0;
 
 	if (!YAC_G(enable)) {
 		return;
 	}
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|s", &prefix, &len, &use_lock) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|s", &prefix, &len) == FAILURE) {
 		return;
 	}
 
