@@ -420,6 +420,7 @@ void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) 
 		}
 	}
 end:
+	return;
 }
 /* }}} */
 
