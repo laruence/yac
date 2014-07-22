@@ -13,7 +13,7 @@
 
 yac_mutexarray_t *yac_mutexarray_new(int num)
 {
-	int *mem;
+	int *mem, i;
 	yac_mutexarray_t *obj;
 
 	if (num<1 || num>YAC_MUTEXARRAY_SIZE_MAX) {
@@ -24,7 +24,9 @@ yac_mutexarray_t *yac_mutexarray_new(int num)
 		return NULL;
 	}
 	obj->nelms = num;
-	memset(obj->elm, MUT_UNLOCKED, sizeof(int)*num);
+	for (i=0;i<obj->nelms;++i) {
+		obj->elm[i] = MUT_UNLOCKED;
+	}
 	return obj;
 }
 
