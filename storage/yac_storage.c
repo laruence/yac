@@ -365,7 +365,7 @@ do_verify:
 			UNLOCK;	// V
 			if (k.h == hash && YAC_KEY_KLEN(k) == len) {
 				v = *(k.val);
-				if (!memcmp(p->key, key, len)) {
+				if (!memcmp(k.key, key, len)) {
 					s = USER_ALLOC(YAC_KEY_VLEN(k) + 1);
 					memcpy(s, (char *)k.val->data, YAC_KEY_VLEN(k));
 					goto do_verify;
