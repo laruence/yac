@@ -315,9 +315,9 @@ int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *siz
 
 	hash = h = yac_inline_hash_func1(key, len);
 	p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
-	LOCK;		// P
+	LOCK;
 	k = *p;
-	UNLOCK;		// V
+	UNLOCK;
 	if (k.val) {
 		char *s;
 		uint i;
@@ -360,9 +360,9 @@ do_verify:
 		for (i = 0; i < 3; i++) {
 			h += seed & YAC_SG(slots_mask);
 			p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
-			LOCK;	// P
+			LOCK;
 			k = *p;
-			UNLOCK;	// V
+			UNLOCK;
 			if (k.h == hash && YAC_KEY_KLEN(k) == len) {
 				v = *(k.val);
 				if (!memcmp(k.key, key, len)) {
@@ -433,9 +433,9 @@ int yac_storage_update(char *key, unsigned int len, char *data, unsigned int siz
 
 	hash = h = yac_inline_hash_func1(key, len);
 	paths[idx++] = p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
-	LOCK;	// P
+	LOCK;
 	k = *p;
-	UNLOCK;	// V
+	UNLOCK;
 	if (k.val) {
 		/* Found the exact match */
 		if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
@@ -462,9 +462,9 @@ do_update:
 				k.flag = flag;
 				memcpy(k.key, key, len);
 				YAC_KEY_SET_LEN(k, len, size);
-				LOCK;	// P
+				LOCK;
 				*p = k;
-				UNLOCK;	// V
+				UNLOCK;
 				USER_FREE(s);
 				goto return_1;
 			} else {
@@ -493,9 +493,9 @@ do_update:
 					k.size = real_size;
 					memcpy(k.key, key, len);
 					YAC_KEY_SET_LEN(k, len, size);
-					LOCK;	// P
+					LOCK;
 					*p = k;
-					UNLOCK;	// V
+					UNLOCK;
 					USER_FREE(s);
 					goto return_1;
 				}
@@ -511,9 +511,9 @@ do_update:
 			for (i = 0; i < 3; i++) {
 				h += seed & YAC_SG(slots_mask);
 				paths[idx++] = p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
-				LOCK;	// P
+				LOCK;
 				k = *p;
-				UNLOCK;	// V
+				UNLOCK;
 				if (k.val == NULL) {
 					goto do_add;
 				} else if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
@@ -534,9 +534,9 @@ do_update:
 				}
 			}
 			++YAC_SG(kicks);
-			LOCK;	// P
+			LOCK;
 			k = *p;
-			UNLOCK;	// V
+			UNLOCK;
 			k.h = hash;
 
 			goto do_update;
@@ -570,9 +570,9 @@ do_add:
 			} else {
 				k.ttl = 0;
 			}
-			LOCK;	// P
+			LOCK;
 			*p = k;
-			UNLOCK;	// V
+			UNLOCK;
 			USER_FREE(s);
 			goto return_1;
 		}
