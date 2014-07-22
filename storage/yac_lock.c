@@ -3,6 +3,7 @@
 #include <sys/ipc.h>
 #include <sys/sem.h>
 #include <errno.h>
+#include <sched.h>
 
 #include "yac_atomic.h"
 #include "yac_malloc.h"

@@ -360,12 +360,12 @@ do_verify:
 		for (i = 0; i < 3; i++) {
 			h += seed & YAC_SG(slots_mask);
 			p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
-			if (p->h == hash && YAC_KEY_KLEN(*p) == len) {
-				v = *(p->val);
+			LOCK;	// P
+			k = *p;
+			UNLOCK;	// V
+			if (k.h == hash && YAC_KEY_KLEN(k) == len) {
+				v = *(k.val);
 				if (!memcmp(p->key, key, len)) {
-					LOCK;	// P
-					k = *p;
-					UNLOCK;	// V
 					s = USER_ALLOC(YAC_KEY_VLEN(k) + 1);
 					memcpy(s, (char *)k.val->data, YAC_KEY_VLEN(k));
 					goto do_verify;
