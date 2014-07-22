@@ -88,7 +88,7 @@ typedef struct {
 
 typedef struct {
 	yac_kv_key  *slots;
-	yac_mutexarray_t	slots_mono_mutex;
+	yac_mutexarray_t *slots_mutex;
 	unsigned int slots_mask;
 	unsigned int slots_num;
 	unsigned int slots_size;
