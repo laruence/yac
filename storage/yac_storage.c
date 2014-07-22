@@ -388,16 +388,17 @@ void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) 
 
 	hash = h = yac_inline_hash_func1(key, len);
 	p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
-	yac_mutex_lock(&YAC_SG(slots_mono_mutex), 0);
+	LOCK;
 	k = *p;
+	UNLOCK;
 	if (k.val) {
 		uint i;
 		if (k.h == hash && YAC_KEY_KLEN(k) == len) {
 			if (!memcmp((char *)k.key, key, len)) {
 				if (ttl == 0) {
-					p->ttl = 1;
+					p->ttl = 1;			// This should be atomic.
 				} else {
-					p->ttl = ttl + tv;
+					p->ttl = ttl + tv;	// This should be atomic.
 				}
 				goto end;
 			}
@@ -407,17 +408,18 @@ void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) 
 		for (i = 0; i < 3; i++) {
 			h += seed & YAC_SG(slots_mask);
 			p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
+			LOCK;
 			k = *p;
+			UNLOCK;
 			if (k.val == NULL) {
 				goto end;
 			} else if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
-				p->ttl = 1;
+				p->ttl = 1;		// This should be atomic.
 				goto end;
 			}
 		}
 	}
 end:
-	yac_mutex_unlock(&YAC_SG(slots_mono_mutex), 0);
 }
 /* }}} */
 
