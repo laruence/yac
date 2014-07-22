@@ -311,7 +311,7 @@ int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *siz
 	yac_kv_val v;
 
 	hash = h = yac_inline_hash_func1(key, len);
-	yac_mutex_lock(&YAC_SG(slots_mono_mutex), 0);
+	//yac_mutex_lock(&YAC_SG(slots_mono_mutex), 0);
 	p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
 	k = *p;
 	if (k.val) {
@@ -370,10 +370,10 @@ do_verify:
 
 	++YAC_SG(miss);
 return_0:
-	yac_mutex_unlock(&YAC_SG(slots_mono_mutex), 0);
+	//yac_mutex_unlock(&YAC_SG(slots_mono_mutex), 0);
 	return 0;
 return_1:
-	yac_mutex_unlock(&YAC_SG(slots_mono_mutex), 0);
+	//yac_mutex_unlock(&YAC_SG(slots_mono_mutex), 0);
 	return 1;
 }
 /* }}} */
