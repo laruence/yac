@@ -34,7 +34,7 @@ yac_mutexarray_t *yac_mutexarray_new(int num)
 void yac_mutexarray_delete(yac_mutexarray_t *l)
 {
 	if (l!=NULL) {
-		USER_FREE(l);
+		//USER_FREE(l);
 	}
 }
 

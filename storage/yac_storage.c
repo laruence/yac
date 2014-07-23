@@ -536,9 +536,9 @@ do_update:
 				}
 			}
 			++YAC_SG(kicks);
-			LOCK(p->h & YAC_SG(slots_mask));
+			LOCK(h & YAC_SG(slots_mask));
 			k = *p;
-			UNLOCK(p->h & YAC_SG(slots_mask));
+			UNLOCK(h & YAC_SG(slots_mask));
 			k.h = hash;
 
 			goto do_update;
