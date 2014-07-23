@@ -342,10 +342,10 @@ do_verify:
 		for (i = 0; i < 3; i++) {
 			h += seed & YAC_SG(slots_mask);
 			p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
-			if (p->h == hash && YAC_KEY_KLEN(*p) == len) {
-				v = *(p->val);
-				if (!memcmp(p->key, key, len)) {
-					k = *p;
+			k = *p;
+			if (k.h == hash && YAC_KEY_KLEN(k) == len) {
+				v = *(k.val);
+				if (!memcmp(k.key, key, len)) {
 					s = USER_ALLOC(YAC_KEY_VLEN(k) + 1);
 					memcpy(s, (char *)k.val->data, YAC_KEY_VLEN(k));
 					goto do_verify;
