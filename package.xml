@@ -2,9 +2,12 @@
 <package xmlns="http://pear.php.net/dtd/package-2.0" xmlns:tasks="http://pear.php.net/dtd/tasks-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" packagerversion="1.4.7" version="2.0" xsi:schemaLocation="http://pear.php.net/dtd/tasks-1.0 http://pear.php.net/dtd/tasks-1.0.xsd http://pear.php.net/dtd/package-2.0 http://pear.php.net/dtd/package-2.0.xsd"> 
  <name>yac</name>
  <channel>pecl.php.net</channel>
- <summary>Lockless user data cache</summary>
- <description>Yac - Yet Another Cache is a shared memory user data cache for PHP.
- it can be used to replace APC or local memcached.</description>
+ <summary>lockless user data cache</summary>
+ <description>
+  yac is a shared memory user data cache for PHP.  it can be used to replace APC or local memcached.
+
+  yac is lockless, that means, it is very fast, but there could be a chance you will get a wrong data(according to how many key slots are allocated and how many keys are stored), so you'd better make sure that your product is not very sensitive to that.
+ </description>
  <lead>
   <name>Xinchen Hui</name>
   <user>laruence</user>
