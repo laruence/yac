@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?> 
+<package xmlns="http://pear.php.net/dtd/package-2.0" xmlns:tasks="http://pear.php.net/dtd/tasks-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" packagerversion="1.4.7" version="2.0" xsi:schemaLocation="http://pear.php.net/dtd/tasks-1.0 http://pear.php.net/dtd/tasks-1.0.xsd http://pear.php.net/dtd/package-2.0 http://pear.php.net/dtd/package-2.0.xsd"> 
+ <name>yac</name>
+ <channel>pecl.php.net</channel>
+ <summary>Lockless user data cache</summary>
+ <description>Yac - Yet Another Cache is a shared memory user data cache for PHP.
+ it can be used to replace APC or local memcached.</description>
+ <lead>
+  <name>Xinchen Hui</name>
+  <user>laruence</user>
+  <email>laruence@php.net</email>
+  <active>yes</active>
+ </lead>
+ <date>2014-07-24</date>
+ <time>11:07:00</time>
+ <version>
+  <release>0.9.0</release>
+  <api>0.9.0</api>
+ </version>
+ <stability>
+  <release>beta</release>
+  <api>beta</api>
+ </stability>
+ <license uri="http://www.php.net/license">PHP</license>
+ <notes>
+  - first release
+ </notes>
+ <contents> 
+  <dir name="/"> 
+   <file name="config.w32" role="src" />
+   <file name="LICENSE" role="doc" />
+   <file name="CREDITS" role="doc" />
+   <file name="config.m4"    role="src" />
+   <file name="yac.c" role="src" />
+   <file name="php_yac.h" role="src" />
+   <dir name="storage">
+    <file name="yac_storage.h" role="src" />
+    <file name="yac_storage.c" role="src" />
+    <dir name="allocator">
+     <file name="yac_allocator.h" role="src" />
+     <file name="yac_allocator.c" role="src" />
+     <dir name="allocators">
+      <file name="createfilemapping.c" role="src" />
+      <file name="mmap.c" role="src" />
+      <file name="shm.c" role="src" />
+      <file name="posix.c" role="src" />
+      <file name="win32.c" role="src" />
+     </dir>
+    </dir>
+   </dir>
+   <dir name="compressor">
+    <dir name="fastlz">
+     <file name="LICENSE" role="doc" />
+     <file name="README.TXT" role="doc" />
+     <file name="fastlz.h" role="src" />
+     <file name="fastlz.c" role="src" />
+    </dir>
+   </dir>
+   <dir name="serializer">
+    <file name="yac_serializer.h" role="src" />
+    <file name="php.c" role="src" />
+    <file name="msgpack.c" role="src" />
+   </dir>
+   <dir name="tests">
+    <file name="001.phpt" role="test" />
+    <file name="002.phpt" role="test" />
+    <file name="003.phpt" role="test" />
+    <file name="004.phpt" role="test" />
+    <file name="005.phpt" role="test" />
+    <file name="006.phpt" role="test" />
+    <file name="007.phpt" role="test" />
+    <file name="008.phpt" role="test" />
+    <file name="009.phpt" role="test" />
+    <file name="010.phpt" role="test" />
+    <file name="011.phpt" role="test" />
+    <file name="012.phpt" role="test" />
+    <file name="013.phpt" role="test" />
+    <file name="014.phpt" role="test" />
+    <file name="015.phpt" role="test" />
+    <file name="issue012.phpt" role="test" />
+   </dir>
+  </dir> 
+ </contents> 
+ <dependencies> 
+  <required> 
+   <php> 
+    <min>5.2.0</min> 
+   </php> 
+   <pearinstaller> 
+    <min>1.4.0</min> 
+   </pearinstaller> 
+  </required> 
+ </dependencies> 
+ <providesextension>yac</providesextension>
+ <extsrcrelease />
+ <changelog> 
+  <release> 
+   <date>2014-07-24</date> 
+   <version> 
+    <release>0.9.0</release> 
+    <api>0.9.0</api> 
+   </version> 
+   <stability> 
+    <release>beta</release> 
+    <api>beta</api> 
+   </stability> 
+   <license uri="http://www.php.net/license">PHP License</license> 
+   <notes>
+    - first release
+   </notes> 
+  </release> 
+ </changelog> 
+</package> 
+<!--
+vim:et:ts=1:sw=1
+--> 
