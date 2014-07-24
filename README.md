@@ -7,7 +7,7 @@ it can be used to replace APC or local memcached.
 
 ## Experimental
 
-*Yac is lockless, that means, there could be a chance you will get a wrong data(according to how many key slots are allocated and how many keys are stored), so you'd better make sure that your product is not very sensitive to that.*
+*Yac is lockless, that means, there could be a chance you will get a wrong data(depends on how many key slots are allocated and how many keys are stored), so you'd better make sure that your product is not very sensitive to that.*
 
 ## Requirement
 - PHP 5.2 +
