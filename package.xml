@@ -14,11 +14,11 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2014-07-24</date>
- <time>11:07:00</time>
+ <date>2014-07-25</date>
+ <time>15:48:00</time>
  <version>
-  <release>0.9.0</release>
-  <api>0.9.0</api>
+  <release>0.9.1</release>
+  <api>0.9.1</api>
  </version>
  <stability>
   <release>beta</release>
@@ -26,7 +26,7 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - first release
+  - Try to fix windows build
  </notes>
  <contents> 
   <dir name="/"> 
@@ -97,6 +97,21 @@
  <providesextension>yac</providesextension>
  <extsrcrelease />
  <changelog> 
+  <release> 
+   <date>2014-07-25</date> 
+   <version> 
+    <release>0.9.1</release> 
+    <api>0.9.1</api> 
+   </version> 
+   <stability> 
+    <release>beta</release> 
+    <api>beta</api> 
+   </stability> 
+   <license uri="http://www.php.net/license">PHP License</license> 
+   <notes>
+    - Try to fix windows build
+   </notes> 
+  </release> 
   <release> 
    <date>2014-07-24</date> 
    <version> 
