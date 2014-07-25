@@ -20,7 +20,7 @@ yac_mutexarray_t *yac_mutexarray_new(int num)
 	if (num<1 || num>YAC_MUTEXARRAY_SIZE_MAX) {
 		return NULL;
 	}
-	obj=USER_ALLOC(sizeof(yac_mutexarray_t)+sizeof(int)*(num-1));
+	obj=malloc(sizeof(yac_mutexarray_t)+sizeof(int)*(num-1));
 	if (obj==NULL) {
 		return NULL;
 	}
@@ -34,7 +34,7 @@ yac_mutexarray_t *yac_mutexarray_new(int num)
 void yac_mutexarray_delete(yac_mutexarray_t *l)
 {
 	if (l!=NULL) {
-		//USER_FREE(l);
+		free(l);
 	}
 }
 
