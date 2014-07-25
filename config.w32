@@ -15,11 +15,11 @@ if (PHP_YAC != "no") {
 	ADD_SOURCES(configure_module_dirname + "\\serializer", "php.c", "yac");
 	ADD_SOURCES(configure_module_dirname + "\\storage", "yac_storage.c", "yac");
 	ADD_SOURCES(configure_module_dirname + "\\storage\\allocator", "yac_allocator.c", "yac");
-	ADD_SOURCES(configure_module_dirname + "\\storage\\allocator\\allocators", "<WINDOWS ALLOCATOR HERE>", "yac");
+	ADD_SOURCES(configure_module_dirname + "\\storage\\allocator\\allocators", "createfilemapping.c", "yac");
 
 	AC_DEFINE('HAVE_YAC', 1, 'Have yac library');
 
-	ADD_FLAG("CFLAGS_YAC", ' /D <WINDOWS ALLOCATOR HERE> /I "' + configure_module_dirname + '" ');
+	ADD_FLAG("CFLAGS_YAC", ' /I "' + configure_module_dirname + '" ');
 	
 	} else {
 		WARNING("yac not enabled, headers not found");
