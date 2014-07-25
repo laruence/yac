@@ -1,7 +1,9 @@
 <?php
 /* 
+ * we used the following set:
  * yac.keys_memory_size => 128M => 128M
  * yac.values_memory_size => 1G => 1G
+ * and put this under document root, run with ab -c 100
  */
 
 $loop_count = 100;
