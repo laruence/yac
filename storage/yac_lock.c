@@ -4,6 +4,7 @@
 #include <sys/sem.h>
 #include <errno.h>
 #include <sched.h>
+#include <sys/mman.h>
 
 #include "yac_atomic.h"
 #include "yac_malloc.h"
@@ -20,8 +21,8 @@ yac_mutexarray_t *yac_mutexarray_new(int num)
 	if (num<1 || num>YAC_MUTEXARRAY_SIZE_MAX) {
 		return NULL;
 	}
-	obj=malloc(sizeof(yac_mutexarray_t)+sizeof(int)*(num-1));
-	if (obj==NULL) {
+	obj=mmap(NULL, sizeof(yac_mutexarray_t)+sizeof(int)*(num-1), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+	if (obj==MAP_FAILED) {
 		return NULL;
 	}
 	obj->nelms = num;
@@ -34,7 +35,7 @@ yac_mutexarray_t *yac_mutexarray_new(int num)
 void yac_mutexarray_delete(yac_mutexarray_t *l)
 {
 	if (l!=NULL) {
-		free(l);
+		munmap(l, sizeof(yac_mutexarray_t) + sizeof(int)*(l->nelms-1));
 	}
 }
 
