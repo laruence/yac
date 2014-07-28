@@ -40,7 +40,7 @@ $make && make install
 
    yac.enable_cli = 0 ; whether enable yac with cli, default 0
    
-   yac.use_lock = 0 ; whether enable a giant lock to protect key data structure. Experimental. Default 0
+   yac.use_lock = 0 ; whether enable lock machanism to protect key data structure. Experimental. Default 0
 
 ## Constants
 

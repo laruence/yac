@@ -21,9 +21,8 @@ yac_mutexarray_t *yac_mutexarray_new(int num)
 	if (num<1 || num>YAC_MUTEXARRAY_SIZE_MAX) {
 		return NULL;
 	}
-//	obj=USER_ALLOC(sizeof(yac_mutexarray_t)+sizeof(int)*(num-1));
 	obj=mmap(NULL, sizeof(yac_mutexarray_t)+sizeof(int)*(num-1), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
-	if (obj==NULL) {
+	if (obj==MAP_FAILED) {
 		return NULL;
 	}
 	obj->nelms = num;
@@ -37,8 +36,7 @@ void yac_mutexarray_delete(yac_mutexarray_t *l)
 {
 	//fprintf(stderr, "yac_mutexarray_delete(%p)\n", l);
 	if (l!=NULL) {
-		//USER_FREE(;);
-		munmap(l, sizeof(yac_mutexarray_t)+sizeof(int)*(l->nelms-1));
+		munmap(l, sizeof(yac_mutexarray_t) + sizeof(int)*(l->nelms-1));
 	}
 }
 
