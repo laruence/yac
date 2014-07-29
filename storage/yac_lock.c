@@ -15,7 +15,7 @@
 
 yac_mutexarray_t *yac_mutexarray_new(int num)
 {
-	int *mem, i;
+	int i;
 	yac_mutexarray_t *obj;
 
 	if (num<1 || num>YAC_MUTEXARRAY_SIZE_MAX) {
@@ -34,6 +34,7 @@ yac_mutexarray_t *yac_mutexarray_new(int num)
 
 void yac_mutexarray_delete(yac_mutexarray_t *l)
 {
+	//fprintf(stderr, "yac_mutexarray_delete(%p)\n", l);
 	if (l!=NULL) {
 		munmap(l, sizeof(yac_mutexarray_t) + sizeof(int)*(l->nelms-1));
 	}
@@ -56,12 +57,14 @@ int yac_mutexarray_init(yac_mutexarray_t *me)
 
 void yac_mutexarray_destroy(yac_mutexarray_t *me)
 {
+//	fprintf(stderr, "yac_mutexarray_destroy(%p)\n", me);
 }
 
 int yac_mutex_lock(yac_mutexarray_t *me, int sub)
 {
+//	fprintf(stderr, "Lock(%d) of 0x%p\n", sub, me);
 	if (me!=NULL && me->nelms>0) {
-		while (!YAC_CAS(&me->elm[sub], MUT_UNLOCKED, MUT_LOCKED));
+		while (!YAC_CAS(&me->elm[sub], MUT_UNLOCKED, MUT_LOCKED)) sched_yield();
 	}
 	return 0;
 }

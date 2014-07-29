@@ -1,7 +1,7 @@
 #ifndef YAC_LOCK_H
 #define YAC_LOCK_H
 
-typedef struct yac_mutexarray_st {
+typedef struct {
     int nelms;
     int elm[1];
 } yac_mutexarray_t;
