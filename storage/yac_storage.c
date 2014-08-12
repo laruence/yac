@@ -464,9 +464,9 @@ do_update:
 				k.flag = flag;
 				memcpy(k.key, key, len);
 				YAC_KEY_SET_LEN(k, len, size);
-				LOCK(p->h & YAC_SG(slots_mask));
+				LOCK(k.h & YAC_SG(slots_mask));
 				*p = k;
-				UNLOCK(p->h & YAC_SG(slots_mask));
+				UNLOCK(k.h & YAC_SG(slots_mask));
 				USER_FREE(s);
 				goto return_1;
 			} else {
@@ -495,9 +495,9 @@ do_update:
 					k.size = real_size;
 					memcpy(k.key, key, len);
 					YAC_KEY_SET_LEN(k, len, size);
-					LOCK(p->h & YAC_SG(slots_mask));
+					LOCK(k.h & YAC_SG(slots_mask));
 					*p = k;
-					UNLOCK(p->h & YAC_SG(slots_mask));
+					UNLOCK(k.h & YAC_SG(slots_mask));
 					USER_FREE(s);
 					goto return_1;
 				}
@@ -572,9 +572,9 @@ do_add:
 			} else {
 				k.ttl = 0;
 			}
-			LOCK(p->h & YAC_SG(slots_mask));
+			LOCK(k.h & YAC_SG(slots_mask));
 			*p = k;
-			UNLOCK(p->h & YAC_SG(slots_mask));
+			UNLOCK(k.h & YAC_SG(slots_mask));
 			USER_FREE(s);
 			goto return_1;
 		}
