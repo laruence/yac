@@ -51,6 +51,7 @@ typedef struct {
 	unsigned int size;
 	yac_kv_val *val;
 	unsigned char key[YAC_STORAGE_MAX_KEY_LEN];
+	yac_mutexarray_t mut;
 } yac_kv_key;
 
 typedef struct _yac_item_list {
@@ -88,7 +89,6 @@ typedef struct {
 
 typedef struct {
 	yac_kv_key  *slots;
-	yac_mutexarray_t *slots_mutex;
 	unsigned int slots_mask;
 	unsigned int slots_num;
 	unsigned int slots_size;
