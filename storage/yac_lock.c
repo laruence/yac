@@ -13,6 +13,7 @@
 #define	MUT_UNLOCKED	0
 #define	MUT_LOCKED		1
 
+/*
 yac_mutexarray_t *yac_mutexarray_new(int num)
 {
 	int i;
@@ -38,6 +39,7 @@ void yac_mutexarray_delete(yac_mutexarray_t *l)
 		munmap(l, sizeof(yac_mutexarray_t) + sizeof(int)*(l->nelms-1));
 	}
 }
+*/
 
 int yac_mutexarray_init(yac_mutexarray_t *me)
 {
