@@ -573,9 +573,9 @@ do_add:
 			} else {
 				k.ttl = 0;
 			}
-			LOCK(k.h & YAC_SG(slots_mask));
+			LOCK(h & YAC_SG(slots_mask));
 			*p = k;
-			UNLOCK(k.h & YAC_SG(slots_mask));
+			UNLOCK(h & YAC_SG(slots_mask));
 			USER_FREE(s);
 			goto return_1;
 		}
