@@ -537,9 +537,9 @@ do_update:
 				}
 			}
 			++YAC_SG(kicks);
-			LOCK(h & YAC_SG(slots_mask));
+			LOCK(p->h & YAC_SG(slots_mask));
 			k = *p;
-			UNLOCK(h & YAC_SG(slots_mask));
+			UNLOCK(p->h & YAC_SG(slots_mask));
 			k.h = hash;
 
 			goto do_update;
@@ -573,9 +573,9 @@ do_add:
 			} else {
 				k.ttl = 0;
 			}
-			LOCK(h & YAC_SG(slots_mask));
+			LOCK(k.h & YAC_SG(slots_mask));
 			*p = k;
-			UNLOCK(h & YAC_SG(slots_mask));
+			UNLOCK(k.h & YAC_SG(slots_mask));
 			USER_FREE(s);
 			goto return_1;
 		}
