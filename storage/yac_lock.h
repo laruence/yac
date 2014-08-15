@@ -8,8 +8,10 @@ typedef struct {
 
 #define	YAC_MUTEXARRAY_SIZE_MAX	(1024*1024)
 
-//yac_mutexarray_t *yac_mutexarray_new(int num);
-//void yac_mutexarray_delete(yac_mutexarray_t*);
+#if 0
+yac_mutexarray_t *yac_mutexarray_new(int num);
+void yac_mutexarray_delete(yac_mutexarray_t*);
+#endif
 
 int yac_mutexarray_init(yac_mutexarray_t*);
 void yac_mutexarray_destroy(yac_mutexarray_t*);

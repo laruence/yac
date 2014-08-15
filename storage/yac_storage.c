@@ -62,13 +62,13 @@ int yac_storage_startup_flags(unsigned long fsize, unsigned long size, char **ms
    	memset((char *)YAC_SG(slots), 0, sizeof(yac_kv_key) * real_size);
 
 	if (flags&YAC_FLAGS_USE_LOCK) {
-		for (i=0;i<YAC_SG(slots_size);++i) {
-			YAC_SG(slots)[i].mut.nelms = 1;
-			yac_mutexarray_init(&YAC_SG(slots)[i].mut);
+		for (i=0; i<YAC_SG(slots_size); ++i) {
+			YAC_SG(slots)[i].mutex.nelms = 1;
+			yac_mutexarray_init(&YAC_SG(slots)[i].mutex);
 		}
 	} else {
-		for (i=0;i<YAC_SG(slots_size);++i) {
-			YAC_SG(slots)[i].mut.nelms = 0;
+		for (i=0; i<YAC_SG(slots_size); ++i) {
+			YAC_SG(slots)[i].mutex.nelms = 0;
 		}
 	}
 
@@ -308,8 +308,8 @@ static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
 }
 /* }}} */
 
-#define	LOCK(N)		yac_mutex_lock(&YAC_SG(slots)[N].mut, 0)
-#define	UNLOCK(N)	yac_mutex_unlock(&YAC_SG(slots)[N].mut, 0)
+#define	LOCK(N)		yac_mutex_lock(&YAC_SG(slots)[N].mutex, 0)
+#define	UNLOCK(N)	yac_mutex_unlock(&YAC_SG(slots)[N].mutex, 0)
 
 int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas, unsigned long tv) /* {{{ */ {
 	ulong h, hash, seed;
@@ -591,9 +591,12 @@ return_1:
 
 void yac_storage_flush(void) /* {{{ */ {
 	int i;
+
 	YAC_SG(slots_num) = 0;
-	for (i=0;i<YAC_SG(slots_size);++i) {
-		yac_mutexarray_init(&YAC_SG(slots)[i].mut);
+	for (i=0; i<YAC_SG(slots_size); ++i) {
+		YAC_SG(slots)[i].mutex.nelms = 1;
+		yac_mutexarray_init(&YAC_SG(slots)[i].mutex);
+		YAC_SG(slots)[i].val = NULL;
 		YAC_SG(slots)[i].ttl = 1;
 	}
 }
