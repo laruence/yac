@@ -308,8 +308,10 @@ static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
 }
 /* }}} */
 
-#define	LOCK(N)		yac_mutex_lock(&YAC_SG(slots)[N].mutex, 0)
-#define	UNLOCK(N)	yac_mutex_unlock(&YAC_SG(slots)[N].mutex, 0)
+#define	LOCK(N)		yac_mutex_lock(&(YAC_SG(slots)[N].mutex), 0)
+#define	LOCKP(P)	yac_mutex_lock(&(P->mutex), 0)
+#define	UNLOCK(N)	yac_mutex_unlock(&(YAC_SG(slots)[N].mutex), 0)
+#define	UNLOCKP(P)	yac_mutex_unlock(&(P->mutex), 0)
 
 int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas, unsigned long tv) /* {{{ */ {
 	ulong h, hash, seed;
@@ -318,9 +320,9 @@ int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *siz
 
 	hash = h = yac_inline_hash_func1(key, len);
 	p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
-	LOCK(h & YAC_SG(slots_mask));
+	LOCKP(p);
 	k = *p;
-	UNLOCK(h & YAC_SG(slots_mask));
+	UNLOCKP(p);
 	if (k.val) {
 		char *s;
 		uint i;
@@ -363,9 +365,9 @@ do_verify:
 		for (i = 0; i < 3; i++) {
 			h += seed & YAC_SG(slots_mask);
 			p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
-			LOCK(h & YAC_SG(slots_mask));
+			LOCKP(p);
 			k = *p;
-			UNLOCK(h & YAC_SG(slots_mask));
+			UNLOCKP(p);
 			if (k.h == hash && YAC_KEY_KLEN(k) == len) {
 				v = *(k.val);
 				if (!memcmp(k.key, key, len)) {
@@ -391,9 +393,9 @@ void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) 
 
 	hash = h = yac_inline_hash_func1(key, len);
 	p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
-	LOCK(h & YAC_SG(slots_mask));
+	LOCKP(p);
 	k = *p;
-	UNLOCK(h & YAC_SG(slots_mask));
+	UNLOCKP(p);
 	if (k.val) {
 		uint i;
 		if (k.h == hash && YAC_KEY_KLEN(k) == len) {
@@ -411,9 +413,9 @@ void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) 
 		for (i = 0; i < 3; i++) {
 			h += seed & YAC_SG(slots_mask);
 			p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
-			LOCK(h & YAC_SG(slots_mask));
+			LOCKP(p);
 			k = *p;
-			UNLOCK(h & YAC_SG(slots_mask));
+			UNLOCKP(p);
 			if (k.val == NULL) {
 				goto end;
 			} else if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
@@ -431,14 +433,15 @@ int yac_storage_update(char *key, unsigned int len, char *data, unsigned int siz
 	ulong hash, h;
 	int idx = 0, is_valid;
 	yac_kv_key *p, k, *paths[4];
+	int path[4], step_sub;
 	yac_kv_val *val, *s;
 	unsigned long real_size;
 
 	hash = h = yac_inline_hash_func1(key, len);
 	paths[idx++] = p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
-	LOCK(h & YAC_SG(slots_mask));
+	LOCKP(p);
 	k = *p;
-	UNLOCK(h & YAC_SG(slots_mask));
+	UNLOCKP(p);
 	if (k.val) {
 		/* Found the exact match */
 		if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
@@ -465,9 +468,9 @@ do_update:
 				k.flag = flag;
 				memcpy(k.key, key, len);
 				YAC_KEY_SET_LEN(k, len, size);
-				LOCK(h & YAC_SG(slots_mask));
+				LOCKP(p);
 				*p = k;
-				UNLOCK(h & YAC_SG(slots_mask));
+				UNLOCKP(p);
 				USER_FREE(s);
 				goto return_1;
 			} else {
@@ -496,9 +499,9 @@ do_update:
 					k.size = real_size;
 					memcpy(k.key, key, len);
 					YAC_KEY_SET_LEN(k, len, size);
-					LOCK(h & YAC_SG(slots_mask));
+					LOCKP(p);
 					*p = k;
-					UNLOCK(h & YAC_SG(slots_mask));
+					UNLOCKP(p);
 					USER_FREE(s);
 					goto return_1;
 				}
@@ -514,9 +517,9 @@ do_update:
 			for (i = 0; i < 3; i++) {
 				h += seed & YAC_SG(slots_mask);
 				paths[idx++] = p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
-				LOCK(h & YAC_SG(slots_mask));
+				LOCKP(p);
 				k = *p;
-				UNLOCK(h & YAC_SG(slots_mask));
+				UNLOCKP(p);
 				if (k.val == NULL) {
 					goto do_add;
 				} else if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
@@ -537,9 +540,9 @@ do_update:
 				}
 			}
 			++YAC_SG(kicks);
-			LOCK(p->h & YAC_SG(slots_mask));
+			LOCKP(p);
 			k = *p;
-			UNLOCK(p->h & YAC_SG(slots_mask));
+			UNLOCKP(p);
 			k.h = hash;
 
 			goto do_update;
@@ -573,9 +576,9 @@ do_add:
 			} else {
 				k.ttl = 0;
 			}
-			LOCK(h & YAC_SG(slots_mask));
+			LOCKP(p);
 			*p = k;
-			UNLOCK(h & YAC_SG(slots_mask));
+			UNLOCKP(p);
 			USER_FREE(s);
 			goto return_1;
 		}
