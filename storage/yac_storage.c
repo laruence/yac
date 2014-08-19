@@ -308,9 +308,7 @@ static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
 }
 /* }}} */
 
-#define	LOCK(N)		yac_mutex_lock(&(YAC_SG(slots)[N].mutex), 0)
 #define	LOCKP(P)	yac_mutex_lock(&(P->mutex), 0)
-#define	UNLOCK(N)	yac_mutex_unlock(&(YAC_SG(slots)[N].mutex), 0)
 #define	UNLOCKP(P)	yac_mutex_unlock(&(P->mutex), 0)
 
 int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas, unsigned long tv) /* {{{ */ {
