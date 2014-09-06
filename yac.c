@@ -33,7 +33,11 @@
 #include "php_yac.h"
 #include "storage/yac_storage.h"
 #include "serializer/yac_serializer.h"
+#ifdef HAVE_FASTLZ_H
+#include <fastlz.h>
+#else
 #include "compressor/fastlz/fastlz.h"
+#endif
 
 zend_class_entry *yac_class_ce;
 
