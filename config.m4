@@ -4,6 +4,9 @@ dnl config.m4 for extension yac
 PHP_ARG_ENABLE(yac, whether to enable yac support,
     [  --enable-yac           Enable yac support])
 
+PHP_ARG_WITH(system-fastlz, wheter to use system FastLZ bibrary,
+    [  --with-system-fastlz   Use system FastLZ bibrary], no, no)
+
 dnl PHP_ARG_ENABLE(yac, whether to use msgpack as serializer,
 dnl    [  --enable-msgpack       Use Messagepack as serializer])
 
@@ -193,6 +196,17 @@ dnl    PHP_ADD_EXTENSION_DEP(yac, msgpack, true)
 dnl    ])
 dnl  fi
 
+  YAC_FILES="yac.c storage/yac_storage.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c"
+  if test "$PHP_SYSTEM_FASTLZ" != "no"; then
+    AC_CHECK_HEADERS([fastlz.h])
+    PHP_CHECK_LIBRARY(fastlz, fastlz_compress,
+        [PHP_ADD_LIBRARY(fastlz, 1, YAC_SHARED_LIBADD)],
+        [AC_MSG_ERROR(FastLZ library not found)])
+  else
+    YAC_FILES="${YAC_FILES} compressor/fastlz/fastlz.c"
+  fi
+
   if test "$PHP_YAC" != "no"; then
-  PHP_NEW_EXTENSION(yac, yac.c storage/yac_storage.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c compressor/fastlz/fastlz.c, $ext_shared)
+    PHP_SUBST(YAC_SHARED_LIBADD)
+    PHP_NEW_EXTENSION(yac, ${YAC_FILES}, $ext_shared)
 fi
