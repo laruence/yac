@@ -14,7 +14,7 @@
    +----------------------------------------------------------------------+
    | Authors: Xinchen Hui <laruence@php.net>                              |
    |          Dmitry Stogov <dmitry@zend.com>                             | 
-   |          Wei Dai     <zxcvdavid@gmail.com>                           |
+   |          Wei Dai     <demon@php.net>                           |
    +----------------------------------------------------------------------+
 */
 
@@ -127,7 +127,7 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 	void *vista_mapping_base_set[] = { (void *) 0x20000000, (void *) 0x21000000, (void *) 0x30000000, (void *) 0x31000000, (void *) 0x50000000, 0 };
 #endif
 	void **wanted_mapping_base = default_mapping_base_set;
-	TSRMLS_FETCH();
+	
 
 	k_size = YAC_SMM_ALIGNED_SIZE(k_size);
 	v_size = YAC_SMM_ALIGNED_SIZE(v_size);
