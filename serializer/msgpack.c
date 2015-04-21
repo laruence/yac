@@ -30,20 +30,18 @@
 
 #include "yac_serializer.h"
 
-extern void php_msgpack_serialize(smart_str *buf, zval *val TSRMLS_DC);
-extern void php_msgpack_unserialize(zval *return_value, char *str, size_t str_len TSRMLS_DC);
+extern void php_msgpack_serialize(smart_str *buf, zval *val);
+extern void php_msgpack_unserialize(zval *return_value, char *str, size_t str_len);
 
-int yac_serializer_msgpack_pack(zval *pzval, smart_str *buf, char **msg TSRMLS_DC) /* {{{ */ {
-	php_msgpack_serialize(buf, pzval TSRMLS_CC);
+int yac_serializer_msgpack_pack(zval *pzval, smart_str *buf, char **msg) /* {{{ */ {
+	php_msgpack_serialize(buf, pzval);
 	return 1;
 } /* }}} */
 
-zval * yac_serializer_msgpack_unpack(char *content, size_t len, char **msg TSRMLS_DC) /* {{{ */ {
-	zval *return_value;
-	MAKE_STD_ZVAL(return_value);
-	ZVAL_NULL(return_value);
-	php_msgpack_unserialize(return_value, content, len TSRMLS_CC);
-	return return_value;
+zval * yac_serializer_msgpack_unpack(char *content, size_t len, char **msg, zval *rv) /* {{{ */ {
+	ZVAL_NULL(rv);
+	php_msgpack_unserialize(rv, content, len);
+	return rv;
 } /* }}} */
 
 #endif

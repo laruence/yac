@@ -26,38 +26,36 @@
 
 #include "php.h"
 #include "ext/standard/php_var.h" /* for serialize */
-#include "ext/standard/php_smart_str.h" /* for smart_str */
+#include "zend_smart_str.h"
 
 #include "yac_serializer.h"
 
-int yac_serializer_php_pack(zval *pzval, smart_str *buf, char **msg TSRMLS_DC) /* {{{ */ {
+int yac_serializer_php_pack(zval *pzval, smart_str *buf, char **msg) /* {{{ */ {
 	php_serialize_data_t var_hash;
 
 	PHP_VAR_SERIALIZE_INIT(var_hash);
-	php_var_serialize(buf, &pzval, &var_hash TSRMLS_CC);
+	php_var_serialize(buf, pzval, &var_hash);
 	PHP_VAR_SERIALIZE_DESTROY(var_hash);
 
 	return 1;
 } /* }}} */
 
-zval * yac_serializer_php_unpack(char *content, size_t len, char **msg TSRMLS_DC) /* {{{ */ {
-	zval *return_value;
+zval * yac_serializer_php_unpack(char *content, size_t len, char **msg, zval *rv) /* {{{ */ {
 	const unsigned char *p;
 	php_unserialize_data_t var_hash;
 	p = (const unsigned char*)content;
 
-	MAKE_STD_ZVAL(return_value);
-	ZVAL_FALSE(return_value);
+	ZVAL_FALSE(rv);
 	PHP_VAR_UNSERIALIZE_INIT(var_hash);
-	if (!php_var_unserialize(&return_value, &p, p + len,  &var_hash TSRMLS_CC)) {
-		zval_ptr_dtor(&return_value);
+	if (!php_var_unserialize(rv, &p, p + len,  &var_hash)) {
+		zval_ptr_dtor(rv);
 		PHP_VAR_UNSERIALIZE_DESTROY(var_hash);
 		spprintf(msg, 0, "unpack error at offset %ld of %ld bytes", (long)((char*)p - content), len);
 		return NULL;
 	}
 	PHP_VAR_UNSERIALIZE_DESTROY(var_hash);
 
-	return return_value;
+	return rv;
 } /* }}} */
 
 #endif

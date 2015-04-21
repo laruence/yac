@@ -22,11 +22,11 @@
 #define YAC_SERIALIZER_H
 
 #if ENABLE_MSGPACK
-int yac_serializer_msgpack_pack(zval *pzval, smart_str *buf, char **msg TSRMLS_DC);
-zval * yac_serializer_msgpack_unpack(char *content, size_t len, char **msg TSRMLS_DC);
+int yac_serializer_msgpack_pack(zval *pzval, smart_str *buf, char **msg);
+zval * yac_serializer_msgpack_unpack(char *content, size_t len, char **msg, zval *rv);
 #else
-int yac_serializer_php_pack(zval *pzval, smart_str *buf, char **msg TSRMLS_DC);
-zval * yac_serializer_php_unpack(char *content, size_t len, char **msg TSRMLS_DC);
+int yac_serializer_php_pack(zval *pzval, smart_str *buf, char **msg);
+zval * yac_serializer_php_unpack(char *content, size_t len, char **msg, zval *rv);
 #endif
 
 #endif	/* YAC_SERIALIZER_H */
