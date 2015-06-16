@@ -14,7 +14,7 @@
    +----------------------------------------------------------------------+
    | Authors: Xinchen Hui <laruence@php.net>                              |
    |          Dmitry Stogov <dmitry@zend.com>                             | 
-   |          Wei Dai     <demon@php.net>                           |
+   |          Wei Dai <demon@php.net>                                     |
    +----------------------------------------------------------------------+
 */
 
@@ -41,8 +41,7 @@ typedef struct  {
 } yac_shared_segment_create_file;
 
 #ifdef USE_FILE_MAPPING
-static char *create_name_with_username(char *name)
-{
+static char *create_name_with_username(char *name) /* {{{ */ {
 	static char newname[MAXPATHLEN + UNLEN + 4];
 	char uname[UNLEN + 1];
 	DWORD unsize = UNLEN;
@@ -51,8 +50,9 @@ static char *create_name_with_username(char *name)
 	snprintf(newname, sizeof(newname) - 1, "%s@%s", name, uname);
 	return newname;
 }
+/* }}} */
 
-static char *get_mmap_base_file(void) {
+static char *get_mmap_base_file(void) /* {{{ */ {
 	static char windir[MAXPATHLEN+UNLEN + 3 + sizeof("\\\\@")];
 	char uname[UNLEN + 1];
 	DWORD unsize = UNLEN;
@@ -64,9 +64,9 @@ static char *get_mmap_base_file(void) {
 	snprintf(windir + l, sizeof(windir) - l - 1, "\\%s@%s", ACCEL_FILEMAP_BASE, uname);
 	return windir;
 }
+/* }}} */
 
-static int yac_shared_alloc_reattach(size_t requested_size, char **error_in)
-{
+static int yac_shared_alloc_reattach(size_t requested_size, char **error_in) /* {{{ */ {
 	void *wanted_mapping_base;
 	char *mmap_base_file = get_mmap_base_file();
 	FILE *fp = fopen(mmap_base_file, "r");
@@ -108,6 +108,7 @@ static int yac_shared_alloc_reattach(size_t requested_size, char **error_in)
 
 	return SUCCESSFULLY_REATTACHED;
 }
+/* }}} */
 
 static int create_segments(unsigned long k_size, unsigned long v_size, yac_shared_segment_create_file **shared_segments_p, int *shared_segments_count, char **error_in) /* {{{ */ {
 	int ret;
@@ -285,7 +286,7 @@ static unsigned long segment_type_size(void) /* {{{ */ {
 /* }}} */
 
 yac_shared_memory_handlers yac_alloc_create_file_handlers = /* {{{ */ {
-	create_segments,
+	(create_segments_t)create_segments,
 	detach_segment,
 	segment_type_size
 };

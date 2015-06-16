@@ -108,7 +108,7 @@ static unsigned long segment_type_size(void) /* {{{ */ {
 /* }}} */
 
 yac_shared_memory_handlers yac_alloc_mmap_handlers = /* {{{ */ {
-	create_segments,
+	(create_segments_t)create_segments,
 	detach_segment,
 	segment_type_size
 };
