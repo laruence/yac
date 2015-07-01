@@ -70,7 +70,7 @@ ZEND_END_ARG_INFO()
 
 static PHP_INI_MH(OnChangeKeysMemoryLimit) /* {{{ */ {
 	if (new_value) {
-		YAC_G(k_msize) = zend_atol(new_value->val, new_value->len);
+		YAC_G(k_msize) = zend_atol(ZSTR_VAL(new_value), ZSTR_LEN(new_value));
 	}
 	return SUCCESS;
 }
@@ -78,7 +78,7 @@ static PHP_INI_MH(OnChangeKeysMemoryLimit) /* {{{ */ {
 
 static PHP_INI_MH(OnChangeValsMemoryLimit) /* {{{ */ {
 	if (new_value) {
-		YAC_G(v_msize) = zend_atol(new_value->val, new_value->len);
+		YAC_G(v_msize) = zend_atol(ZSTR_VAL(new_value), ZSTR_LEN(new_value));
 	}
 	return SUCCESS;
 }
@@ -86,7 +86,7 @@ static PHP_INI_MH(OnChangeValsMemoryLimit) /* {{{ */ {
 
 static PHP_INI_MH(OnChangeCompressThreshold) /* {{{ */ {
 	if (new_value) {
-		YAC_G(compress_threshold) = zend_atol(new_value->val, new_value->len);
+		YAC_G(compress_threshold) = zend_atol(ZSTR_VAL(new_value), ZSTR_LEN(new_value));
 		if (YAC_G(compress_threshold) < YAC_MIN_COMPRESS_THRESHOLD) {
 			YAC_G(compress_threshold) = YAC_MIN_COMPRESS_THRESHOLD;
 		}
@@ -113,14 +113,14 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 	time_t tv;
 	zend_string *prefix_key;
 
-	if ((key->len + prefix->len) > YAC_STORAGE_MAX_KEY_LEN) {
+	if ((ZSTR_LEN(key) + prefix->len) > YAC_STORAGE_MAX_KEY_LEN) {
 		php_error_docref(NULL, E_WARNING, "Key%s can not be longer than %d bytes",
 				prefix->len? "(include prefix)" : "", YAC_STORAGE_MAX_KEY_LEN);
 		return ret;
 	}
 
 	if (prefix->len) {
-		prefix_key = strpprintf(YAC_STORAGE_MAX_KEY_LEN, "%s%s", prefix->val, key->val);
+		prefix_key = strpprintf(YAC_STORAGE_MAX_KEY_LEN, "%s%s", ZSTR_VAL(prefix), ZSTR_VAL(key));
                 key = prefix_key;
 	}
 
@@ -130,13 +130,13 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 		case IS_NULL:
 		case IS_TRUE:
 		case IS_FALSE:
-			ret = yac_storage_update(key->val, key->len, (char *)&flag, sizeof(int), flag, ttl, add, tv);
+			ret = yac_storage_update(ZSTR_VAL(key), ZSTR_LEN(key), (char *)&flag, sizeof(int), flag, ttl, add, tv);
 			break;
 		case IS_LONG:
-			ret = yac_storage_update(key->val, key->len, (char *)&Z_LVAL_P(value), sizeof(long), flag, ttl, add, tv);
+			ret = yac_storage_update(ZSTR_VAL(key), ZSTR_LEN(key), (char *)&Z_LVAL_P(value), sizeof(long), flag, ttl, add, tv);
 			break;
 		case IS_DOUBLE:
-			ret = yac_storage_update(key->val, key->len, (char *)&Z_DVAL_P(value), sizeof(double), flag, ttl, add, tv);
+			ret = yac_storage_update(ZSTR_VAL(key), ZSTR_LEN(key), (char *)&Z_DVAL_P(value), sizeof(double), flag, ttl, add, tv);
 			break;
 		case IS_STRING:
 		case IS_CONSTANT:
@@ -176,10 +176,10 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 
 					flag |= YAC_ENTRY_COMPRESSED;
 					flag |= (Z_STRLEN_P(value) << YAC_ENTRY_ORIG_LEN_SHIT);
-					ret = yac_storage_update(key->val, key->len, compressed, compressed_len, flag, ttl, add, tv);
+					ret = yac_storage_update(ZSTR_VAL(key), ZSTR_LEN(key), compressed, compressed_len, flag, ttl, add, tv);
 					efree(compressed);
 				} else {
-					ret = yac_storage_update(key->val, key->len, Z_STRVAL_P(value), Z_STRLEN_P(value), flag, ttl, add, tv);
+					ret = yac_storage_update(ZSTR_VAL(key), ZSTR_LEN(key), Z_STRVAL_P(value), Z_STRLEN_P(value), flag, ttl, add, tv);
 				}
 			}
 			break;
@@ -209,7 +209,7 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 						}
 
 						compressed = emalloc(buf.s->len * 1.05);
-						compressed_len = fastlz_compress(buf.s->val, buf.s->len, compressed);
+						compressed_len = fastlz_compress(ZSTR_VAL(buf.s), ZSTR_LEN(buf.s), compressed);
 						if (!compressed_len || compressed_len > buf.s->len) {
 							php_error_docref(NULL, E_WARNING, "Compression failed");
 							efree(compressed);
@@ -230,10 +230,10 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 
 						flag |= YAC_ENTRY_COMPRESSED;
 						flag |= (buf.s->len << YAC_ENTRY_ORIG_LEN_SHIT);
-						ret = yac_storage_update(key->val, key->len, compressed, compressed_len, flag, ttl, add, tv);
+						ret = yac_storage_update(ZSTR_VAL(key), ZSTR_LEN(key), compressed, compressed_len, flag, ttl, add, tv);
 						efree(compressed);
 					} else {
-						ret = yac_storage_update(key->val, key->len, buf.s->val, buf.s->len, flag, ttl, add, tv);
+						ret = yac_storage_update(ZSTR_VAL(key), ZSTR_LEN(key), ZSTR_VAL(buf.s), ZSTR_LEN(buf.s), flag, ttl, add, tv);
 					}
 					smart_str_free(&buf);
 				} else {
@@ -293,19 +293,19 @@ static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint *cas, zva
 	time_t tv;
 	zend_string *prefix_key;
 
-	if ((key->len + prefix->len) > YAC_STORAGE_MAX_KEY_LEN) {
+	if ((ZSTR_LEN(key) + prefix->len) > YAC_STORAGE_MAX_KEY_LEN) {
 		php_error_docref(NULL, E_WARNING, "Key%s can not be longer than %d bytes",
 				prefix->len? "(include prefix)" : "", YAC_STORAGE_MAX_KEY_LEN);
 		return NULL;
 	}
 
 	if (prefix->len) {
-		prefix_key = strpprintf(YAC_STORAGE_MAX_KEY_LEN, "%s%s", prefix->val, key->val);	
+		prefix_key = strpprintf(YAC_STORAGE_MAX_KEY_LEN, "%s%s", ZSTR_VAL(prefix), ZSTR_VAL(key));	
                 key = prefix_key;
 	}
 
 	tv = time(NULL);
-	if (yac_storage_find(key->val, key->len, &data, &size, &flag, (int *)cas, tv)) {
+	if (yac_storage_find(ZSTR_VAL(key), ZSTR_LEN(key), &data, &size, &flag, (int *)cas, tv)) {
 		switch ((flag & YAC_ENTRY_TYPE_MASK)) {
 			case IS_NULL:
 				if (size == sizeof(int)) {
