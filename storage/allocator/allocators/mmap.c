@@ -41,7 +41,6 @@ typedef struct  {
 } yac_shared_segment_mmap;
 
 static int create_segments(unsigned long k_size, unsigned long v_size, yac_shared_segment_mmap **shared_segments_p, int *shared_segments_count, char **error_in) /* {{{ */ {
-	yac_shared_segment *shared_segment;
 	unsigned long allocate_size, occupied_size =  0;
 	unsigned int i, segment_size, segments_num = 1024;
 	yac_shared_segment_mmap first_segment;

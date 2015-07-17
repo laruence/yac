@@ -265,7 +265,7 @@ static int yac_add_multi_impl(zend_string *prefix, zval *kvs, int ttl, int add) 
 	zval *value;
 
 	ZEND_HASH_FOREACH_KEY_VAL(ht, idx, key, value) {
-		uint should_free = 0;
+		uint32_t should_free = 0;
 		if (!key) {
 			key = strpprintf(0, "%lu", idx);
 			should_free = 1;
@@ -287,8 +287,8 @@ static int yac_add_multi_impl(zend_string *prefix, zval *kvs, int ttl, int add) 
 }
 /* }}} */
 
-static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint *cas, zval *rv) /* {{{ */ {
-	uint flag, size = 0;
+static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint32_t *cas, zval *rv) /* {{{ */ {
+	uint32_t flag, size = 0;
 	char *data, *msg;
 	time_t tv;
 	zend_string *prefix_key;
@@ -341,9 +341,9 @@ static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint *cas, zva
 			case IS_CONSTANT:
 				{
 					if ((flag & YAC_ENTRY_COMPRESSED)) {
-						size_t orig_len = ((uint)flag >> YAC_ENTRY_ORIG_LEN_SHIT);
+						size_t orig_len = ((uint32_t)flag >> YAC_ENTRY_ORIG_LEN_SHIT);
 						char *origin = emalloc(orig_len + 1);
-						uint length;
+						uint32_t length;
 						length = fastlz_decompress(data, size, origin, orig_len);
 						if (!length) {
 							php_error_docref(NULL, E_WARNING, "Decompression failed");
@@ -370,7 +370,7 @@ static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint *cas, zva
 			case IS_OBJECT:
 				{
 					if ((flag & YAC_ENTRY_COMPRESSED)) {
-						size_t length, orig_len = ((uint)flag >> YAC_ENTRY_ORIG_LEN_SHIT);
+						size_t length, orig_len = ((uint32_t)flag >> YAC_ENTRY_ORIG_LEN_SHIT);
 						char *origin = emalloc(orig_len + 1);
 						length = fastlz_decompress(data, size, origin, orig_len);
 						if (!length) {
@@ -406,6 +406,7 @@ static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint *cas, zva
 	if (prefix->len) {
 		zend_string_release(prefix_key);
 	}
+
 	return rv;
 }
 /* }}} */
@@ -417,29 +418,30 @@ static zval * yac_get_multi_impl(zend_string *prefix, zval *keys, zval *cas, zva
 	array_init(rv);
 
 	ZEND_HASH_FOREACH_VAL(ht, value) {
-		uint cas;
+		uint32_t lcas = 0;
 		zval *v, tmp_rv;
 
 		ZVAL_UNDEF(&tmp_rv);
 
 		switch (Z_TYPE_P(value)) {
 			case IS_STRING:
-				if ((v = yac_get_impl(prefix, Z_STR_P(value), &cas, &tmp_rv)) && !Z_ISUNDEF(tmp_rv)) {
-					add_assoc_zval_ex(rv, Z_STRVAL_P(value), Z_STRLEN_P(value), v);
+				if ((v = yac_get_impl(prefix, Z_STR_P(value), &lcas, &tmp_rv)) && !Z_ISUNDEF(tmp_rv)) {
+					zend_symtable_update(Z_ARRVAL_P(rv), Z_STR_P(value), v);
 				} else {
-					add_assoc_bool_ex(rv, Z_STRVAL_P(value), Z_STRLEN_P(value), 0);
+					ZVAL_FALSE(&tmp_rv);
+					zend_symtable_update(Z_ARRVAL_P(rv), Z_STR_P(value), &tmp_rv);
 				}
 				continue;
 			default:
 				{
-					zval copy;
-					zend_make_printable_zval(value, &copy);
-					if ((v = yac_get_impl(prefix, Z_STR(copy), &cas, &tmp_rv)) && !Z_ISUNDEF(tmp_rv)) {
-						add_assoc_zval_ex(rv, Z_STRVAL(copy), Z_STRLEN(copy), v);
+					zend_string *key = zval_get_string(value);
+					if ((v = yac_get_impl(prefix, key, &lcas, &tmp_rv)) && !Z_ISUNDEF(tmp_rv)) {
+						zend_symtable_update(Z_ARRVAL_P(rv), key, v);
 					} else {
-						add_assoc_bool_ex(rv, Z_STRVAL(copy), Z_STRLEN(copy), 0);
+						ZVAL_FALSE(&tmp_rv);
+						zend_symtable_update(Z_ARRVAL_P(rv), key, &tmp_rv);
 					}
-					zval_dtor(&copy);
+					zend_string_release(key);
 				}
 				continue;
 		}
@@ -449,7 +451,7 @@ static zval * yac_get_multi_impl(zend_string *prefix, zval *keys, zval *cas, zva
 }
 /* }}} */
 
-void yac_delete_impl(char *prefix, uint prefix_len, char *key, uint len, int ttl) /* {{{ */ {
+void yac_delete_impl(char *prefix, uint32_t prefix_len, char *key, uint32_t len, int ttl) /* {{{ */ {
 	char buf[YAC_STORAGE_MAX_KEY_LEN];
 	time_t tv = 0;
 
@@ -472,7 +474,7 @@ void yac_delete_impl(char *prefix, uint prefix_len, char *key, uint len, int ttl
 }
 /* }}} */
 
-static void yac_delete_multi_impl(char *prefix, uint prefix_len, zval *keys, int ttl) /* {{{ */ {
+static void yac_delete_multi_impl(char *prefix, uint32_t prefix_len, zval *keys, int ttl) /* {{{ */ {
 	HashTable *ht = Z_ARRVAL_P(keys);
 	zval *value;
 
@@ -521,7 +523,7 @@ PHP_METHOD(yac, __construct) {
 PHP_METHOD(yac, add) {
 	long ttl = 0;
 	zval rv, *keys, *prefix, *value = NULL;
-	uint ret;
+	uint32_t ret;
 
 	if (!YAC_G(enable)) {
 		RETURN_FALSE;
@@ -578,7 +580,7 @@ PHP_METHOD(yac, add) {
 PHP_METHOD(yac, set) {
     long ttl = 0;
 	zval rv, *keys, *prefix, *value = NULL;
-	uint ret;
+	uint32_t ret;
 
 	if (!YAC_G(enable)) {
 		RETURN_FALSE;
@@ -633,8 +635,7 @@ PHP_METHOD(yac, set) {
 /** {{{ proto public Yac::get(mixed $keys[, int &$cas])
 */
 PHP_METHOD(yac, get) {
-	char *sprefix = NULL;
-	uint prefix_len = 0, lcas = 0;
+	uint32_t lcas = 0;
 	zval rv, *ret, *keys, *prefix, *cas = NULL;
 
 	if (!YAC_G(enable)) {
@@ -646,11 +647,8 @@ PHP_METHOD(yac, get) {
 	}
 
 	prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRL(YAC_CLASS_PROPERTY_PREFIX), 0, &rv);
-	sprefix = Z_STRVAL_P(prefix);
-	prefix_len = Z_STRLEN_P(prefix);
 
 	ZVAL_UNDEF(return_value);
-
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
 		ret = yac_get_multi_impl(Z_STR_P(prefix), keys, cas, return_value);
 	} else if (Z_TYPE_P(keys) == IS_STRING) {
@@ -676,7 +674,7 @@ PHP_METHOD(yac, delete) {
 	long time = 0;
 	zval *keys, *prefix, rv;
 	char *sprefix = NULL;
-	uint prefix_len = 0;
+	uint32_t prefix_len = 0;
 
 	if (!YAC_G(enable)) {
 		RETURN_FALSE;
@@ -776,7 +774,7 @@ PHP_METHOD(yac, dump) {
 		add_assoc_long(&item, "k_len", l->k_len);
 		add_assoc_long(&item, "v_len", l->v_len);
 		add_assoc_long(&item, "size", l->size);
-		add_assoc_string(&item, "key", l->key);
+		add_assoc_string(&item, "key", (char*)l->key);
 		add_next_index_zval(return_value, &item);
 	}
 
