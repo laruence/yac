@@ -55,8 +55,17 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_add, 0, 0, 1)
 	ZEND_ARG_INFO(0, ttl)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_setter, 0, 0, 2)
+	ZEND_ARG_INFO(0, key)
+	ZEND_ARG_INFO(0, value)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_get, 0, 0, 1)
 	ZEND_ARG_INFO(0, keys)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_getter, 0, 0, 1)
+	ZEND_ARG_INFO(0, key)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_delete, 0, 0, 1)
@@ -121,10 +130,9 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 
 	if (prefix->len) {
 		prefix_key = strpprintf(YAC_STORAGE_MAX_KEY_LEN, "%s%s", ZSTR_VAL(prefix), ZSTR_VAL(key));
-                key = prefix_key;
+		key = prefix_key;
 	}
 
-	
 	tv = time(NULL);
 	switch (Z_TYPE_P(value)) {
 		case IS_NULL:
@@ -191,11 +199,12 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 			{
 				smart_str buf = {0};
 #if ENABLE_MSGPACK
-				if (yac_serializer_msgpack_pack(value, &buf, &msg)) {
+				if (yac_serializer_msgpack_pack(value, &buf, &msg))
 #else
 
-				if (yac_serializer_php_pack(value, &buf, &msg)) {
+				if (yac_serializer_php_pack(value, &buf, &msg))
 #endif
+				{
 					if (buf.s->len > YAC_G(compress_threshold) || buf.s->len > YAC_STORAGE_MAX_ENTRY_LEN) {
 						int compressed_len;
 						char *compressed;
@@ -249,11 +258,11 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 			php_error_docref(NULL, E_WARNING, "Unsupported valued type to be stored '%d'", flag);
 			break;
 	}
-	
 
 	if (prefix->len) {
-                zend_string_release(prefix_key);
-        }
+		zend_string_release(prefix_key);
+	}
+
 	return ret;
 }
 /* }}} */
@@ -301,7 +310,7 @@ static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint32_t *cas,
 
 	if (prefix->len) {
 		prefix_key = strpprintf(YAC_STORAGE_MAX_KEY_LEN, "%s%s", ZSTR_VAL(prefix), ZSTR_VAL(key));	
-                key = prefix_key;
+		key = prefix_key;
 	}
 
 	tv = time(NULL);
@@ -399,8 +408,11 @@ static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint32_t *cas,
 				break;
 			default:
 				php_error_docref(NULL, E_WARNING, "Unexpected valued type '%d'", flag);
+				rv = NULL;
 				break;
 		}
+	} else {
+		rv = NULL;
 	}
 
 	if (prefix->len) {
@@ -571,7 +583,7 @@ PHP_METHOD(yac, add) {
 		zval_dtor(&copy);
 	}
 
-	RETURN_BOOL(ret? 1 : 0);
+	RETURN_BOOL(ret);
 }
 /* }}} */
 
@@ -628,7 +640,27 @@ PHP_METHOD(yac, set) {
 		zval_dtor(&copy);
 	}
 
-	RETURN_BOOL(ret? 1 : 0);
+	RETURN_BOOL(ret);
+}
+/* }}} */
+
+/** {{{ proto public Yac::__set(string $name, mixed $value)
+*/
+PHP_METHOD(yac, __set) {
+	zend_string *key;
+	zval *prefix, *value, rv;
+
+	if (!YAC_G(enable)) {
+		RETURN_FALSE;
+	}
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "Sz", &key, &value) == FAILURE) {
+		return;
+	}
+
+	prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRL(YAC_CLASS_PROPERTY_PREFIX), 0, &rv);
+
+	yac_add_impl(Z_STR_P(prefix), key, value, 0, 0);
 }
 /* }}} */
 
@@ -648,7 +680,6 @@ PHP_METHOD(yac, get) {
 
 	prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRL(YAC_CLASS_PROPERTY_PREFIX), 0, &rv);
 
-	ZVAL_UNDEF(return_value);
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
 		ret = yac_get_multi_impl(Z_STR_P(prefix), keys, cas, return_value);
 	} else if (Z_TYPE_P(keys) == IS_STRING) {
@@ -660,9 +691,30 @@ PHP_METHOD(yac, get) {
 		zval_dtor(&copy);
 	}
 
-	if (ret && !Z_ISUNDEF_P(ret)) {
-		RETURN_ZVAL(ret, 0, 0);
-	} else {
+	if (ret == NULL) {
+		RETURN_FALSE;
+	}
+}
+/* }}} */
+
+/** {{{ proto public Yac::__get(string $name)
+*/
+PHP_METHOD(yac, __get) {
+	zval *prefix, rv;
+	zend_string *key;
+	uint32_t lcas = 0;
+
+	if (!YAC_G(enable)) {
+		RETURN_FALSE;
+	}
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "S", &key) == FAILURE) {
+		return;
+	}
+
+	prefix = zend_read_property(yac_class_ce, getThis(), ZEND_STRL(YAC_CLASS_PROPERTY_PREFIX), 0, &rv);
+
+	if (yac_get_impl(Z_STR_P(prefix), key, &lcas, return_value) == NULL) {
 		RETURN_FALSE;
 	}
 }
@@ -852,7 +904,9 @@ zend_function_entry yac_methods[] = {
 	PHP_ME(yac, __construct, arginfo_yac_constructor, ZEND_ACC_PUBLIC|ZEND_ACC_CTOR)
 	PHP_ME(yac, add, arginfo_yac_add, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, set, arginfo_yac_add, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, __set, arginfo_yac_setter, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, get, arginfo_yac_get, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, __get, arginfo_yac_getter, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, delete, arginfo_yac_delete, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, flush, arginfo_yac_void, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, info, arginfo_yac_void, ZEND_ACC_PUBLIC)

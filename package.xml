@@ -33,6 +33,7 @@
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
   - Add --with-system-fastlz option
+  - Add getter/setter magic method 
  </notes>
  <contents> 
   <dir name="/"> 
