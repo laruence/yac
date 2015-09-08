@@ -11,8 +11,8 @@ dnl PHP_ARG_ENABLE(yac, whether to use msgpack as serializer,
 dnl    [  --enable-msgpack       Use Messagepack as serializer])
 
 dnl copied from Zend Optimizer Plus
-  AC_MSG_CHECKING(for sysvipc shared memory support)
-  AC_TRY_RUN([
+AC_MSG_CHECKING(for sysvipc shared memory support)
+AC_TRY_RUN([
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/ipc.h>
@@ -77,12 +77,12 @@ int main() {
   return 0;
 }
 ],dnl
-    AC_DEFINE(HAVE_SHM_IPC, 1, [Define if you have SysV IPC SHM support])
+AC_DEFINE(HAVE_SHM_IPC, 1, [Define if you have SysV IPC SHM support])
     msg=yes,msg=no,msg=no)
-  AC_MSG_RESULT([$msg])
+AC_MSG_RESULT([$msg])
 
-  AC_MSG_CHECKING(for mmap() using MAP_ANON shared memory support)
-  AC_TRY_RUN([
+AC_MSG_CHECKING(for mmap() using MAP_ANON shared memory support)
+AC_TRY_RUN([
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
@@ -129,12 +129,12 @@ int main() {
   return 0;
 }
 ],dnl
-    AC_DEFINE(HAVE_SHM_MMAP_ANON, 1, [Define if you have mmap(MAP_ANON) SHM support])
+AC_DEFINE(HAVE_SHM_MMAP_ANON, 1, [Define if you have mmap(MAP_ANON) SHM support])
     msg=yes,msg=no,msg=no)
-  AC_MSG_RESULT([$msg])
+AC_MSG_RESULT([$msg])
 
-  AC_MSG_CHECKING(for mmap() using /dev/zero shared memory support)
-  AC_TRY_RUN([
+AC_MSG_CHECKING(for mmap() using /dev/zero shared memory support)
+AC_TRY_RUN([
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
@@ -184,9 +184,9 @@ int main() {
   return 0;
 }
 ],dnl
-    AC_DEFINE(HAVE_SHM_MMAP_ZERO, 1, [Define if you have mmap("/dev/zero") SHM support])
+AC_DEFINE(HAVE_SHM_MMAP_ZERO, 1, [Define if you have mmap("/dev/zero") SHM support])
     msg=yes,msg=no,msg=no)
-  AC_MSG_RESULT([$msg])
+AC_MSG_RESULT([$msg])
 
 dnl  if test "$PHP_MSGPACK" != "no"; then
 dnl    AC_DEFINE(ENABLE_MSGPACK,1,[enable msgpack packager])
@@ -196,17 +196,22 @@ dnl    PHP_ADD_EXTENSION_DEP(yac, msgpack, true)
 dnl    ])
 dnl  fi
 
-  YAC_FILES="yac.c storage/yac_storage.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c"
-  if test "$PHP_SYSTEM_FASTLZ" != "no"; then
-    AC_CHECK_HEADERS([fastlz.h])
-    PHP_CHECK_LIBRARY(fastlz, fastlz_compress,
-        [PHP_ADD_LIBRARY(fastlz, 1, YAC_SHARED_LIBADD)],
-        [AC_MSG_ERROR(FastLZ library not found)])
-  else
-    YAC_FILES="${YAC_FILES} compressor/fastlz/fastlz.c"
-  fi
+YAC_FILES="yac.c storage/yac_storage.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c"
+if test "$PHP_SYSTEM_FASTLZ" != "no"; then
+  AC_CHECK_HEADERS([fastlz.h])
+  PHP_CHECK_LIBRARY(fastlz, fastlz_compress,
+    [PHP_ADD_LIBRARY(fastlz, 1, YAC_SHARED_LIBADD)],
+    [AC_MSG_ERROR(FastLZ library not found)])
+else
+  YAC_FILES="${YAC_FILES} compressor/fastlz/fastlz.c"
+fi
 
-  if test "$PHP_YAC" != "no"; then
-    PHP_SUBST(YAC_SHARED_LIBADD)
-    PHP_NEW_EXTENSION(yac, ${YAC_FILES}, $ext_shared)
+if test "$PHP_YAC" != "no"; then
+  PHP_SUBST(YAC_SHARED_LIBADD)
+  PHP_NEW_EXTENSION(yac, ${YAC_FILES}, $ext_shared)
+  PHP_ADD_BUILD_DIR([$ext_builddir/storage])
+  PHP_ADD_BUILD_DIR([$ext_builddir/storage/allocator])
+  PHP_ADD_BUILD_DIR([$ext_builddir/storage/allocator/allocators])
+  PHP_ADD_BUILD_DIR([$ext_builddir/serializer])
+  PHP_ADD_BUILD_DIR([$ext_builddir/compressor])
 fi
