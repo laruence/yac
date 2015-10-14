@@ -34,7 +34,7 @@ extern zend_module_entry yac_module_entry;
 #include "TSRM.h"
 #endif
 
-#define PHP_YAC_VERSION "0.9.3-dev"
+#define PHP_YAC_VERSION "2.0.0-dev"
 
 #define YAC_CLASS_PROPERTY_PREFIX  "_prefix"
 #define YAC_ENTRY_COMPRESSED	   0x0020
