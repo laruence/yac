@@ -4,7 +4,8 @@ php:
   - 7.0
 
 notifications:
-  email: laruence@yahoo.com.cn
+  email: false
+  irc: "irc.efnet.org#php.yaf"
    
 env:
   - REPORT_EXIT_STATUS=1 NO_INTERACTION=1
