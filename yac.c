@@ -113,8 +113,8 @@ static int yac_add_impl(char *prefix, uint prefix_len, char *key, uint len, zval
 	time_t tv;
 
 	if ((len + prefix_len) > YAC_STORAGE_MAX_KEY_LEN) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Key%s can not be longer than %d bytes",
-				prefix_len? "(include prefix)" : "", YAC_STORAGE_MAX_KEY_LEN);
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Key (%s%s) can not be longer than %d bytes",
+				prefix ,key, YAC_STORAGE_MAX_KEY_LEN);
 		return ret;
 	}
 
@@ -281,8 +281,8 @@ static zval * yac_get_impl(char * prefix, uint prefix_len, char *key, uint len, 
 	time_t tv;
 
 	if ((len + prefix_len) > YAC_STORAGE_MAX_KEY_LEN) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Key%s can not be longer than %d bytes",
-				prefix_len? "(include prefix)" : "", YAC_STORAGE_MAX_KEY_LEN);
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Key (%s%s) can not be longer than %d bytes",
+				prefix ,key, YAC_STORAGE_MAX_KEY_LEN);
 		return ret;
 	}
 
@@ -433,8 +433,8 @@ void yac_delete_impl(char *prefix, uint prefix_len, char *key, uint len, int ttl
 	time_t tv = 0;
 
 	if ((len + prefix_len) > YAC_STORAGE_MAX_KEY_LEN) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Key%s can not be longer than %d bytes",
-				prefix_len? "(include prefix)" : "", YAC_STORAGE_MAX_KEY_LEN);
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Key (%s%s) can not be longer than %d bytes",
+				prefix ,key, YAC_STORAGE_MAX_KEY_LEN);
 		return;
 	}
 
