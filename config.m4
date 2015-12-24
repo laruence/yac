@@ -214,4 +214,5 @@ if test "$PHP_YAC" != "no"; then
   PHP_ADD_BUILD_DIR([$ext_builddir/storage/allocator/allocators])
   PHP_ADD_BUILD_DIR([$ext_builddir/serializer])
   PHP_ADD_BUILD_DIR([$ext_builddir/compressor])
+  PHP_ADD_BUILD_DIR([$ext_builddir/compressor/fastlz])
 fi
