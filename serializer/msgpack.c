@@ -26,7 +26,7 @@
 #ifdef ENABLE_MSGPACK
 
 #include "php.h"
-#include "ext/standard/php_smart_str.h" /* for smart_str */
+#include "zend_smart_str.h" /* for smart_str */
 
 #include "yac_serializer.h"
 
