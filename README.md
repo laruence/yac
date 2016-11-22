@@ -143,8 +143,3 @@ $yac->get(array("dummy", "dummy2"));
   }
   */
 ```
-
-## TODO
-   1. Test in real life applications
-
-
