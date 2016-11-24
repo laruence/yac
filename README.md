@@ -9,7 +9,7 @@ it can be used to replace APC or local memcached.
 
 *Yac is lockless, that means, there might be a chance that you will get a wrong data(depends on how many key slots are allocated and how many keys are stored), so you'd better make sure that your product is not very sensitive to that.*
 
-According the test([https://github.com/laruence/yac/blob/master/tests/yac_conflict.php](https://github.com/laruence/yac/blob/master/tests/yac_conflict.php)), there is 1/10000000 chance you will get a wrong data, however this test script is designed to make conflicts, in the real application, this chance must be much less.
+According to the test([https://github.com/laruence/yac/blob/master/tests/yac_conflict.php](https://github.com/laruence/yac/blob/master/tests/yac_conflict.php)), there is 1/10000000 chance you will get a wrong data, however this test script is designed to make conflicts, in the real application, this chance must be much less.
 
 ## Requirement
 - PHP 5.2 +
