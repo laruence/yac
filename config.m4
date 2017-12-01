@@ -4,8 +4,8 @@ dnl config.m4 for extension yac
 PHP_ARG_ENABLE(yac, whether to enable yac support,
     [  --enable-yac           Enable yac support])
 
-PHP_ARG_WITH(system-fastlz, wheter to use system FastLZ bibrary,
-    [  --with-system-fastlz   Use system FastLZ bibrary], no, no)
+PHP_ARG_WITH(system-fastlz, wheter to use system FastLZ library,
+    [  --with-system-fastlz   Use system FastLZ library], no, no)
 
 dnl PHP_ARG_ENABLE(yac, whether to use msgpack as serializer,
 dnl    [  --enable-msgpack       Use Messagepack as serializer])
