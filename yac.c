@@ -120,7 +120,7 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 	int ret = 0, flag = Z_TYPE_P(value);
 	char *msg;
 	time_t tv;
-	zend_string *prefix_key;
+	zend_string *prefix_key = NULL;
 
 	if ((ZSTR_LEN(key) + prefix->len) > YAC_STORAGE_MAX_KEY_LEN) {
 		php_error_docref(NULL, E_WARNING, "Key%s can not be longer than %d bytes",
@@ -302,7 +302,7 @@ static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint32_t *cas,
 	uint32_t flag, size = 0;
 	char *data, *msg;
 	time_t tv;
-	zend_string *prefix_key;
+	zend_string *prefix_key = NULL;
 
 	if ((ZSTR_LEN(key) + prefix->len) > YAC_STORAGE_MAX_KEY_LEN) {
 		php_error_docref(NULL, E_WARNING, "Key%s can not be longer than %d bytes",
