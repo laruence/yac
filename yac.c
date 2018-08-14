@@ -147,7 +147,9 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 			ret = yac_storage_update(ZSTR_VAL(key), ZSTR_LEN(key), (char *)&Z_DVAL_P(value), sizeof(double), flag, ttl, add, tv);
 			break;
 		case IS_STRING:
+#ifdef IS_CONSTANT
 		case IS_CONSTANT:
+#endif
 			{
 				if (Z_STRLEN_P(value) > YAC_G(compress_threshold) || Z_STRLEN_P(value) > YAC_STORAGE_MAX_ENTRY_LEN) {
 					int compressed_len;
@@ -347,7 +349,9 @@ static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint32_t *cas,
 				efree(data);
 				break;
 			case IS_STRING:
+#ifdef IS_CONSTANT
 			case IS_CONSTANT:
+#endif
 				{
 					if ((flag & YAC_ENTRY_COMPRESSED)) {
 						size_t orig_len = ((uint32_t)flag >> YAC_ENTRY_ORIG_LEN_SHIT);
