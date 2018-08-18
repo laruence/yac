@@ -1,4 +1,3 @@
-dnl $Id$
 dnl config.m4 for extension yac
 
 PHP_ARG_ENABLE(yac, whether to enable yac support,

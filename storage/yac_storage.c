@@ -16,8 +16,6 @@
   +----------------------------------------------------------------------+
 */
 
-/* $Id$ */
-
 #include "php.h"
 #include "yac_storage.h"
 #include "allocator/yac_allocator.h"
