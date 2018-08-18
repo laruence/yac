@@ -12,7 +12,8 @@ dnl    [  --enable-msgpack       Use Messagepack as serializer])
 
 dnl copied from Zend Optimizer Plus
 AC_MSG_CHECKING(for sysvipc shared memory support)
-AC_TRY_RUN([
+AC_RUN_IFELSE([
+  AC_LANG_SOURCE([[
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/ipc.h>
@@ -76,13 +77,14 @@ int main() {
   }
   return 0;
 }
-],dnl
-AC_DEFINE(HAVE_SHM_IPC, 1, [Define if you have SysV IPC SHM support])
-    msg=yes,msg=no,msg=no)
+]])],[
+  AC_DEFINE(HAVE_SHM_IPC, 1, [Define if you have SysV IPC SHM support])
+  msg=yes],[msg=no],[msg=no])
 AC_MSG_RESULT([$msg])
 
 AC_MSG_CHECKING(for mmap() using MAP_ANON shared memory support)
-AC_TRY_RUN([
+AC_RUN_IFELSE([
+  AC_LANG_SOURCE([[
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
@@ -128,13 +130,14 @@ int main() {
   }
   return 0;
 }
-],dnl
-AC_DEFINE(HAVE_SHM_MMAP_ANON, 1, [Define if you have mmap(MAP_ANON) SHM support])
-    msg=yes,msg=no,msg=no)
+]])],[
+  AC_DEFINE(HAVE_SHM_MMAP_ANON, 1, Define if you have mmap(MAP_ANON) SHM support)
+  msg=yes],[msg=no],[msg=no])
 AC_MSG_RESULT([$msg])
 
 AC_MSG_CHECKING(for mmap() using /dev/zero shared memory support)
-AC_TRY_RUN([
+AC_RUN_IFELSE([
+  AC_LANG_SOURCE([[
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
@@ -183,9 +186,9 @@ int main() {
   }
   return 0;
 }
-],dnl
-AC_DEFINE(HAVE_SHM_MMAP_ZERO, 1, [Define if you have mmap("/dev/zero") SHM support])
-    msg=yes,msg=no,msg=no)
+]])],[
+  AC_DEFINE(HAVE_SHM_MMAP_ZERO, 1, [Define if you have mmap("/dev/zero") SHM support])
+  msg=yes],[msg=no],[msg=no])
 AC_MSG_RESULT([$msg])
 
 dnl  if test "$PHP_MSGPACK" != "no"; then
