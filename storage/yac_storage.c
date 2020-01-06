@@ -67,7 +67,7 @@ void yac_storage_shutdown(void) /* {{{ */ {
 
 /* {{{ MurmurHash2 (Austin Appleby)
  */
-static inline ulong yac_inline_hash_func1(char *data, unsigned int len) {
+static inline uint64_t yac_inline_hash_func1(char *data, unsigned int len) {
     unsigned int h, k;
 
     h = 0 ^ len;
@@ -139,8 +139,8 @@ static inline ulong yac_inline_hash_func1(char *data, unsigned int len) {
  *                  -- Ralf S. Engelschall <rse@engelschall.com>
  */
 
-static inline ulong yac_inline_hash_func2(char *key, uint len) {
-	register ulong hash = 5381;
+static inline uint64_t yac_inline_hash_func2(char *key, uint32_t len) {
+	register uint64_t hash = 5381;
 
 	/* variant with the hash unrolled eight times */
 	for (; len >= 8; len -= 8) {
@@ -293,7 +293,7 @@ static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
 /* }}} */
 
 int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas, unsigned long tv) /* {{{ */ {
-	ulong h, hash, seed;
+	uint64_t h, hash, seed;
 	yac_kv_key k, *p;
 	yac_kv_val v;
 
@@ -302,7 +302,7 @@ int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *siz
 	k = *p;
 	if (k.val) {
 		char *s;
-		uint i;
+		uint32_t i;
 		if (k.h == hash && YAC_KEY_KLEN(k) == len) {
 			v = *(k.val);
 			if (!memcmp(k.key, key, len)) {
@@ -361,14 +361,14 @@ do_verify:
 /* }}} */
 
 void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) /* {{{ */ {
-	ulong hash, h, seed;
+	uint64_t hash, h, seed;
 	yac_kv_key k, *p;
 
 	hash = h = yac_inline_hash_func1(key, len);
 	p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
 	k = *p;
 	if (k.val) {
-		uint i;
+		uint32_t i;
 		if (k.h == hash && YAC_KEY_KLEN(k) == len) {
 			if (!memcmp((char *)k.key, key, len)) {
 				if (ttl == 0) {
@@ -397,7 +397,7 @@ void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) 
 /* }}} */
 
 int yac_storage_update(char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add, unsigned long tv) /* {{{ */ {
-	ulong hash, h;
+	uint64_t hash, h;
 	int idx = 0, is_valid;
 	yac_kv_key *p, k, *paths[4];
 	yac_kv_val *val, *s;
@@ -421,7 +421,7 @@ do_update:
 				s = USER_ALLOC(sizeof(yac_kv_val) + size - 1);
 				memcpy(s->data, data, size);
 				if (ttl) {
-					k.ttl = (ulong)tv + ttl;
+					k.ttl = (uint64_t)tv + ttl;
 				} else {
 					k.ttl = 0;
 				}
@@ -436,7 +436,7 @@ do_update:
 				USER_FREE(s);
 				return 1;
 			} else {
-				uint msize;
+				uint32_t msize;
 				real_size = yac_allocator_real_size(sizeof(yac_kv_val) + (size * YAC_STORAGE_FACTOR) - 1);
 				if (!real_size) {
 					++YAC_SG(fails);
@@ -470,8 +470,8 @@ do_update:
 				return 0;
 			}
 		} else {
-			uint i;
-			ulong seed, max_atime;
+			uint32_t i;
+			uint64_t seed, max_atime;
 
 			seed = yac_inline_hash_func2(key, len);
 			for (i = 0; i < 3; i++) {
