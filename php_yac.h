@@ -48,7 +48,7 @@ ZEND_BEGIN_MODULE_GLOBALS(yac)
 	zend_bool debug;
 	size_t k_msize;
 	size_t v_msize;
-	ulong compress_threshold;
+	zend_ulong compress_threshold;
 	zend_bool enable_cli;
 #ifdef PHP_WIN32
 	char *mmap_base;
