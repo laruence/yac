@@ -483,7 +483,7 @@ void yac_delete_impl(char *prefix, uint32_t prefix_len, char *key, uint32_t len,
 	}
 
 	if (ttl) {
-		tv = (ulong)time(NULL);
+		tv = (zend_ulong)time(NULL);
 	}
 
 	yac_storage_delete(key, len, ttl, tv);
