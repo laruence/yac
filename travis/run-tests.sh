@@ -1,7 +1,7 @@
 #!/bin/bash
 TEST_DIR="`pwd`/tests/"
 
-TEST_PHP_ARGS="-m --show-diff -q" make test
+TEST_PHP_ARGS="--show-diff -q" make test
 
 EXIT_STATUS=0
 
