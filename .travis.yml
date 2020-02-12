@@ -10,13 +10,15 @@ php:
 notifications:
   email: false
   irc: "irc.efnet.org#php.yaf"
-   
+
 env:
   - REPORT_EXIT_STATUS=1 NO_INTERACTION=1
 
 #Compile
 before_script:
-    - ./travis/compile.sh
+  - sudo apt-get install -y valgrind
+  - ./travis/compile.sh
 
 # Run PHPs run-tests.php 
-script: TEST_PHP_ARGS="-m --show-diff" make test
+script:
+  - ./travis/run-tests.sh
