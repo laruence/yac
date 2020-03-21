@@ -18,9 +18,13 @@
 
 /* $Id$ */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "php.h"
-#if PHP_HAVE_SSE4_2_INSTRUCTIONS && HAVE_NMMINTRIN_H
-#define YAC_HAVE_BUILTIN_CRC
+
+#if HAVE_SSE_CRC32
 #include "Zend/zend_cpuinfo.h"
 #include <nmmintrin.h>
 static unsigned int crc32_sse42(const char *dagta, unsigned int size);
@@ -49,7 +53,7 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, char **msg) /* 
 	if (!yac_allocator_startup(fsize, size, msg)) {
 		return 0;
 	}
-#ifdef YAC_HAVE_BUILTIN_CRC
+#if HAVE_SSE_CRC32
 	if (zend_cpu_supports_sse42()) {
 		yac_crc = crc32_sse42;
 	} else
@@ -285,7 +289,7 @@ static unsigned int crc32(const char *buf, unsigned int size) {
 }
 /* }}} */
 
-#ifdef YAC_HAVE_BUILTIN_CRC
+#if HAVE_SSE_CRC32
 static unsigned int crc32_sse42(const char *buf, unsigned int size) /* {{{ */ {
 	const char *p, *e;;
 	unsigned int crc = 0;
