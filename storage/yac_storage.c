@@ -23,7 +23,6 @@
 #define YAC_HAVE_BUILTIN_CRC
 #include "Zend/zend_cpuinfo.h"
 #include <nmmintrin.h>
-static unsigned int (*yac_crc) (const char *data, unsigned int size);
 static unsigned int crc32_sse42(const char *dagta, unsigned int size);
 #endif
 
@@ -32,6 +31,7 @@ static unsigned int crc32_sse42(const char *dagta, unsigned int size);
 
 yac_storage_globals *yac_storage;
 
+static unsigned int (*yac_crc) (const char *data, unsigned int size);
 static unsigned int crc32(const char *dagta, unsigned int size);
 
 static inline unsigned int yac_storage_align_size(unsigned int size) /* {{{ */ {
