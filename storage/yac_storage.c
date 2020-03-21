@@ -19,10 +19,20 @@
 /* $Id$ */
 
 #include "php.h"
+#if PHP_HAVE_SSE4_2_INSTRUCTIONS && HAVE_NMMINTRIN_H
+#define YAC_HAVE_BUILTIN_CRC
+#include "Zend/zend_cpuinfo.h"
+#include <nmmintrin.h>
+static unsigned int (*yac_crc) (const char *data, unsigned int size);
+static unsigned int crc32_sse42(const char *dagta, unsigned int size);
+#endif
+
 #include "yac_storage.h"
 #include "allocator/yac_allocator.h"
 
 yac_storage_globals *yac_storage;
+
+static unsigned int crc32(const char *dagta, unsigned int size);
 
 static inline unsigned int yac_storage_align_size(unsigned int size) /* {{{ */ {
 	int bits = 0;
@@ -39,7 +49,14 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, char **msg) /* 
 	if (!yac_allocator_startup(fsize, size, msg)) {
 		return 0;
 	}
-
+#ifdef YAC_HAVE_BUILTIN_CRC
+	if (zend_cpu_supports_sse42()) {
+		yac_crc = crc32_sse42;
+	} else
+#endif
+	{
+		yac_crc = crc32;
+	}
 	size = YAC_SG(first_seg).size - ((char *)YAC_SG(slots) - (char *)yac_storage);
 	real_size = yac_storage_align_size(size / sizeof(yac_kv_key));
 	if (!((size / sizeof(yac_kv_key)) & ~(real_size << 1))) {
@@ -255,7 +272,7 @@ static unsigned int crc32_tab[] = {
 	0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
-static inline unsigned int crc32(char *buf, unsigned int size) {
+static unsigned int crc32(const char *buf, unsigned int size) {
 	const char *p;
 	register int crc = 0;
 
@@ -268,9 +285,30 @@ static inline unsigned int crc32(char *buf, unsigned int size) {
 }
 /* }}} */
 
+#ifdef YAC_HAVE_BUILTIN_CRC
+static unsigned int crc32_sse42(const char *buf, unsigned int size) /* {{{ */ {
+	const char *p, *e;;
+	unsigned int crc = 0;
+
+	p = buf;
+	e = buf + size;
+	while (p + sizeof(uint64_t) <= e) {
+		crc = _mm_crc32_u64(crc, *p);
+		p += sizeof(uint64_t);
+	}
+
+	while (p != e ) {
+		crc = _mm_crc32_u8(crc, *p++);
+	}
+
+	return crc ^ ~0U;
+}
+/* }}} */
+#endif
+
 static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
 	if (size < YAC_FULL_CRC_THRESHOLD) {
-		return crc32(data, size);
+		return yac_crc(data, size);
 	} else {
 		int i = 0;
 		char crc_contents[YAC_FULL_CRC_THRESHOLD];
@@ -287,7 +325,7 @@ static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
 		}
 		memcpy(q, p, tail);
 
-		return crc32(crc_contents, YAC_FULL_CRC_THRESHOLD);
+		return yac_crc(crc_contents, YAC_FULL_CRC_THRESHOLD);
 	}
 }
 /* }}} */
