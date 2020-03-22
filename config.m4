@@ -216,6 +216,24 @@ ifdef([PHP_CHECK_CPU_SUPPORTS],
   fi
 ], [])
 
+AC_DEFUN([YAC_BUILTIN_ATOMIC],
+[
+  AC_MSG_CHECKING([for __sync_bool_compare_and_swap supports])
+  AC_LINK_IFELSE([AC_LANG_PROGRAM([], [[
+    int variable = 1;
+    return (__sync_bool_compare_and_swap(&variable, 1, 2)
+           && __sync_add_and_fetch(&variable, 1)) ? 1 : 0;
+  ]])], [
+    AC_MSG_RESULT([yes])
+    AC_DEFINE(HAVE_BUILTIN_ATOMIC, 1, [Define to 1 if gcc supports __sync_bool_compare_and_swap() a.o.])
+  ], [
+    AC_MSG_RESULT([no])
+  ])
+])
+
+YAC_BUILTIN_ATOMIC
+
+
 YAC_FILES="yac.c storage/yac_storage.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c"
 if test "$PHP_SYSTEM_FASTLZ" != "no"; then
   AC_CHECK_HEADERS([fastlz.h])

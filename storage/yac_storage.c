@@ -16,8 +16,6 @@
   +----------------------------------------------------------------------+
 */
 
-/* $Id$ */
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -30,6 +28,7 @@
 static unsigned int crc32_sse42(const char *dagta, unsigned int size);
 #endif
 
+#include "yac_atomic.h"
 #include "yac_storage.h"
 #include "allocator/yac_allocator.h"
 
@@ -291,7 +290,7 @@ static unsigned int crc32(const char *buf, unsigned int size) {
 
 #if HAVE_SSE_CRC32
 static unsigned int crc32_sse42(const char *buf, unsigned int size) /* {{{ */ {
-	const char *p, *e;;
+	const char *p, *e;
 	unsigned int crc = 0;
 
 	p = buf;
@@ -341,7 +340,12 @@ int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *siz
 
 	hash = h = yac_inline_hash_func1(key, len);
 	p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
+	if (!WRITEP(p)) {
+		++YAC_SG(miss);
+		return 0;
+	}
 	k = *p;
+	READP(p);
 	if (k.val) {
 		char *s;
 		uint32_t i;
@@ -384,7 +388,12 @@ do_verify:
 		for (i = 0; i < 3; i++) {
 			h += seed & YAC_SG(slots_mask);
 			p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
+			if (!WRITEP(p)) {
+				++YAC_SG(miss);
+				return 0;
+			}
 			k = *p;
+			READP(p);
 			if (k.h == hash && YAC_KEY_KLEN(k) == len) {
 				v = *(k.val);
 				if (!memcmp(k.key, key, len)) {
@@ -402,13 +411,17 @@ do_verify:
 }
 /* }}} */
 
-void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) /* {{{ */ {
+int yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) /* {{{ */ {
 	uint64_t hash, h, seed;
 	yac_kv_key k, *p;
 
 	hash = h = yac_inline_hash_func1(key, len);
 	p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
+	if (!WRITEP(p)) {
+		return 0;
+	}
 	k = *p;
+	READP(p);
 	if (k.val) {
 		uint32_t i;
 		if (k.h == hash && YAC_KEY_KLEN(k) == len) {
@@ -418,7 +431,7 @@ void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) 
 				} else {
 					p->ttl = ttl + tv;
 				}
-				return;
+				return 1;
 			}
 		} 
 
@@ -426,15 +439,21 @@ void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) 
 		for (i = 0; i < 3; i++) {
 			h += seed & YAC_SG(slots_mask);
 			p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
+			if (!WRITEP(p)) {
+				return 0;
+			}
 			k = *p;
+			READP(p);
 			if (k.val == NULL) {
-				return;
+				return 1;
 			} else if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
 				p->ttl = 1;
-				return;
+				return 1;
 			}
 		}
 	}
+
+	return 0;
 }
 /* }}} */
 
@@ -447,7 +466,11 @@ int yac_storage_update(char *key, unsigned int len, char *data, unsigned int siz
 
 	hash = h = yac_inline_hash_func1(key, len);
 	paths[idx++] = p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
+	if (!WRITEP(p)) {
+		return 0;
+	}
 	k = *p;
+	READP(p);
 	if (k.val) {
 		/* Found the exact match */
 		if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
@@ -474,7 +497,12 @@ do_update:
 				k.flag = flag;
 				memcpy(k.key, key, len);
 				YAC_KEY_SET_LEN(k, len, size);
+				if (!WRITEP(p)) {
+					USER_FREE(s);
+					return 0;
+				}
 				*p = k;
+				READP(p);
 				USER_FREE(s);
 				return 1;
 			} else {
@@ -503,7 +531,12 @@ do_update:
 					k.size = real_size;
 					memcpy(k.key, key, len);
 					YAC_KEY_SET_LEN(k, len, size);
+					if (!WRITEP(p)) {
+						USER_FREE(s);
+						return 0;
+					}
 					*p = k;
+					READP(p);
 					USER_FREE(s);
 					return 1;
 				}
@@ -519,7 +552,11 @@ do_update:
 			for (i = 0; i < 3; i++) {
 				h += seed & YAC_SG(slots_mask);
 				paths[idx++] = p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
+				if (!WRITEP(p)) {
+					return 0;
+				}
 				k = *p;
+				READP(p);
 				if (k.val == NULL) {
 					goto do_add;
 				} else if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
@@ -539,8 +576,12 @@ do_update:
 					p = paths[i];
 				}
 			}
-			++YAC_SG(kicks);
+			if (!WRITEP(p)) {
+				return 0;
+			}
 			k = *p;
+			READP(p);
+			++YAC_SG(kicks);
 			k.h = hash;
 
 			goto do_update;
@@ -574,20 +615,25 @@ do_add:
 			} else {
 				k.ttl = 0;
 			}
+			if (!WRITEP(p)) {
+				USER_FREE(s);
+				return 0;
+			}
 			*p = k;
+			READP(p);
 			USER_FREE(s);
 			return 1;
 		}
 		++YAC_SG(fails);
 		USER_FREE(s);
 	}
-
 	return 0;
 }
 /* }}} */
 
 void yac_storage_flush(void) /* {{{ */ {
 	YAC_SG(slots_num) = 0;
+
 	memset((char *)YAC_SG(slots), 0, sizeof(yac_kv_key) * YAC_SG(slots_size));
 }
 /* }}} */
