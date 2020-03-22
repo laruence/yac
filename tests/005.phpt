@@ -42,4 +42,4 @@ array(2) {
   bool(false)
 }
 
-%s fatal error: Object of class stdClass could not be converted to string in %s005.php on line %d
+%s error:%sObject of class stdClass could not be converted to string in %s005.php%A

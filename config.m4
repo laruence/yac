@@ -195,6 +195,26 @@ dnl    [
 dnl    PHP_ADD_EXTENSION_DEP(yac, msgpack, true)
 dnl    ])
 dnl  fi
+dnl
+
+ifdef([PHP_CHECK_CPU_SUPPORTS],
+[
+  if test -x "$PHP_CONFIG"; then
+    php_vernum=`$PHP_CONFIG --vernum`
+    if test $php_vernum -ge 70300; then
+      AC_CHECK_HEADERS([nmmintrin.h])
+      PHP_CHECK_CPU_SUPPORTS([sse4.2])
+	  AC_MSG_CHECKING([for crc32 instruction supports])
+      if test $have_ext_instructions -eq 1; then
+        AC_DEFINE([HAVE_SSE_CRC32], 1, [define if you have sse4.2 crc32 instruction support])
+        CFLAGS="$CFLAGS -msse4.2"
+		AC_MSG_RESULT([yes])
+	  else
+		AC_MSG_RESULT([no])
+      fi
+    fi
+  fi
+], [])
 
 YAC_FILES="yac.c storage/yac_storage.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c"
 if test "$PHP_SYSTEM_FASTLZ" != "no"; then

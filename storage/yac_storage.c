@@ -18,11 +18,25 @@
 
 /* $Id$ */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "php.h"
+
+#if HAVE_SSE_CRC32
+#include "Zend/zend_cpuinfo.h"
+#include <nmmintrin.h>
+static unsigned int crc32_sse42(const char *dagta, unsigned int size);
+#endif
+
 #include "yac_storage.h"
 #include "allocator/yac_allocator.h"
 
 yac_storage_globals *yac_storage;
+
+static unsigned int (*yac_crc) (const char *data, unsigned int size);
+static unsigned int crc32(const char *dagta, unsigned int size);
 
 static inline unsigned int yac_storage_align_size(unsigned int size) /* {{{ */ {
 	int bits = 0;
@@ -39,7 +53,14 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, char **msg) /* 
 	if (!yac_allocator_startup(fsize, size, msg)) {
 		return 0;
 	}
-
+#if HAVE_SSE_CRC32
+	if (zend_cpu_supports_sse42()) {
+		yac_crc = crc32_sse42;
+	} else
+#endif
+	{
+		yac_crc = crc32;
+	}
 	size = YAC_SG(first_seg).size - ((char *)YAC_SG(slots) - (char *)yac_storage);
 	real_size = yac_storage_align_size(size / sizeof(yac_kv_key));
 	if (!((size / sizeof(yac_kv_key)) & ~(real_size << 1))) {
@@ -67,7 +88,7 @@ void yac_storage_shutdown(void) /* {{{ */ {
 
 /* {{{ MurmurHash2 (Austin Appleby)
  */
-static inline ulong yac_inline_hash_func1(char *data, unsigned int len) {
+static inline uint64_t yac_inline_hash_func1(char *data, unsigned int len) {
     unsigned int h, k;
 
     h = 0 ^ len;
@@ -139,8 +160,8 @@ static inline ulong yac_inline_hash_func1(char *data, unsigned int len) {
  *                  -- Ralf S. Engelschall <rse@engelschall.com>
  */
 
-static inline ulong yac_inline_hash_func2(char *key, uint len) {
-	register ulong hash = 5381;
+static inline uint64_t yac_inline_hash_func2(char *key, uint32_t len) {
+	register uint64_t hash = 5381;
 
 	/* variant with the hash unrolled eight times */
 	for (; len >= 8; len -= 8) {
@@ -255,7 +276,7 @@ static unsigned int crc32_tab[] = {
 	0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
-static inline unsigned int crc32(char *buf, unsigned int size) {
+static unsigned int crc32(const char *buf, unsigned int size) {
 	const char *p;
 	register int crc = 0;
 
@@ -268,9 +289,30 @@ static inline unsigned int crc32(char *buf, unsigned int size) {
 }
 /* }}} */
 
+#if HAVE_SSE_CRC32
+static unsigned int crc32_sse42(const char *buf, unsigned int size) /* {{{ */ {
+	const char *p, *e;;
+	unsigned int crc = 0;
+
+	p = buf;
+	e = buf + size;
+	while (p + sizeof(uint64_t) <= e) {
+		crc = _mm_crc32_u64(crc, *p);
+		p += sizeof(uint64_t);
+	}
+
+	while (p != e ) {
+		crc = _mm_crc32_u8(crc, *p++);
+	}
+
+	return crc ^ ~0U;
+}
+/* }}} */
+#endif
+
 static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
 	if (size < YAC_FULL_CRC_THRESHOLD) {
-		return crc32(data, size);
+		return yac_crc(data, size);
 	} else {
 		int i = 0;
 		char crc_contents[YAC_FULL_CRC_THRESHOLD];
@@ -287,13 +329,13 @@ static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
 		}
 		memcpy(q, p, tail);
 
-		return crc32(crc_contents, YAC_FULL_CRC_THRESHOLD);
+		return yac_crc(crc_contents, YAC_FULL_CRC_THRESHOLD);
 	}
 }
 /* }}} */
 
 int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas, unsigned long tv) /* {{{ */ {
-	ulong h, hash, seed;
+	uint64_t h, hash, seed;
 	yac_kv_key k, *p;
 	yac_kv_val v;
 
@@ -302,7 +344,7 @@ int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *siz
 	k = *p;
 	if (k.val) {
 		char *s;
-		uint i;
+		uint32_t i;
 		if (k.h == hash && YAC_KEY_KLEN(k) == len) {
 			v = *(k.val);
 			if (!memcmp(k.key, key, len)) {
@@ -361,14 +403,14 @@ do_verify:
 /* }}} */
 
 void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) /* {{{ */ {
-	ulong hash, h, seed;
+	uint64_t hash, h, seed;
 	yac_kv_key k, *p;
 
 	hash = h = yac_inline_hash_func1(key, len);
 	p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
 	k = *p;
 	if (k.val) {
-		uint i;
+		uint32_t i;
 		if (k.h == hash && YAC_KEY_KLEN(k) == len) {
 			if (!memcmp((char *)k.key, key, len)) {
 				if (ttl == 0) {
@@ -397,7 +439,7 @@ void yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) 
 /* }}} */
 
 int yac_storage_update(char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add, unsigned long tv) /* {{{ */ {
-	ulong hash, h;
+	uint64_t hash, h;
 	int idx = 0, is_valid;
 	yac_kv_key *p, k, *paths[4];
 	yac_kv_val *val, *s;
@@ -421,7 +463,7 @@ do_update:
 				s = USER_ALLOC(sizeof(yac_kv_val) + size - 1);
 				memcpy(s->data, data, size);
 				if (ttl) {
-					k.ttl = (ulong)tv + ttl;
+					k.ttl = (uint64_t)tv + ttl;
 				} else {
 					k.ttl = 0;
 				}
@@ -436,7 +478,7 @@ do_update:
 				USER_FREE(s);
 				return 1;
 			} else {
-				uint msize;
+				uint32_t msize;
 				real_size = yac_allocator_real_size(sizeof(yac_kv_val) + (size * YAC_STORAGE_FACTOR) - 1);
 				if (!real_size) {
 					++YAC_SG(fails);
@@ -470,8 +512,8 @@ do_update:
 				return 0;
 			}
 		} else {
-			uint i;
-			ulong seed, max_atime;
+			uint32_t i;
+			uint64_t seed, max_atime;
 
 			seed = yac_inline_hash_func2(key, len);
 			for (i = 0; i < 3; i++) {

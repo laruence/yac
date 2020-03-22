@@ -157,7 +157,7 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 				   
 					/* if longer than this, then we can not stored the length in flag */
 					if (Z_STRLEN_P(value) > YAC_ENTRY_MAX_ORIG_LEN) {
-						php_error_docref(NULL, E_WARNING, "Value is too long(%d bytes) to be stored", Z_STRLEN_P(value));
+						php_error_docref(NULL, E_WARNING, "Value is too long(%ld bytes) to be stored", Z_STRLEN_P(value));
 						if (prefix->len) {
 							zend_string_release(prefix_key);
 						}
@@ -176,7 +176,7 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 					}
 
 					if (compressed_len > YAC_STORAGE_MAX_ENTRY_LEN) {
-						php_error_docref(NULL, E_WARNING, "Value is too long(%d bytes) to be stored", Z_STRLEN_P(value));
+						php_error_docref(NULL, E_WARNING, "Value is too long(%ld bytes) to be stored", Z_STRLEN_P(value));
 						efree(compressed);
 						if (prefix->len) {
 							zend_string_release(prefix_key);
@@ -483,7 +483,7 @@ void yac_delete_impl(char *prefix, uint32_t prefix_len, char *key, uint32_t len,
 	}
 
 	if (ttl) {
-		tv = (ulong)time(NULL);
+		tv = (zend_ulong)time(NULL);
 	}
 
 	yac_storage_delete(key, len, ttl, tv);
@@ -1015,7 +1015,7 @@ PHP_MINFO_FUNCTION(yac)
 		php_info_print_table_row(2, "Total Shared Memory Usage for keys(keys_memory_size)", buf);
 		snprintf(buf, sizeof(buf), "%ld", inf->v_msize);
 		php_info_print_table_row(2, "Total Shared Memory Usage for values(values_memory_size)", buf);
-		snprintf(buf, sizeof(buf), "%ld", inf->segment_size);
+		snprintf(buf, sizeof(buf), "%d", inf->segment_size);
 		php_info_print_table_row(2, "Size of Shared Memory Segment(segment_size)", buf);
 		snprintf(buf, sizeof(buf), "%ld", inf->segments_num);
 		php_info_print_table_row(2, "Number of Segments (segment_num)", buf);
