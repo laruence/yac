@@ -404,9 +404,6 @@ static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint32_t *cas,
 #else
 					rv = yac_serializer_php_unpack(data, size, &msg, rv);
 #endif
-					if (!rv) {
-						php_error_docref(NULL, E_WARNING, "Unserialization failed");
-					}
 					efree(data);
 				}
 				break;
