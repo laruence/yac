@@ -1018,11 +1018,11 @@ PHP_MINFO_FUNCTION(yac)
 		php_info_print_table_row(2, "Total Shared Memory Usage for values(values_memory_size)", buf);
 		snprintf(buf, sizeof(buf), "%d", inf->segment_size);
 		php_info_print_table_row(2, "Size of Shared Memory Segment(segment_size)", buf);
-		snprintf(buf, sizeof(buf), "%ld", inf->segments_num);
+		snprintf(buf, sizeof(buf), "%d", inf->segments_num);
 		php_info_print_table_row(2, "Number of Segments (segment_num)", buf);
-		snprintf(buf, sizeof(buf), "%ld", inf->slots_size);
+		snprintf(buf, sizeof(buf), "%d", inf->slots_size);
 		php_info_print_table_row(2, "Total Slots Number(slots_size)", buf);
-		snprintf(buf, sizeof(buf), "%ld", inf->slots_num);
+		snprintf(buf, sizeof(buf), "%d", inf->slots_num);
 		php_info_print_table_row(2, "Total Used Slots(slots_num)", buf);
 		php_info_print_table_end();
 
