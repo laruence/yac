@@ -1,5 +1,5 @@
 # Yac - Yet Another Cache
-[![Build Status](https://secure.travis-ci.org/laruence/yac.png)](http://travis-ci.org/laruence/yac)
+[![Build Status](https://secure.travis-ci.org/laruence/yac.png)](http://travis-ci.org/laruence/yac) [![Build status](https://ci.appveyor.com/api/projects/status/6bu09pw8ukyx61m2/branch/master?svg=true)](https://ci.appveyor.com/project/laruence/yac/branch/master)
 
 Yac is a shared and lockless memory user data cache for PHP.
 
