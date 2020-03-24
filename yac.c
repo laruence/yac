@@ -464,14 +464,14 @@ static zval * yac_get_multi_impl(zend_string *prefix, zval *keys, zval *cas, zva
 }
 /* }}} */
 
-void yac_delete_impl(char *prefix, uint32_t prefix_len, char *key, uint32_t len, int ttl) /* {{{ */ {
+int yac_delete_impl(char *prefix, uint32_t prefix_len, char *key, uint32_t len, int ttl) /* {{{ */ {
 	char buf[YAC_STORAGE_MAX_KEY_LEN];
 	time_t tv = 0;
 
 	if ((len + prefix_len) > YAC_STORAGE_MAX_KEY_LEN) {
 		php_error_docref(NULL, E_WARNING, "Key%s can not be longer than %d bytes",
 				prefix_len? "(include prefix)" : "", YAC_STORAGE_MAX_KEY_LEN);
-		return;
+		return 0;
 	}
 
 	if (prefix_len) {
@@ -483,29 +483,32 @@ void yac_delete_impl(char *prefix, uint32_t prefix_len, char *key, uint32_t len,
 		tv = (zend_ulong)time(NULL);
 	}
 
-	yac_storage_delete(key, len, ttl, tv);
+	return yac_storage_delete(key, len, ttl, tv);
 }
 /* }}} */
 
-static void yac_delete_multi_impl(char *prefix, uint32_t prefix_len, zval *keys, int ttl) /* {{{ */ {
+static int yac_delete_multi_impl(char *prefix, uint32_t prefix_len, zval *keys, int ttl) /* {{{ */ {
 	HashTable *ht = Z_ARRVAL_P(keys);
+	int ret = 1;
 	zval *value;
 
 	ZEND_HASH_FOREACH_VAL(ht, value) {
 		switch (Z_TYPE_P(value)) {
 			case IS_STRING:
-				yac_delete_impl(prefix, prefix_len, Z_STRVAL_P(value), Z_STRLEN_P(value), ttl);
+			    ret = ret & yac_delete_impl(prefix, prefix_len, Z_STRVAL_P(value), Z_STRLEN_P(value), ttl);
 				continue;
 			default:
 				{
 					zval copy;
 					zend_make_printable_zval(value, &copy);
-					yac_delete_impl(prefix, prefix_len, Z_STRVAL(copy), Z_STRLEN(copy), ttl);
+					ret = ret & yac_delete_impl(prefix, prefix_len, Z_STRVAL(copy), Z_STRLEN(copy), ttl);
 					zval_dtor(&copy);
 				}
 				continue;
 		}
 	} ZEND_HASH_FOREACH_END();
+
+	return ret;
 }
 /* }}} */
 
@@ -527,7 +530,6 @@ PHP_METHOD(yac, __construct) {
 	}
 
 	zend_update_property_str(yac_class_ce, getThis(), ZEND_STRL(YAC_CLASS_PROPERTY_PREFIX), prefix);
-
 }
 /* }}} */
 
@@ -728,6 +730,7 @@ PHP_METHOD(yac, delete) {
 	zval *keys, *prefix, rv;
 	char *sprefix = NULL;
 	uint32_t prefix_len = 0;
+	int ret;
 
 	if (!YAC_G(enable)) {
 		RETURN_FALSE;
@@ -742,17 +745,17 @@ PHP_METHOD(yac, delete) {
 	prefix_len = Z_STRLEN_P(prefix);
 
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
-		yac_delete_multi_impl(sprefix, prefix_len, keys, time);
+		ret = yac_delete_multi_impl(sprefix, prefix_len, keys, time);
 	} else if (Z_TYPE_P(keys) == IS_STRING) {
-		yac_delete_impl(sprefix, prefix_len, Z_STRVAL_P(keys), Z_STRLEN_P(keys), time);
+		ret = yac_delete_impl(sprefix, prefix_len, Z_STRVAL_P(keys), Z_STRLEN_P(keys), time);
 	} else {
 		zval copy;
 		zend_make_printable_zval(keys, &copy);
-		yac_delete_impl(sprefix, prefix_len, Z_STRVAL(copy), Z_STRLEN(copy), time);
+		ret = yac_delete_impl(sprefix, prefix_len, Z_STRVAL(copy), Z_STRLEN(copy), time);
 		zval_dtor(&copy);
 	}
 
-	RETURN_TRUE;
+	RETURN_BOOL(ret);
 }
 /* }}} */
 
@@ -1015,11 +1018,11 @@ PHP_MINFO_FUNCTION(yac)
 		php_info_print_table_row(2, "Total Shared Memory Usage for values(values_memory_size)", buf);
 		snprintf(buf, sizeof(buf), "%d", inf->segment_size);
 		php_info_print_table_row(2, "Size of Shared Memory Segment(segment_size)", buf);
-		snprintf(buf, sizeof(buf), "%ld", inf->segments_num);
+		snprintf(buf, sizeof(buf), "%d", inf->segments_num);
 		php_info_print_table_row(2, "Number of Segments (segment_num)", buf);
-		snprintf(buf, sizeof(buf), "%ld", inf->slots_size);
+		snprintf(buf, sizeof(buf), "%d", inf->slots_size);
 		php_info_print_table_row(2, "Total Slots Number(slots_size)", buf);
-		snprintf(buf, sizeof(buf), "%ld", inf->slots_num);
+		snprintf(buf, sizeof(buf), "%d", inf->slots_num);
 		php_info_print_table_row(2, "Total Used Slots(slots_num)", buf);
 		php_info_print_table_end();
 

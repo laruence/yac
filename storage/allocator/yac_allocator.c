@@ -24,9 +24,6 @@
 #include "storage/yac_storage.h"
 #include "yac_allocator.h"
 
-static const yac_shared_memory_handlers *shared_memory_handler = NULL;
-static const char *shared_model;
-
 int yac_allocator_startup(unsigned long k_size, unsigned long size, char **msg) /* {{{ */ {
 	char *p;
 	yac_shared_segment *segments = NULL;

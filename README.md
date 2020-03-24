@@ -5,15 +5,9 @@ Yac is a shared and lockless memory user data cache for PHP.
 
 it can be used to replace APC or local memcached.
 
-## Experimental
-
-_Yac is lockless, that means, there might be a chance that you will get a wrong data(depends on how many key slots are allocated and how many keys are stored), so you'd better make sure that your product is not very sensitive to that._
-
-According to the test([https://github.com/laruence/yac/blob/master/tests/yac_conflict.php](https://github.com/laruence/yac/blob/master/tests/yac_conflict.php)), there is 1/10000000 chance you will get a wrong data, however this test script is designed to make conflicts, in the real application, this chance must be much less.
-
 ## Requirement
 
-- PHP 5.2 +
+- PHP 7 +
 
 ### Install
 
@@ -26,7 +20,7 @@ $make && make install
 ## Note
 
 1.  Yac is a lockless cache, you should try to avoid or reduce the probability of multiple processes set one same key
-2.  Yac use partial crc, you'd better re-arrange your cache content, place the most mutable bytes at the head or tail
+2.  Yac use partial crc, you'd better re-arrange your cache content, place the most important(mutable) bytes at the head or tail
 
 ## Restrictions
 
