@@ -42,13 +42,14 @@ static inline int __yac_cas(unsigned int *lock, unsigned int old, unsigned int s
 
 #ifdef YAC_CAS
 
-#define	MUT_READ    0x0
-#define	MUT_WRITE   0x1
+#define	MUT_READ      0x0
+#define	MUT_WRITE     0x1
+#define CAS_MAX_SPIN  100
 
 static inline int yac_mutex_write(unsigned int *me) {
 	int retry = 0;
 	while (!YAC_CAS(me, MUT_READ, MUT_WRITE)) {
-		if (++retry == 100)  {
+		if (++retry == CAS_MAX_SPIN)  {
 			return 0;
 		}
 	}
@@ -63,7 +64,7 @@ static inline void yac_mutex_read(unsigned int *me) {
 #define	READP(P)    yac_mutex_read(&(P->mutex))
 #else
 #undef YAC_CAS
-#define WRITEP(P)
+#define WRITEP(P)   (1)
 #define READP(P)
 #endif
 
