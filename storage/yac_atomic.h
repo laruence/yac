@@ -36,8 +36,11 @@ static inline int __yac_cas(unsigned int *lock, unsigned int old, unsigned int s
 	return res;
 }
 #define	YAC_CAS(lock, old, set)  __yac_cas(lock, old, set)
+#elif ZEND_WIN32
+#define	YAC_CAS(lock, old, set)  (InterlockedCompareExchange(lock, set, old) == old)
 #else
 #undef YAC_CAS
+#warning No atomic CAS supports
 #endif
 
 #ifdef YAC_CAS
@@ -63,7 +66,6 @@ static inline void yac_mutex_read(unsigned int *me) {
 #define	WRITEP(P)   yac_mutex_write(&(P->mutex))
 #define	READP(P)    yac_mutex_read(&(P->mutex))
 #else
-#warning  No atomic supports
 #undef YAC_CAS
 #define WRITEP(P)   (1)
 #define READP(P)
