@@ -63,7 +63,7 @@ static inline void yac_mutex_read(unsigned int *me) {
 #define	WRITEP(P)   yac_mutex_write(&(P->mutex))
 #define	READP(P)    yac_mutex_read(&(P->mutex))
 #else
-#warn  No atomic supports
+#warning  No atomic supports
 #undef YAC_CAS
 #define WRITEP(P)   (1)
 #define READP(P)
