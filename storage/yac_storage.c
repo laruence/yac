@@ -295,10 +295,17 @@ static unsigned int crc32_sse42(const char *buf, unsigned int size) /* {{{ */ {
 
 	p = buf;
 	e = buf + size;
+#if __x86_64__
 	while (p + sizeof(uint64_t) <= e) {
 		crc = _mm_crc32_u64(crc, *p);
 		p += sizeof(uint64_t);
 	}
+#else
+	while (p + sizeof(uint32_t) <= e) {
+		crc = _mm_crc32_u32(crc, *p);
+		p += sizeof(uint32_t);
+	}
+#endif
 
 	while (p != e ) {
 		crc = _mm_crc32_u8(crc, *p++);
