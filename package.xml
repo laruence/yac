@@ -42,6 +42,7 @@
    <file name="yac.c" role="src" />
    <file name="php_yac.h" role="src" />
    <dir name="storage">
+    <file name="yac_atomic.h" role="src" />
     <file name="yac_storage.h" role="src" />
     <file name="yac_storage.c" role="src" />
     <dir name="allocator">
