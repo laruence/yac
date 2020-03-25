@@ -4,9 +4,7 @@
  <channel>pecl.php.net</channel>
  <summary>lockless user data cache</summary>
  <description>
-  yac is a shared memory user data cache for PHP.  it can be used to replace APC or local memcached.
-
-  yac is lockless, that means, it is very fast, but there could be a chance you will get a wrong data(depends on how many key slots are allocated and how many keys are stored), so you'd better make sure that your product is not very sensitive to that.
+  yac is a fast, lock-free, shared memory user data cache for PHP. it can be used to replace APC or local memcached.
  </description>
  <lead>
   <name>Xinchen Hui</name>
@@ -20,19 +18,20 @@
   <email>zxcvdavid@gmail.com</email>
   <active>yes</active>
  </developer>
- <date>2020-03-24</date>
- <time>14:00:00</time>
+ <date>2020-03-25</date>
+ <time>12:00:00</time>
  <version>
   <release>2.1.0</release>
   <api>2.1.0</api>
  </version>
  <stability>
-  <release>beta</release>
-  <api>beta</api>
+  <release>stable</release>
+  <api>stable</api>
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - Fixed PHP-7.4 windows build
+  - Implemnented CAS based lock-free protection
+  - Some optimization to avoding memory usage
  </notes>
  <contents> 
   <dir name="/"> 
@@ -102,18 +101,20 @@
  <extsrcrelease />
  <changelog> 
   <release> 
-   <date>2020-03-19</date> 
+   <date>2020-03-25</date> 
    <version> 
-    <release>2.0.4</release> 
-    <api>2.0.4</api> 
+    <release>2.1.0</release> 
+    <api>2.1.0</api> 
    </version> 
    <stability> 
-    <release>beta</release> 
-    <api>beta</api> 
+    <release>stable</release> 
+    <api>stable</api> 
    </stability> 
    <license uri="http://www.php.net/license">PHP License</license> 
    <notes>
-    - Fixed PHP-7.4 windows build
+    - Implemnented CAS based lock-free protection
+    - Use SSE4.2 _mm_crc32 instead of normal crc32 to make speedup
+    - Some optimization to avoding memory usage
    </notes> 
   </release> 
 

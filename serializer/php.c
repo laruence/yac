@@ -50,7 +50,7 @@ zval * yac_serializer_php_unpack(char *content, size_t len, char **msg, zval *rv
 	if (!php_var_unserialize(rv, &p, p + len,  &var_hash)) {
 		zval_ptr_dtor(rv);
 		PHP_VAR_UNSERIALIZE_DESTROY(var_hash);
-		spprintf(msg, 0, "unpack error at offset %ld of %ld bytes", (long)((char*)p - content), len);
+		/* spprintf(msg, 0, "unpack error at offset %ld of %ld bytes", (long)((char*)p - content), len); */
 		return NULL;
 	}
 	PHP_VAR_UNSERIALIZE_DESTROY(var_hash);
