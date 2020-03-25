@@ -19,10 +19,10 @@
   <active>yes</active>
  </developer>
  <date>2020-03-25</date>
- <time>12:00:00</time>
+ <time>14:00:00</time>
  <version>
-  <release>2.1.0</release>
-  <api>2.1.0</api>
+  <release>2.1.1</release>
+  <api>2.1.1</api>
  </version>
  <stability>
   <release>stable</release>
@@ -31,7 +31,9 @@
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
   - Implemnented CAS based lock-free protection
+  - Use SSE4.2 _mm_crc32 instead of normal crc32 to make speedup
   - Some optimization to avoding memory usage
+  - Fixed PECL package (missed yac_atomic.h)
  </notes>
  <contents> 
   <dir name="/"> 
@@ -44,6 +46,7 @@
    <dir name="storage">
     <file name="yac_storage.h" role="src" />
     <file name="yac_storage.c" role="src" />
+    <file name="yac_atomic.h" role="src" />
     <dir name="allocator">
      <file name="yac_allocator.h" role="src" />
      <file name="yac_allocator.c" role="src" />
