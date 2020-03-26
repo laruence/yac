@@ -8,11 +8,13 @@ yac.values_memory_size=32M
 yac.compress_threshold=1024
 --FILE--
 <?php
-$yac = new Yac();
+$yac = new Yac("prefix");
 
 $yac->name = "test";
 
 var_dump($yac->name);
+var_dump($yac->get("name"));
 ?>
 --EXPECTF--
+string(4) "test"
 string(4) "test"

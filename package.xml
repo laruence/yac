@@ -86,6 +86,8 @@
     <file name="013.phpt" role="test" />
     <file name="014.phpt" role="test" />
     <file name="015.phpt" role="test" />
+    <file name="016.phpt" role="test" />
+    <file name="017.phpt" role="test" />
     <file name="issue012.phpt" role="test" />
    </dir>
   </dir> 
