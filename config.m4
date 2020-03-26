@@ -204,6 +204,10 @@ ifdef([PHP_CHECK_CPU_SUPPORTS],
     if test $php_vernum -ge 70300; then
       AC_CHECK_HEADERS([nmmintrin.h])
       PHP_CHECK_CPU_SUPPORTS([sse4.2])
+	  dnl Tricky way to remove unintentionally defines
+	  if test -e "confdefs.h"; then
+	    sed -i -e "s/PHP_HAVE_*//g" confdefs.h
+	  fi
 	  AC_MSG_CHECKING([for crc32 instruction supports])
       if test $have_ext_instructions -eq 1; then
         AC_DEFINE([HAVE_SSE_CRC32], 1, [define if you have sse4.2 crc32 instruction support])
