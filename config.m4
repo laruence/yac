@@ -7,8 +7,8 @@ PHP_ARG_ENABLE(yac, whether to enable yac support,
 PHP_ARG_WITH(system-fastlz, whether to use system FastLZ library,
     [  --with-system-fastlz   Use system FastLZ library], no, no)
 
-dnl PHP_ARG_ENABLE(yac, whether to use msgpack as serializer,
-dnl    [  --enable-msgpack       Use Messagepack as serializer])
+PHP_ARG_ENABLE(msgpack, whether to use msgpack as serializer,
+    [  --enable-msgpack       Use Messagepack as serializer], no, no)
 
 dnl copied from Zend Optimizer Plus
 AC_MSG_CHECKING(for sysvipc shared memory support)
@@ -188,14 +188,13 @@ AC_DEFINE(HAVE_SHM_MMAP_ZERO, 1, [Define if you have mmap("/dev/zero") SHM suppo
     msg=yes,msg=no,msg=no)
 AC_MSG_RESULT([$msg])
 
-dnl  if test "$PHP_MSGPACK" != "no"; then
-dnl    AC_DEFINE(ENABLE_MSGPACK,1,[enable msgpack packager])
-dnl    ifdef([PHP_ADD_EXTENSION_DEP],
-dnl    [
-dnl    PHP_ADD_EXTENSION_DEP(yac, msgpack, true)
-dnl    ])
-dnl  fi
-dnl
+if test "$PHP_MSGPACK" != "no"; then
+  AC_DEFINE(ENABLE_MSGPACK, 1, [enable msgpack packager])
+  ifdef([PHP_ADD_EXTENSION_DEP],
+  [
+  PHP_ADD_EXTENSION_DEP(yac, msgpack, true)
+  ])
+fi
 
 ifdef([PHP_CHECK_CPU_SUPPORTS],
 [
