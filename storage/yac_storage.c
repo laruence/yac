@@ -25,7 +25,7 @@
 #if HAVE_SSE_CRC32
 #include "Zend/zend_cpuinfo.h"
 #include <nmmintrin.h>
-static unsigned int crc32_sse42(const char *dagta, unsigned int size);
+static uint32_t crc32_sse42(const char *dagta, unsigned int size);
 #endif
 
 #include "yac_atomic.h"
@@ -34,8 +34,8 @@ static unsigned int crc32_sse42(const char *dagta, unsigned int size);
 
 yac_storage_globals *yac_storage;
 
-static unsigned int (*yac_crc) (const char *data, unsigned int size);
-static unsigned int crc32(const char *dagta, unsigned int size);
+static uint32_t (*yac_crc)(const char *data, unsigned int size);
+static uint32_t crc32(const char *dagta, unsigned int size);
 
 static inline unsigned int yac_storage_align_size(unsigned int size) /* {{{ */ {
 	int bits = 0;
@@ -275,43 +275,44 @@ static unsigned int crc32_tab[] = {
 	0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
-static unsigned int crc32(const char *buf, unsigned int size) {
+static uint32_t crc32(const char *buf, unsigned int size) {
 	const char *p;
-	register int crc = 0;
+	uint32_t crc = 0 ^ 0xFFFFFFFF;
 
 	p = buf;
 	while (size--) {
 		crc = crc32_tab[(crc ^ *p++) & 0xFF] ^ (crc >> 8);
 	}
 
-	return crc ^ ~0U;
+	return crc ^ 0xFFFFFFFF;
 }
 /* }}} */
 
 #if HAVE_SSE_CRC32
-static unsigned int crc32_sse42(const char *buf, unsigned int size) /* {{{ */ {
-	const char *p, *e;
-	unsigned int crc = 0;
-
-	p = buf;
-	e = buf + size;
+static uint32_t crc32_sse42(const char *buf, unsigned int size) /* {{{ */ {
+	uint32_t crc = 0 ^ 0xFFFFFFFF;
 #if __x86_64__
-	while (p + sizeof(uint64_t) <= e) {
-		crc = _mm_crc32_u64(crc, *(uint64_t*)p);
-		p += sizeof(uint64_t);
-	}
-#else
-	while (p + sizeof(uint32_t) <= e) {
-		crc = _mm_crc32_u32(crc, *(uint32_t*)p);
-		p += sizeof(uint32_t);
+	while (size >= sizeof(uint64_t)) {
+		crc = _mm_crc32_u64(crc, *(uint64_t*)buf);
+		buf += sizeof(uint64_t);
+		size -= sizeof(uint64_t);
 	}
 #endif
-
-	while (p != e ) {
-		crc = _mm_crc32_u8(crc, *p++);
+	while (size >= sizeof(uint32_t)) {
+		crc = _mm_crc32_u32(crc, *(uint32_t*)buf);
+		buf += sizeof(uint32_t);
+		size -= sizeof(uint32_t);
+	}
+	if (size >= sizeof(uint16_t)) {
+		crc = _mm_crc32_u16(crc, *(uint16_t*)buf);
+		buf += sizeof(uint16_t);
+		size -= sizeof(uint16_t);
+	}
+	if (size) {
+		crc = _mm_crc32_u8(crc, *buf);
 	}
 
-	return crc ^ ~0U;
+	return crc ^ 0xFFFFFFFF;
 }
 /* }}} */
 #endif
