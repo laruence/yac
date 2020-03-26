@@ -25,7 +25,7 @@
 #if HAVE_SSE_CRC32
 #include "Zend/zend_cpuinfo.h"
 #include <nmmintrin.h>
-static uint32_t crc32_sse42(const char *dagta, unsigned int size);
+static uint32_t crc32c_sse42(const char *dagta, unsigned int size);
 #endif
 
 #include "yac_atomic.h"
@@ -54,7 +54,7 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, char **msg) /* 
 	}
 #if HAVE_SSE_CRC32
 	if (zend_cpu_supports_sse42()) {
-		yac_crc = crc32_sse42;
+		yac_crc = crc32c_sse42;
 	} else
 #endif
 	{
@@ -289,7 +289,7 @@ static uint32_t crc32(const char *buf, unsigned int size) {
 /* }}} */
 
 #if HAVE_SSE_CRC32
-static uint32_t crc32_sse42(const char *buf, unsigned int size) /* {{{ */ {
+static uint32_t crc32c_sse42(const char *buf, unsigned int size) /* {{{ */ {
 	uint32_t crc = 0 ^ 0xFFFFFFFF;
 #if __x86_64__
 	while (size >= sizeof(uint64_t)) {
