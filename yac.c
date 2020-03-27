@@ -1035,10 +1035,23 @@ PHP_MINFO_FUNCTION(yac)
 ZEND_GET_MODULE(yac)
 #endif
 
+#if ENABLE_MSGPACK
+static zend_module_dep yac_module_deps[] = {
+	ZEND_MOD_REQUIRED("msgpack")
+	{NULL, NULL, NULL, 0}
+};
+#endif
+
 /* {{{ yac_module_entry
  */
 zend_module_entry yac_module_entry = {
+#if ENABLE_MSGPACK
+	STANDARD_MODULE_HEADER_EX,
+	NULL,
+	yac_module_deps,
+#else
 	STANDARD_MODULE_HEADER,
+#endif
 	"yac",
 	NULL, /* yac_functions, */
 	PHP_MINIT(yac),
