@@ -120,7 +120,7 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 	int ret = 0, flag = Z_TYPE_P(value);
 	char *msg;
 	time_t tv;
-	zend_string *prefix_key;
+	zend_string *prefix_key = NULL;
 
 	if ((ZSTR_LEN(key) + prefix->len) > YAC_STORAGE_MAX_KEY_LEN) {
 		php_error_docref(NULL, E_WARNING, "Key '%s%s' exceed max key length '%d' bytes",
@@ -158,7 +158,7 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 					/* if longer than this, then we can not stored the length in flag */
 					if (Z_STRLEN_P(value) > YAC_ENTRY_MAX_ORIG_LEN) {
 						php_error_docref(NULL, E_WARNING, "Value is too long(%ld bytes) to be stored", Z_STRLEN_P(value));
-						if (prefix->len) {
+						if (prefix_key) {
 							zend_string_release(prefix_key);
 						}
 						return ret;
@@ -169,7 +169,7 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 					if (!compressed_len || compressed_len > Z_STRLEN_P(value)) {
 						php_error_docref(NULL, E_WARNING, "Compression failed");
 						efree(compressed);
-						if (prefix->len) {
+						if (prefix_key) {
 							zend_string_release(prefix_key);
 						}
 						return ret;
@@ -178,7 +178,7 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 					if (compressed_len > YAC_STORAGE_MAX_ENTRY_LEN) {
 						php_error_docref(NULL, E_WARNING, "Value is too long(%ld bytes) to be stored", Z_STRLEN_P(value));
 						efree(compressed);
-						if (prefix->len) {
+						if (prefix_key) {
 							zend_string_release(prefix_key);
 						}
 						return ret;
@@ -213,7 +213,7 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 
 						if (buf.s->len > YAC_ENTRY_MAX_ORIG_LEN) {
 							php_error_docref(NULL, E_WARNING, "Value is too big to be stored");
-							if (prefix->len) {
+							if (prefix_key) {
 								zend_string_release(prefix_key);
 							}
 							return ret;
@@ -224,7 +224,7 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 						if (!compressed_len || compressed_len > buf.s->len) {
 							php_error_docref(NULL, E_WARNING, "Compression failed");
 							efree(compressed);
-							if (prefix->len) {
+							if (prefix_key) {
 								zend_string_release(prefix_key);
 							}
 							return ret;
@@ -233,7 +233,7 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 						if (compressed_len > YAC_STORAGE_MAX_ENTRY_LEN) {
 							php_error_docref(NULL, E_WARNING, "Value is too big to be stored");
 							efree(compressed);
-							if (prefix->len) {
+							if (prefix_key) {
 								zend_string_release(prefix_key);
 							}
 							return ret;
@@ -261,7 +261,7 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 			break;
 	}
 
-	if (prefix->len) {
+	if (prefix_key) {
 		zend_string_release(prefix_key);
 	}
 
@@ -302,7 +302,7 @@ static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint32_t *cas,
 	uint32_t flag, size = 0;
 	char *data, *msg;
 	time_t tv;
-	zend_string *prefix_key;
+	zend_string *prefix_key = NULL;
 
 	if ((ZSTR_LEN(key) + prefix->len) > YAC_STORAGE_MAX_KEY_LEN) {
 		php_error_docref(NULL, E_WARNING, "Key '%s%s' exceed max key length '%d' bytes",
@@ -362,7 +362,7 @@ static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint32_t *cas,
 							php_error_docref(NULL, E_WARNING, "Decompression failed");
 							efree(data);
 							efree(origin);
-							if (prefix->len) {
+							if (prefix_key) {
 								zend_string_release(prefix_key);
 							}
 							return NULL;
@@ -390,7 +390,7 @@ static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint32_t *cas,
 							php_error_docref(NULL, E_WARNING, "Decompression failed");
 							efree(data);
 							efree(origin);
-							if (prefix->len) {
+							if (prefix_key) {
 								zend_string_release(prefix_key);
 							}
 							return NULL;
@@ -416,7 +416,7 @@ static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint32_t *cas,
 		rv = NULL;
 	}
 
-	if (prefix->len) {
+	if (prefix_key) {
 		zend_string_release(prefix_key);
 	}
 
