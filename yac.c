@@ -123,8 +123,8 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 	zend_string *prefix_key;
 
 	if ((ZSTR_LEN(key) + prefix->len) > YAC_STORAGE_MAX_KEY_LEN) {
-		php_error_docref(NULL, E_WARNING, "Key%s can not be longer than %d bytes",
-				prefix->len? "(include prefix)" : "", YAC_STORAGE_MAX_KEY_LEN);
+		php_error_docref(NULL, E_WARNING, "Key '%s%s' exceed max key length '%d' bytes",
+				ZSTR_VAL(prefix), ZSTR_VAL(key), YAC_STORAGE_MAX_KEY_LEN);
 		return ret;
 	}
 
@@ -305,8 +305,8 @@ static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint32_t *cas,
 	zend_string *prefix_key;
 
 	if ((ZSTR_LEN(key) + prefix->len) > YAC_STORAGE_MAX_KEY_LEN) {
-		php_error_docref(NULL, E_WARNING, "Key%s can not be longer than %d bytes",
-				prefix->len? "(include prefix)" : "", YAC_STORAGE_MAX_KEY_LEN);
+		php_error_docref(NULL, E_WARNING, "Key '%s%s' exceed max key length '%d' bytes",
+				ZSTR_VAL(prefix), ZSTR_VAL(key), YAC_STORAGE_MAX_KEY_LEN);
 		return NULL;
 	}
 
@@ -469,8 +469,8 @@ int yac_delete_impl(char *prefix, uint32_t prefix_len, char *key, uint32_t len, 
 	time_t tv = 0;
 
 	if ((len + prefix_len) > YAC_STORAGE_MAX_KEY_LEN) {
-		php_error_docref(NULL, E_WARNING, "Key%s can not be longer than %d bytes",
-				prefix_len? "(include prefix)" : "", YAC_STORAGE_MAX_KEY_LEN);
+		php_error_docref(NULL, E_WARNING, "Key '%s%s' exceed max key length '%d' bytes",
+				prefix, key, YAC_STORAGE_MAX_KEY_LEN);
 		return 0;
 	}
 

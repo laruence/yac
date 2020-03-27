@@ -35,14 +35,15 @@ NULL
 bool(true)
 NULL
 
-Warning: Yac::set(): Key can not be longer than 48 bytes in %s003.php on line %d
+Warning: Yac::set(): Key 'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk' exceed max key length '48' bytes in %s003.php on line %d
 bool(false)
 
-Warning: Yac::get(): Key can not be longer than 48 bytes in %s003.php on line %d
+Warning: Yac::get(): Key 'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk' exceed max key length '48' bytes in %s003.php on line %d
 bool(false)
 
-Warning: Yac::set(): Key(include prefix) can not be longer than 48 bytes in %s003.php on line %d
+Warning: Yac::set(): Key 'dummykkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk' exceed max key length '48' bytes in %s003.php on line %d
 bool(false)
 
-Warning: Yac::get(): Key(include prefix) can not be longer than 48 bytes in %s003.php on line %d
+Warning: Yac::get(): Key 'dummykkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk' exceed max key length '48' bytes in %s003.php on line %d
 bool(false)
+
