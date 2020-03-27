@@ -54,7 +54,7 @@ YAC_MAX_VALUE_COMPRESSED_LEN = 1M
 
 ### Yac::\_\_construct
 
-```
+```php
    Yac::__construct([string $prefix = ""])
 ```
 
@@ -68,13 +68,14 @@ Constructor of Yac, you can specify a prefix which will used to prepend to any k
 
 ### Yac::set
 
-```
+```php
    Yac::set($key, $value[, $ttl])
    Yac::set(array $kvs[, $ttl])
 ```
 
 Store a value into Yac cache, keys are cache-unique, so storing a second value with the same key will overwrite the original value.
 
+Return true on success, return false on error (Like no memory, can not obtain cas write right)
 ```php
 <?php
 $yac = new Yac();
@@ -88,6 +89,14 @@ $yac->set(
 ?>
 ```
 
+```
+As Yac 2.1, Store may failure on store, due to failure on cas competition, you may need do
+```php
+while (!($yac->set("important", "value)));
+```
+if you need the value to be stored in sure.
+```
+
 ### Yac::get
 
 ```
@@ -96,6 +105,7 @@ $yac->set(
 
 Fetches a stored variable from the cache. If an array is passed then each element is fetched and returned.
 
+Return the value on success, return false on error(Like no memory, can not obtain cas write right)
 ```php
 <?php
 $yac = new Yac();
