@@ -10,6 +10,9 @@ PHP_ARG_WITH(system-fastlz, whether to use system FastLZ library,
 PHP_ARG_ENABLE(msgpack, whether to use msgpack as serializer,
     [  --enable-msgpack       Use Messagepack as serializer], no, no)
 
+PHP_ARG_ENABLE(igbinary, whether to use igbinary as serializer,
+    [  --enable-igbinary      Use igbinary as serializer], no, no)
+
 dnl copied from Zend Optimizer Plus
 AC_MSG_CHECKING(for sysvipc shared memory support)
 AC_TRY_RUN([
@@ -196,6 +199,14 @@ if test "$PHP_MSGPACK" != "no"; then
   ])
 fi
 
+if test "$PHP_IGBINARY" != "no"; then
+  AC_DEFINE(ENABLE_IGBINARY, 1, [enable igbinary packager])
+  ifdef([PHP_ADD_EXTENSION_DEP],
+  [
+  PHP_ADD_EXTENSION_DEP(yac, igbinary, true)
+  ])
+fi
+
 ifdef([PHP_CHECK_CPU_SUPPORTS],
 [
   if test -x "$PHP_CONFIG"; then
@@ -237,7 +248,7 @@ AC_DEFUN([YAC_BUILTIN_ATOMIC],
 YAC_BUILTIN_ATOMIC
 
 
-YAC_FILES="yac.c storage/yac_storage.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c"
+YAC_FILES="yac.c storage/yac_storage.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c serializer/igbinary.c"
 if test "$PHP_SYSTEM_FASTLZ" != "no"; then
   AC_CHECK_HEADERS([fastlz.h])
   PHP_CHECK_LIBRARY(fastlz, fastlz_compress,

@@ -2,7 +2,7 @@
   +----------------------------------------------------------------------+
   | Yet Another Cache                                                    |
   +----------------------------------------------------------------------+
-  | Copyright (c) 2013-2013 The PHP Group                                |
+  | Copyright (c) The PHP Group                                          |
   +----------------------------------------------------------------------+
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
@@ -13,28 +13,44 @@
   | license@php.net so we can mail you a copy immediately.               |
   +----------------------------------------------------------------------+
   | Author:  Xinchen Hui   <laruence@php.net>                            |
+  |          Zhenyu  Zhang <zhangzhenyu@php.net>                         |
   +----------------------------------------------------------------------+
 */
 
 /* $Id$ */
 
-#ifndef YAC_SERIALIZER_H
-#define YAC_SERIALIZER_H
-
-#ifdef ENABLE_MSGPACK
-int yac_serializer_msgpack_pack(zval *pzval, smart_str *buf, char **msg);
-zval * yac_serializer_msgpack_unpack(char *content, size_t len, char **msg, zval *rv);
+#ifdef HAVE_CONFIG_H
+#include "config.h"
 #endif
-
-int yac_serializer_php_pack(zval *pzval, smart_str *buf, char **msg);
-zval * yac_serializer_php_unpack(char *content, size_t len, char **msg, zval *rv);
 
 #ifdef ENABLE_IGBINARY
-int yac_serializer_igbinary_pack(zval *pzval, smart_str *buf, char **msg);
-zval * yac_serializer_igbinary_unpack(char *content, size_t len, char **msg, zval *rv);
-#endif
 
-#endif	/* YAC_SERIALIZER_H */
+#include "php.h"
+#include "ext/igbinary/igbinary.h"
+#include "zend_smart_str.h" /* for smart_str */
+
+#include "yac_serializer.h"
+
+int yac_serializer_igbinary_pack(zval *pzval, smart_str *buf, char **msg) /* {{{ */ {
+	uint8_t *ret;
+	size_t ret_len;
+
+	if (igbinary_serialize(&ret, &ret_len, pzval) == 0) {
+		smart_str_appendl(buf, (const char *)ret, ret_len);
+		efree(ret);
+		return 1;
+	}
+	return 0;
+} /* }}} */
+
+zval * yac_serializer_igbinary_unpack(char *content, size_t len, char **msg, zval *rv) /* {{{ */ {
+
+	ZVAL_NULL(rv);
+	igbinary_unserialize((uint8_t *)content, len, rv);
+	return rv;
+} /* }}} */
+
+#endif
 
 /*
  * Local variables:
