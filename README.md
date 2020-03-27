@@ -88,14 +88,12 @@ $yac->set(
     );
 ?>
 ```
-
-```
+#### Note:
 As Yac 2.1, Store may failure on store, due to failure on cas competition, you may need do
 ```php
 while (!($yac->set("important", "value)));
 ```
 if you need the value to be stored in sure.
-```
 
 ### Yac::get
 
