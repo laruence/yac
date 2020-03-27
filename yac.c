@@ -113,6 +113,12 @@ PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("yac.values_memory_size", "64M", PHP_INI_SYSTEM, OnChangeValsMemoryLimit, v_msize, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.compress_threshold", "-1", PHP_INI_SYSTEM, OnChangeCompressThreshold, compress_threshold, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.enable_cli", "0", PHP_INI_SYSTEM, OnUpdateBool, enable_cli, zend_yac_globals, yac_globals)
+#if ENABLE_MSGPACK
+	/* use msgpack when available to keep previous behavior */
+    STD_PHP_INI_ENTRY("yac.serializer", "1", PHP_INI_SYSTEM, OnUpdateLong, serializer, zend_yac_globals, yac_globals)
+#else
+    STD_PHP_INI_ENTRY("yac.serializer", "0", PHP_INI_SYSTEM, OnUpdateLong, serializer, zend_yac_globals, yac_globals)
+#endif
 PHP_INI_END()
 /* }}} */
 
@@ -200,12 +206,17 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 		case IS_OBJECT:
 			{
 				smart_str buf = {0};
-#if ENABLE_MSGPACK
-				if (yac_serializer_msgpack_pack(value, &buf, &msg))
-#else
+				int ok;
 
-				if (yac_serializer_php_pack(value, &buf, &msg))
+#if ENABLE_MSGPACK
+				if (YAC_G(serializer) == YAC_SERIALIZER_MSGPACK) {
+					ok = yac_serializer_msgpack_pack(value, &buf, &msg);
+				} else
 #endif
+				{
+					ok = yac_serializer_php_pack(value, &buf, &msg);
+				}
+				if (ok)
 				{
 					if (buf.s->len > YAC_G(compress_threshold) || buf.s->len > YAC_STORAGE_MAX_ENTRY_LEN) {
 						int compressed_len;
@@ -400,10 +411,13 @@ static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint32_t *cas,
 						size = length;
 					}
 #if ENABLE_MSGPACK
-					rv = yac_serializer_msgpack_unpack(data, size, &msg, rv);
-#else
-					rv = yac_serializer_php_unpack(data, size, &msg, rv);
+					if (YAC_G(serializer) == YAC_SERIALIZER_MSGPACK) {
+						rv = yac_serializer_msgpack_unpack(data, size, &msg, rv);
+					} else
 #endif
+					{
+						rv = yac_serializer_php_unpack(data, size, &msg, rv);
+					}
 					efree(data);
 				}
 				break;
@@ -960,10 +974,9 @@ PHP_MINIT_FUNCTION(yac)
 	REGISTER_LONG_CONSTANT("YAC_MAX_KEY_LEN", YAC_STORAGE_MAX_KEY_LEN, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_MAX_VALUE_RAW_LEN", YAC_ENTRY_MAX_ORIG_LEN, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_MAX_RAW_COMPRESSED_LEN", YAC_STORAGE_MAX_ENTRY_LEN, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_PHP", YAC_SERIALIZER_PHP, CONST_PERSISTENT | CONST_CS);
 #if ENABLE_MSGPACK
-	REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "MSGPACK", sizeof("MSGPACK") -1, CONST_PERSISTENT | CONST_CS);
-#else
-	REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "PHP", sizeof("PHP") -1, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_MSGPACK", YAC_SERIALIZER_MSGPACK, CONST_PERSISTENT | CONST_CS);
 #endif
 
 	INIT_CLASS_ENTRY(ce, "Yac", yac_methods);
@@ -995,7 +1008,7 @@ PHP_MINFO_FUNCTION(yac)
 	php_info_print_table_row(2, "Version", PHP_YAC_VERSION);
 	php_info_print_table_row(2, "Shared Memory", yac_storage_shared_memory_name());
 #if ENABLE_MSGPACK
-	php_info_print_table_row(2, "Serializer", "msgpack");
+	php_info_print_table_row(2, "Serializer", "php, msgpack");
 #else
 	php_info_print_table_row(2, "Serializer", "php");
 #endif

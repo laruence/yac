@@ -22,8 +22,6 @@
 #include "config.h"
 #endif
 
-#if !ENABLE_MSGPACK 
-
 #include "php.h"
 #include "ext/standard/php_var.h" /* for serialize */
 #include "zend_smart_str.h"
@@ -57,8 +55,6 @@ zval * yac_serializer_php_unpack(char *content, size_t len, char **msg, zval *rv
 
 	return rv;
 } /* }}} */
-
-#endif
 
 /*
  * Local variables:
