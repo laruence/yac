@@ -89,7 +89,7 @@ $yac->set(
 ?>
 ```
 #### Note:
-As Yac 2.1, Store may failure on store, due to failure on cas competition, you may need do
+As Yac 2.1, Store may failure if cas competition fails, you may need do
 ```php
 while (!($yac->set("important", "value)));
 ```
