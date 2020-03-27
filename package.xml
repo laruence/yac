@@ -12,17 +12,11 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <developer>
-  <name>Wei Dai</name>
-  <user>Demon</user>
-  <email>zxcvdavid@gmail.com</email>
-  <active>yes</active>
- </developer>
- <date>2020-03-25</date>
- <time>14:00:00</time>
+ <date>2020-03-27</date>
+ <time>10:20:00</time>
  <version>
-  <release>2.1.1</release>
-  <api>2.1.1</api>
+  <release>2.1.2</release>
+  <api>2.1.2</api>
  </version>
  <stability>
   <release>stable</release>
@@ -30,10 +24,8 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - Implemnented CAS based lock-free protection
-  - Use SSE4.2 _mm_crc32 instead of normal crc32 to make speedup
-  - Some optimization to avoding memory usage
-  - Fixed PECL package (missed yac_atomic.h)
+  - Also use crc32_u32 in 64 bits
+  - Fixed crc32c only pick the first byte
  </notes>
  <contents> 
   <dir name="/"> 
@@ -106,6 +98,39 @@
  <extsrcrelease />
  <changelog> 
   <release> 
+   <date>2020-03-27</date> 
+   <version> 
+    <release>2.1.2</release> 
+    <api>2.1.2</api> 
+   </version> 
+   <stability> 
+    <release>stable</release> 
+    <api>stable</api> 
+   </stability> 
+   <license uri="http://www.php.net/license">PHP License</license> 
+   <notes>
+    - Fixed compiler warning of redefinition of macros
+    - Fixed crc32c only pick the first byte
+    - Also use crc32_u32 in 64 bits
+   </notes> 
+  </release> 
+
+  <release> 
+   <date>2020-03-25</date> 
+   <version> 
+    <release>2.1.1</release> 
+    <api>2.1.1</api> 
+   </version> 
+   <stability> 
+    <release>stable</release> 
+    <api>stable</api> 
+   </stability> 
+   <license uri="http://www.php.net/license">PHP License</license> 
+   <notes>
+    - Fixed Build in 32bits
+   </notes> 
+  </release> 
+  <release> 
    <date>2020-03-25</date> 
    <version> 
     <release>2.1.0</release> 
@@ -122,7 +147,6 @@
     - Some optimization to avoding memory usage
    </notes> 
   </release> 
-
   <release> 
    <date>2020-03-19</date> 
    <version> 
