@@ -61,13 +61,8 @@ PHP_RINIT_FUNCTION(yac);
 PHP_RSHUTDOWN_FUNCTION(yac);
 PHP_MINFO_FUNCTION(yac);
 
-#ifdef ZTS
-#define YAC_G(v) TSRMG(yac_globals_id, zend_yac_globals *, v)
-extern int yac_globals_id;
-#else
-#define YAC_G(v) (yac_globals.v)
-extern zend_yac_globals yac_globals;
-#endif
+ZEND_EXTERN_MODULE_GLOBALS(yac);
+#define YAC_G(v) ZEND_MODULE_GLOBALS_ACCESSOR(yac, v)
 
 #endif	/* PHP_YAC_H */
 /*
