@@ -12,7 +12,7 @@ yac.serializer=php
 <?php 
 $yac = new Yac();
 
-var_dump(YAC_SERIALIZER);
+var_dump(YAC_SERIALIZER == YAC_SERIALIZER_PHP);
 
 $key = "foo";
 $value = "dummy";
@@ -58,7 +58,7 @@ var_dump($yac->get($key));
 
 ?>
 --EXPECTF--
-string(3) "php"
+bool(true)
 bool(true)
 string(5) "dummy"
 bool(true)

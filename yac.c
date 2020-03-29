@@ -963,34 +963,34 @@ PHP_MINIT_FUNCTION(yac)
 	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_IGBINARY", YAC_SERIALIZER_IGBINARY, CONST_PERSISTENT | CONST_CS);
 #endif
 #if ENABLE_JSON
-	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_JSON", YAC_SERIALIZER_IGBINARY, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_JSON", YAC_SERIALIZER_JSON, CONST_PERSISTENT | CONST_CS);
 #endif
 
 #if ENABLE_MSGPACK
 	if (strcmp(YAC_G(serializer), "msgpack") == 0) {
 		yac_serializer = yac_serializer_msgpack_pack;
 		yac_unserializer = yac_serializer_msgpack_unpack;
-		REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "msgpack", sizeof("msgpack") -1, CONST_PERSISTENT | CONST_CS);
+		REGISTER_LONG_CONSTANT("YAC_SERIALIZER", YAC_SERIALIZER_MSGPACK, CONST_PERSISTENT | CONST_CS);
 	} else
 #endif
 #if ENABLE_IGBINARY
 	if (strcmp(YAC_G(serializer), "igbinary")) {
 		yac_serializer = yac_serializer_igbinary_pack;
 		yac_unserializer = yac_serializer_igbinary_unpack;
-		REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "igbinary", sizeof("igbinary") -1, CONST_PERSISTENT | CONST_CS);
+		REGISTER_LONG_CONSTANT("YAC_SERIALIZER", YAC_SERIALIZER_IGBINARY, CONST_PERSISTENT | CONST_CS);
 	} else
 #endif
 #if ENABLE_JSON
 	if (strcmp(YAC_G(serializer), "json") == 0) {
 		yac_serializer = yac_serializer_json_pack;
 		yac_unserializer = yac_serializer_json_unpack;
-		REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "json", sizeof("json") -1, CONST_PERSISTENT | CONST_CS);
+		REGISTER_LONG_CONSTANT("YAC_SERIALIZER", YAC_SERIALIZER_JSON, CONST_PERSISTENT | CONST_CS);
 	} else
 #endif
 	{
 		yac_serializer = yac_serializer_php_pack;
 		yac_unserializer = yac_serializer_php_unpack;
-		REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "php", sizeof("php") -1, CONST_PERSISTENT | CONST_CS);
+		REGISTER_LONG_CONSTANT("YAC_SERIALIZER", YAC_SERIALIZER_PHP, CONST_PERSISTENT | CONST_CS);
 	}
 
 	INIT_CLASS_ENTRY(ce, "Yac", yac_methods);

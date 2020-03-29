@@ -44,9 +44,9 @@ extern zend_module_entry yac_module_entry;
 #define YAC_MIN_COMPRESS_THRESHOLD 1024
 
 #define YAC_SERIALIZER_PHP         0
-#define YAC_SERIALIZER_MSGPACK     1
-#define YAC_SERIALIZER_IGBINARY    2
-#define YAC_SERIALIZER_JSON        3
+#define YAC_SERIALIZER_JSON        1
+#define YAC_SERIALIZER_MSGPACK     2
+#define YAC_SERIALIZER_IGBINARY    3
 
 ZEND_BEGIN_MODULE_GLOBALS(yac)
 	zend_bool enable;

@@ -11,9 +11,9 @@ yac.values_memory_size=32M
 yac.serializer=igbinary
 --FILE--
 <?php 
-var_dump(YAC_SERIALIZER);
 $yac = new Yac();
 
+var_dump(YAC_SERIALIZER == YAC_SERIALIZER_IGBINARY);
 $key = "foo";
 $value = "dummy";
 
@@ -58,7 +58,7 @@ var_dump($yac->get($key));
 
 ?>
 --EXPECTF--
-string(8) "igbinary"
+bool(true)
 bool(true)
 string(5) "dummy"
 bool(true)
