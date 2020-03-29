@@ -69,8 +69,8 @@ Constructor of Yac, you can specify a prefix which will used to prepend to any k
 ### Yac::set
 
 ```php
-   Yac::set($key, $value[, $ttl])
-   Yac::set(array $kvs[, $ttl])
+   Yac::set($key, $value[, $ttl = 0])
+   Yac::set(array $kvs[, $ttl = 0])
 ```
 
 Store a value into Yac cache, keys are cache-unique, so storing a second value with the same key will overwrite the original value.
@@ -98,7 +98,7 @@ if you need the value to be stored properly.
 ### Yac::get
 
 ```
-   Yac::get(array|string $key)
+   Yac::get(array|string $key[, &$cas = NULL])
 ```
 
 Fetches a stored variable from the cache. If an array is passed then each element is fetched and returned.
