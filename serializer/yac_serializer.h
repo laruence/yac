@@ -21,12 +21,17 @@
 #ifndef YAC_SERIALIZER_H
 #define YAC_SERIALIZER_H
 
-#if ENABLE_MSGPACK
+#ifdef ENABLE_MSGPACK
 int yac_serializer_msgpack_pack(zval *pzval, smart_str *buf, char **msg);
 zval * yac_serializer_msgpack_unpack(char *content, size_t len, char **msg, zval *rv);
-#else
+#endif
+
 int yac_serializer_php_pack(zval *pzval, smart_str *buf, char **msg);
 zval * yac_serializer_php_unpack(char *content, size_t len, char **msg, zval *rv);
+
+#ifdef ENABLE_IGBINARY
+int yac_serializer_igbinary_pack(zval *pzval, smart_str *buf, char **msg);
+zval * yac_serializer_igbinary_unpack(char *content, size_t len, char **msg, zval *rv);
 #endif
 
 #endif	/* YAC_SERIALIZER_H */

@@ -2,7 +2,7 @@
   +----------------------------------------------------------------------+
   | Yet Another Cache                                                    |
   +----------------------------------------------------------------------+
-  | Copyright (c) 2013-2013 The PHP Group                                |
+  | Copyright (c) The PHP Group                                          |
   +----------------------------------------------------------------------+
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
@@ -13,6 +13,7 @@
   | license@php.net so we can mail you a copy immediately.               |
   +----------------------------------------------------------------------+
   | Author:  Xinchen Hui   <laruence@php.net>                            |
+  |          Zhenyu  Zhang <zhangzhenyu@php.net>                         |
   +----------------------------------------------------------------------+
 */
 
@@ -22,39 +23,34 @@
 #include "config.h"
 #endif
 
+#ifdef ENABLE_IGBINARY
+
 #include "php.h"
-#include "ext/standard/php_var.h" /* for serialize */
-#include "zend_smart_str.h"
+#include "ext/igbinary/igbinary.h"
+#include "zend_smart_str.h" /* for smart_str */
 
 #include "yac_serializer.h"
 
-int yac_serializer_php_pack(zval *pzval, smart_str *buf, char **msg) /* {{{ */ {
-	php_serialize_data_t var_hash;
+int yac_serializer_igbinary_pack(zval *pzval, smart_str *buf, char **msg) /* {{{ */ {
+	uint8_t *ret;
+	size_t ret_len;
 
-	PHP_VAR_SERIALIZE_INIT(var_hash);
-	php_var_serialize(buf, pzval, &var_hash);
-	PHP_VAR_SERIALIZE_DESTROY(var_hash);
-
-	return 1;
+	if (igbinary_serialize(&ret, &ret_len, pzval) == 0) {
+		smart_str_appendl(buf, (const char *)ret, ret_len);
+		efree(ret);
+		return 1;
+	}
+	return 0;
 } /* }}} */
 
-zval * yac_serializer_php_unpack(char *content, size_t len, char **msg, zval *rv) /* {{{ */ {
-	const unsigned char *p;
-	php_unserialize_data_t var_hash;
-	p = (const unsigned char*)content;
+zval * yac_serializer_igbinary_unpack(char *content, size_t len, char **msg, zval *rv) /* {{{ */ {
 
-	ZVAL_FALSE(rv);
-	PHP_VAR_UNSERIALIZE_INIT(var_hash);
-	if (!php_var_unserialize(rv, &p, p + len,  &var_hash)) {
-		zval_ptr_dtor(rv);
-		PHP_VAR_UNSERIALIZE_DESTROY(var_hash);
-		/* spprintf(msg, 0, "unpack error at offset %ld of %ld bytes", (long)((char*)p - content), len); */
-		return NULL;
-	}
-	PHP_VAR_UNSERIALIZE_DESTROY(var_hash);
-
+	ZVAL_NULL(rv);
+	igbinary_unserialize((uint8_t *)content, len, rv);
 	return rv;
 } /* }}} */
+
+#endif
 
 /*
  * Local variables:

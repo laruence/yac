@@ -2,12 +2,12 @@
 Check for yac basic functions
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
-<?php if (YAC_SERIALIZER != "PHP") print "skip"; ?>
 --INI--
 yac.enable=1
 yac.enable_cli=1
 yac.keys_memory_size=4M
 yac.values_memory_size=32M
+yac.serializer=0
 --FILE--
 <?php 
 $yac = new Yac();
