@@ -1,14 +1,17 @@
 --TEST--
-Check for yac basic functions
+Check for yac with igbinary serializer
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
+<?php if (!defined("YAC_SERIALIZER_IGBINARY")) die ("skip need --enable-igbinary"); ?>
 --INI--
 yac.enable=1
 yac.enable_cli=1
 yac.keys_memory_size=4M
 yac.values_memory_size=32M
+yac.serializer=2 /*YAC_SERIALIZER_IGBINARY*/
 --FILE--
 <?php 
+var_dump(YAC_SERIALIZER);
 $yac = new Yac();
 
 $key = "foo";
@@ -55,6 +58,7 @@ var_dump($yac->get($key));
 
 ?>
 --EXPECTF--
+string(8) "IGBINARY"
 bool(true)
 string(5) "dummy"
 bool(true)
@@ -81,10 +85,10 @@ int(9234324)
 bool(true)
 float(9234324.123456)
 bool(true)
-object(stdClass)#3 (0) {
+object(stdClass)#%d (0) {
 }
 
-Warning: Yac::set(): Type 'IS_RESOURCE' cannot be stored in %s002.php on line %d
+Warning: Yac::set(): Type 'IS_RESOURCE' cannot be stored in %s020.php on line %d
 bool(false)
 bool(true)
 bool(true)

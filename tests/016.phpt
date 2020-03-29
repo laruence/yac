@@ -1,5 +1,7 @@
 --TEST--
 Check for Yac setter/getter
+--SKIPIF--
+<?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--
 yac.enable=1
 yac.enable_cli=1

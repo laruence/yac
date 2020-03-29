@@ -8,7 +8,6 @@ yac.enable_cli=1
 yac.keys_memory_size=4M
 yac.values_memory_size=32M
 yac.compress_threshold=1024
-yac.serializer=0
 --FILE--
 <?php
 error_reporting(E_ALL);
