@@ -113,12 +113,7 @@ PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("yac.values_memory_size", "64M", PHP_INI_SYSTEM, OnChangeValsMemoryLimit, v_msize, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.compress_threshold", "-1", PHP_INI_SYSTEM, OnChangeCompressThreshold, compress_threshold, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.enable_cli", "0", PHP_INI_SYSTEM, OnUpdateBool, enable_cli, zend_yac_globals, yac_globals)
-#if ENABLE_MSGPACK
-	/* use msgpack when available to keep previous behavior */
-    STD_PHP_INI_ENTRY("yac.serializer", "1", PHP_INI_SYSTEM, OnUpdateLong, serializer, zend_yac_globals, yac_globals)
-#else
     STD_PHP_INI_ENTRY("yac.serializer", "0", PHP_INI_SYSTEM, OnUpdateLong, serializer, zend_yac_globals, yac_globals)
-#endif
 PHP_INI_END()
 /* }}} */
 
@@ -979,7 +974,7 @@ PHP_MINIT_FUNCTION(yac)
 
 	REGISTER_INI_ENTRIES();
 
-	if(!YAC_G(enable_cli) && !strcmp(sapi_module.name, "cli")) {
+	if (!YAC_G(enable_cli) && !strcmp(sapi_module.name, "cli")) {
 		YAC_G(enable) = 0;
 	}
 
@@ -1004,6 +999,28 @@ PHP_MINIT_FUNCTION(yac)
 #if ENABLE_JSON
 	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_JSON", YAC_SERIALIZER_IGBINARY, CONST_PERSISTENT | CONST_CS);
 #endif
+
+	switch (YAC_G(serializer)) {
+#if ENABLE_MSGPACK
+		case YAC_SERIALIZER_MSGPACK:
+			REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "MSGPACK", sizeof("MSGPACK") -1, CONST_PERSISTENT | CONST_CS);
+			break;
+#endif
+#if ENABLE_IGBINARY
+		case YAC_SERIALIZER_IGBINARY:
+			REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "IGBINARY", sizeof("IGBINARY") -1, CONST_PERSISTENT | CONST_CS);
+			break;
+#endif
+#if ENABLE_JSON
+		case YAC_SERIALIZER_JSON:
+			REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "JSON", sizeof("JSON") -1, CONST_PERSISTENT | CONST_CS);
+			break;
+#endif
+		case YAC_SERIALIZER_PHP:
+		default:
+			REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "PHP", sizeof("PHP") -1, CONST_PERSISTENT | CONST_CS);
+			break;
+	}
 
 	INIT_CLASS_ENTRY(ce, "Yac", yac_methods);
 	yac_class_ce = zend_register_internal_class(&ce);
