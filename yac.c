@@ -974,7 +974,7 @@ PHP_MINIT_FUNCTION(yac)
 	} else
 #endif
 #if ENABLE_IGBINARY
-	if (strcmp(YAC_G(serializer), "igbinary")) {
+	if (strcmp(YAC_G(serializer), "igbinary") == 0) {
 		yac_serializer = yac_serializer_igbinary_pack;
 		yac_unserializer = yac_serializer_igbinary_unpack;
 		REGISTER_LONG_CONSTANT("YAC_SERIALIZER", YAC_SERIALIZER_IGBINARY, CONST_PERSISTENT | CONST_CS);
