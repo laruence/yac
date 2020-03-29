@@ -21,6 +21,9 @@
 #ifndef YAC_SERIALIZER_H
 #define YAC_SERIALIZER_H
 
+typedef int (*yac_serializer_t)(zval*, smart_str*, char**);
+typedef zval* (*yac_unserializer_t)(char *, size_t, char**, zval*);
+
 #ifdef ENABLE_MSGPACK
 int yac_serializer_msgpack_pack(zval *pzval, smart_str *buf, char **msg);
 zval * yac_serializer_msgpack_unpack(char *content, size_t len, char **msg, zval *rv);
