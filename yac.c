@@ -218,6 +218,11 @@ static int yac_add_impl(zend_string *prefix, zend_string *key, zval *value, int 
 					ok = yac_serializer_igbinary_pack(value, &buf, &msg);
 				} else
 #endif
+#if ENABLE_JSON
+				if (YAC_G(serializer) == YAC_SERIALIZER_JSON) {
+					ok = yac_serializer_json_pack(value, &buf, &msg);
+				} else
+#endif
 				{
 					ok = yac_serializer_php_pack(value, &buf, &msg);
 				}
@@ -423,6 +428,11 @@ static zval * yac_get_impl(zend_string *prefix, zend_string *key, uint32_t *cas,
 #if ENABLE_IGBINARY
 					if (YAC_G(serializer) == YAC_SERIALIZER_IGBINARY) {
 						rv = yac_serializer_igbinary_unpack(data, size, &msg, rv);
+					} else
+#endif
+#if ENABLE_JSON
+					if (YAC_G(serializer) == YAC_SERIALIZER_JSON) {
+						rv = yac_serializer_json_unpack(data, size, &msg, rv);
 					} else
 #endif
 					{
@@ -991,6 +1001,9 @@ PHP_MINIT_FUNCTION(yac)
 #if ENABLE_IGBINARY
 	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_IGBINARY", YAC_SERIALIZER_IGBINARY, CONST_PERSISTENT | CONST_CS);
 #endif
+#if ENABLE_JSON
+	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_JSON", YAC_SERIALIZER_IGBINARY, CONST_PERSISTENT | CONST_CS);
+#endif
 
 	INIT_CLASS_ENTRY(ce, "Yac", yac_methods);
 	yac_class_ce = zend_register_internal_class(&ce);
@@ -1029,6 +1042,9 @@ PHP_MINFO_FUNCTION(yac)
 #endif
 #if ENABLE_IGBINARY
 	smart_str_appends(&names, ", igbinary");
+#endif
+#if ENABLE_JSON
+	smart_str_appends(&names, ", json");
 #endif
 	php_info_print_table_row(2, "Serializer", ZSTR_VAL(names.s));
 	smart_str_free(&names);
@@ -1075,6 +1091,9 @@ static zend_module_dep yac_module_deps[] = {
 #endif
 #if ENABLE_IGBINARY
 	ZEND_MOD_REQUIRED("igbinary")
+#endif
+#if ENABLE_JSON
+	ZEND_MOD_REQUIRED("json")
 #endif
 	{NULL, NULL, NULL, 0}
 };

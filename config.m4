@@ -7,6 +7,9 @@ PHP_ARG_ENABLE(yac, whether to enable yac support,
 PHP_ARG_WITH(system-fastlz, whether to use system FastLZ library,
     [  --with-system-fastlz   Use system FastLZ library], no, no)
 
+PHP_ARG_ENABLE(json, whether to use igbinary as serializer,
+    [  --enable-json          Use igbinary as serializer], no, no)
+
 PHP_ARG_ENABLE(msgpack, whether to use msgpack as serializer,
     [  --enable-msgpack       Use Messagepack as serializer], no, no)
 
@@ -207,6 +210,14 @@ if test "$PHP_IGBINARY" != "no"; then
   ])
 fi
 
+if test "$PHP_JSON" != "no"; then
+  AC_DEFINE(ENABLE_JSON, 1, [enable msgpack packager])
+  ifdef([PHP_ADD_EXTENSION_DEP],
+  [
+  PHP_ADD_EXTENSION_DEP(yac, json, true)
+  ])
+fi
+
 ifdef([PHP_CHECK_CPU_SUPPORTS],
 [
   if test -x "$PHP_CONFIG"; then
@@ -247,8 +258,7 @@ AC_DEFUN([YAC_BUILTIN_ATOMIC],
 
 YAC_BUILTIN_ATOMIC
 
-
-YAC_FILES="yac.c storage/yac_storage.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c serializer/igbinary.c"
+YAC_FILES="yac.c storage/yac_storage.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c serializer/igbinary.c serializer/json.c"
 if test "$PHP_SYSTEM_FASTLZ" != "no"; then
   AC_CHECK_HEADERS([fastlz.h])
   PHP_CHECK_LIBRARY(fastlz, fastlz_compress,

@@ -34,6 +34,11 @@ int yac_serializer_igbinary_pack(zval *pzval, smart_str *buf, char **msg);
 zval * yac_serializer_igbinary_unpack(char *content, size_t len, char **msg, zval *rv);
 #endif
 
+#ifdef ENABLE_JSON
+int yac_serializer_json_pack(zval *pzval, smart_str *buf, char **msg);
+zval * yac_serializer_json_unpack(char *content, size_t len, char **msg, zval *rv);
+#endif
+
 #endif	/* YAC_SERIALIZER_H */
 
 /*
