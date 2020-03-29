@@ -8,7 +8,7 @@ yac.enable=1
 yac.enable_cli=1
 yac.keys_memory_size=4M
 yac.values_memory_size=32M
-yac.serializer=1 /*YAC_SERIALIZER_MSGPACK*/
+yac.serializer=msgpack
 --FILE--
 <?php 
 var_dump(YAC_SERIALIZER);
@@ -58,7 +58,7 @@ var_dump($yac->get($key));
 
 ?>
 --EXPECTF--
-string(7) "MSGPACK"
+string(7) "msgpack"
 bool(true)
 string(5) "dummy"
 bool(true)

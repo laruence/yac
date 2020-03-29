@@ -8,7 +8,7 @@ yac.enable=1
 yac.enable_cli=1
 yac.keys_memory_size=4M
 yac.values_memory_size=32M
-yac.serializer=3 /*YAC_SERIALIZER_JSON*/
+yac.serializer=json
 --FILE--
 <?php 
 var_dump(YAC_SERIALIZER);
@@ -58,7 +58,7 @@ var_dump($yac->get($key));
 
 ?>
 --EXPECTF--
-string(4) "JSON"
+string(4) "json"
 bool(true)
 string(5) "dummy"
 bool(true)

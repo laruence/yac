@@ -7,9 +7,12 @@ yac.enable=1
 yac.enable_cli=1
 yac.keys_memory_size=4M
 yac.values_memory_size=32M
+yac.serializer=php
 --FILE--
 <?php 
 $yac = new Yac();
+
+var_dump(YAC_SERIALIZER);
 
 $key = "foo";
 $value = "dummy";
@@ -55,6 +58,7 @@ var_dump($yac->get($key));
 
 ?>
 --EXPECTF--
+string(3) "php"
 bool(true)
 string(5) "dummy"
 bool(true)

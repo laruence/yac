@@ -55,7 +55,7 @@ ZEND_BEGIN_MODULE_GLOBALS(yac)
 	size_t v_msize;
 	zend_ulong compress_threshold;
 	zend_bool enable_cli;
-	zend_long serializer;
+	char *serializer;
 #ifdef PHP_WIN32
 	char *mmap_base;
 #endif

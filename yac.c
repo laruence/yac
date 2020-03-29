@@ -116,7 +116,7 @@ PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("yac.values_memory_size", "64M", PHP_INI_SYSTEM, OnChangeValsMemoryLimit, v_msize, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.compress_threshold", "-1", PHP_INI_SYSTEM, OnChangeCompressThreshold, compress_threshold, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.enable_cli", "0", PHP_INI_SYSTEM, OnUpdateBool, enable_cli, zend_yac_globals, yac_globals)
-    STD_PHP_INI_ENTRY("yac.serializer", "0", PHP_INI_SYSTEM, OnUpdateLong, serializer, zend_yac_globals, yac_globals)
+    STD_PHP_INI_ENTRY("yac.serializer", "php", PHP_INI_SYSTEM, OnUpdateString, serializer, zend_yac_globals, yac_globals)
 PHP_INI_END()
 /* }}} */
 
@@ -966,34 +966,31 @@ PHP_MINIT_FUNCTION(yac)
 	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_JSON", YAC_SERIALIZER_IGBINARY, CONST_PERSISTENT | CONST_CS);
 #endif
 
-	switch (YAC_G(serializer)) {
 #if ENABLE_MSGPACK
-		case YAC_SERIALIZER_MSGPACK:
-			yac_serializer = yac_serializer_msgpack_pack;
-			yac_unserializer = yac_serializer_msgpack_unpack;
-			REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "MSGPACK", sizeof("MSGPACK") -1, CONST_PERSISTENT | CONST_CS);
-			break;
+	if (strcmp(YAC_G(serializer), "msgpack") == 0) {
+		yac_serializer = yac_serializer_msgpack_pack;
+		yac_unserializer = yac_serializer_msgpack_unpack;
+		REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "msgpack", sizeof("msgpack") -1, CONST_PERSISTENT | CONST_CS);
+	} else
 #endif
 #if ENABLE_IGBINARY
-		case YAC_SERIALIZER_IGBINARY:
-			yac_serializer = yac_serializer_igbinary_pack;
-			yac_unserializer = yac_serializer_igbinary_unpack;
-			REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "IGBINARY", sizeof("IGBINARY") -1, CONST_PERSISTENT | CONST_CS);
-			break;
+	if (strcmp(YAC_G(serializer), "igbinary")) {
+		yac_serializer = yac_serializer_igbinary_pack;
+		yac_unserializer = yac_serializer_igbinary_unpack;
+		REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "igbinary", sizeof("igbinary") -1, CONST_PERSISTENT | CONST_CS);
+	} else
 #endif
 #if ENABLE_JSON
-		case YAC_SERIALIZER_JSON:
-			yac_serializer = yac_serializer_json_pack;
-			yac_unserializer = yac_serializer_json_unpack;
-			REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "JSON", sizeof("JSON") -1, CONST_PERSISTENT | CONST_CS);
-			break;
+	if (strcmp(YAC_G(serializer), "json") == 0) {
+		yac_serializer = yac_serializer_json_pack;
+		yac_unserializer = yac_serializer_json_unpack;
+		REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "json", sizeof("json") -1, CONST_PERSISTENT | CONST_CS);
+	} else
 #endif
-		case YAC_SERIALIZER_PHP:
-		default:
-			yac_serializer = yac_serializer_php_pack;
-			yac_unserializer = yac_serializer_php_unpack;
-			REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "PHP", sizeof("PHP") -1, CONST_PERSISTENT | CONST_CS);
-			break;
+	{
+		yac_serializer = yac_serializer_php_pack;
+		yac_unserializer = yac_serializer_php_unpack;
+		REGISTER_STRINGL_CONSTANT("YAC_SERIALIZER", "php", sizeof("php") -1, CONST_PERSISTENT | CONST_CS);
 	}
 
 	INIT_CLASS_ENTRY(ce, "Yac", yac_methods);
