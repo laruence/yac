@@ -21,7 +21,7 @@
 #include "config.h"
 #endif
 
-#ifdef ENABLE_IGBINARY
+#ifdef YAC_ENABLE_IGBINARY
 
 #include "php.h"
 #include "ext/igbinary/igbinary.h"

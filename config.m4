@@ -195,7 +195,7 @@ AC_DEFINE(HAVE_SHM_MMAP_ZERO, 1, [Define if you have mmap("/dev/zero") SHM suppo
 AC_MSG_RESULT([$msg])
 
 if test "$PHP_MSGPACK" != "no"; then
-  AC_DEFINE(ENABLE_MSGPACK, 1, [enable msgpack packager])
+  AC_DEFINE(YAC_ENABLE_MSGPACK, 1, [enable msgpack packager])
   ifdef([PHP_ADD_EXTENSION_DEP],
   [
   PHP_ADD_EXTENSION_DEP(yac, msgpack, true)
@@ -203,7 +203,7 @@ if test "$PHP_MSGPACK" != "no"; then
 fi
 
 if test "$PHP_IGBINARY" != "no"; then
-  AC_DEFINE(ENABLE_IGBINARY, 1, [enable igbinary packager])
+  AC_DEFINE(YAC_ENABLE_IGBINARY, 1, [enable igbinary packager])
   ifdef([PHP_ADD_EXTENSION_DEP],
   [
   PHP_ADD_EXTENSION_DEP(yac, igbinary, true)
@@ -211,7 +211,7 @@ if test "$PHP_IGBINARY" != "no"; then
 fi
 
 if test "$PHP_JSON" != "no"; then
-  AC_DEFINE(ENABLE_JSON, 1, [enable msgpack packager])
+  AC_DEFINE(YAC_ENABLE_JSON, 1, [enable msgpack packager])
   ifdef([PHP_ADD_EXTENSION_DEP],
   [
   PHP_ADD_EXTENSION_DEP(yac, json, true)

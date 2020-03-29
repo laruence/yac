@@ -22,7 +22,7 @@
 #include "config.h"
 #endif
 
-#ifdef ENABLE_JSON
+#if YAC_ENABLE_JSON
 
 #include "php.h"
 #include "ext/json/php_json.h"

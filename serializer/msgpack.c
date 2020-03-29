@@ -23,7 +23,7 @@
 #include "config.h"
 #endif
 
-#ifdef ENABLE_MSGPACK
+#ifdef YAC_ENABLE_MSGPACK
 
 #include "php.h"
 #include "zend_smart_str.h" /* for smart_str */

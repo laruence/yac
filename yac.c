@@ -956,31 +956,31 @@ PHP_MINIT_FUNCTION(yac)
 	REGISTER_LONG_CONSTANT("YAC_MAX_VALUE_RAW_LEN", YAC_ENTRY_MAX_ORIG_LEN, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_MAX_RAW_COMPRESSED_LEN", YAC_STORAGE_MAX_ENTRY_LEN, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_PHP", YAC_SERIALIZER_PHP, CONST_PERSISTENT | CONST_CS);
-#if ENABLE_MSGPACK
+#if YAC_ENABLE_MSGPACK
 	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_MSGPACK", YAC_SERIALIZER_MSGPACK, CONST_PERSISTENT | CONST_CS);
 #endif
-#if ENABLE_IGBINARY
+#if YAC_ENABLE_IGBINARY
 	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_IGBINARY", YAC_SERIALIZER_IGBINARY, CONST_PERSISTENT | CONST_CS);
 #endif
-#if ENABLE_JSON
+#if YAC_ENABLE_JSON
 	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_JSON", YAC_SERIALIZER_JSON, CONST_PERSISTENT | CONST_CS);
 #endif
 
-#if ENABLE_MSGPACK
+#if YAC_ENABLE_MSGPACK
 	if (strcmp(YAC_G(serializer), "msgpack") == 0) {
 		yac_serializer = yac_serializer_msgpack_pack;
 		yac_unserializer = yac_serializer_msgpack_unpack;
 		REGISTER_LONG_CONSTANT("YAC_SERIALIZER", YAC_SERIALIZER_MSGPACK, CONST_PERSISTENT | CONST_CS);
 	} else
 #endif
-#if ENABLE_IGBINARY
+#if YAC_ENABLE_IGBINARY
 	if (strcmp(YAC_G(serializer), "igbinary") == 0) {
 		yac_serializer = yac_serializer_igbinary_pack;
 		yac_unserializer = yac_serializer_igbinary_unpack;
 		REGISTER_LONG_CONSTANT("YAC_SERIALIZER", YAC_SERIALIZER_IGBINARY, CONST_PERSISTENT | CONST_CS);
 	} else
 #endif
-#if ENABLE_JSON
+#if YAC_ENABLE_JSON
 	if (strcmp(YAC_G(serializer), "json") == 0) {
 		yac_serializer = yac_serializer_json_pack;
 		yac_unserializer = yac_serializer_json_unpack;
@@ -1025,13 +1025,13 @@ PHP_MINFO_FUNCTION(yac)
 	php_info_print_table_row(2, "Shared Memory", yac_storage_shared_memory_name());
 
 	smart_str_appends(&names, "php");
-#if ENABLE_MSGPACK
+#if YAC_ENABLE_MSGPACK
 	smart_str_appends(&names, ", msgpack");
 #endif
-#if ENABLE_IGBINARY
+#if YAC_ENABLE_IGBINARY
 	smart_str_appends(&names, ", igbinary");
 #endif
-#if ENABLE_JSON
+#if YAC_ENABLE_JSON
 	smart_str_appends(&names, ", json");
 #endif
 	php_info_print_table_row(2, "Serializer", ZSTR_VAL(names.s));
@@ -1074,13 +1074,13 @@ ZEND_GET_MODULE(yac)
 #endif
 
 static zend_module_dep yac_module_deps[] = {
-#if ENABLE_MSGPACK
+#if YAC_ENABLE_MSGPACK
 	ZEND_MOD_REQUIRED("msgpack")
 #endif
-#if ENABLE_IGBINARY
+#if YAC_ENABLE_IGBINARY
 	ZEND_MOD_REQUIRED("igbinary")
 #endif
-#if ENABLE_JSON
+#if YAC_ENABLE_JSON
 	ZEND_MOD_REQUIRED("json")
 #endif
 	{NULL, NULL, NULL, 0}
