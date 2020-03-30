@@ -26,12 +26,10 @@
 #ifdef YAC_ENABLE_MSGPACK
 
 #include "php.h"
+#include "ext/msgpack/php_msgpack.h"
 #include "zend_smart_str.h" /* for smart_str */
 
 #include "yac_serializer.h"
-
-extern void php_msgpack_serialize(smart_str *buf, zval *val);
-extern void php_msgpack_unserialize(zval *return_value, char *str, size_t str_len);
 
 int yac_serializer_msgpack_pack(zval *pzval, smart_str *buf, char **msg) /* {{{ */ {
 	php_msgpack_serialize(buf, pzval);
