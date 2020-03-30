@@ -227,7 +227,7 @@ ifdef([PHP_CHECK_CPU_SUPPORTS],
       PHP_CHECK_CPU_SUPPORTS([sse4.2])
 	  dnl Tricky way to remove unintentionally defines
 	  if test -e "confdefs.h"; then
-	    sed -i -e "s/PHP_HAVE_*//g" confdefs.h
+	    sed -i "/PHP_HAVE_/d" confdefs.h
 	  fi
 	  AC_MSG_CHECKING([for crc32 instruction supports])
       if test $have_ext_instructions -eq 1; then
