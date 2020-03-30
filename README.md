@@ -29,7 +29,7 @@ $make && make install
 3.  Cache Value after compressed cannot be longer than 1M (YAC_MAX_VALUE_COMPRESSED_LEN) bytes
 
 ## InIs
-
+````
 yac.enable = 1
 
 yac.keys_memory_size = 4M ; 4M can get 30K key slots, 32M can get 100K key slots
@@ -42,9 +42,9 @@ yac.enable_cli = 0 ; whether enable yac with cli, default 0
 
 yac.serializer = php ; since yac 2.2.0 , specific seralizer yac used
                        could be json(--enable-json), msgpack(--enable-msgpack) or igbinary(--enable-igbinary)
-
+````
 ## Constants
-
+````
 YAC_VERSION
 
 YAC_MAX_KEY_LEN = 48 ; if your key is longer than this, maybe you can use md5 result as the key
@@ -54,12 +54,15 @@ YAC_MAX_VALUE_RAW_LEN = 64M
 YAC_MAX_VALUE_COMPRESSED_LEN = 1M
 
 YAC_SERIALIZER_PHP = 0   ; since yac-2.2.0
+
 YAC_SERIALIZER_JSON = 1  ; since yac-2.2.0
+
 YAC_SERIALIZER_MSGPACK = 2 ; since yac-2.2.0
+
 YAC_SERIALIZER_IGBINARY = 3 ; since yac-2.2.0
 
 YAC_SERIALIZER  ; serializer according to yac.serializer, default is YAC_SERIALIZER_PHP
-
+````
 ## Methods
 
 ### Yac::\_\_construct
