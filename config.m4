@@ -211,7 +211,7 @@ if test "$PHP_IGBINARY" != "no"; then
 fi
 
 if test "$PHP_JSON" != "no"; then
-  AC_DEFINE(YAC_ENABLE_JSON, 1, [enable msgpack packager])
+  AC_DEFINE(YAC_ENABLE_JSON, 1, [enable json packager])
   ifdef([PHP_ADD_EXTENSION_DEP],
   [
   PHP_ADD_EXTENSION_DEP(yac, json, true)
