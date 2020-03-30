@@ -61,6 +61,8 @@
     <file name="yac_serializer.h" role="src" />
     <file name="php.c" role="src" />
     <file name="msgpack.c" role="src" />
+    <file name="json.c" role="src" />
+    <file name="igbinary.c" role="src" />
    </dir>
    <dir name="tests">
     <file name="001.phpt" role="test" />
