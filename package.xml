@@ -12,11 +12,11 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2020-03-27</date>
- <time>10:20:00</time>
+ <date>2020-03-31</date>
+ <time>15:40:00</time>
  <version>
-  <release>2.1.2</release>
-  <api>2.1.2</api>
+  <release>2.2.0</release>
+  <api>2.2.0</api>
  </version>
  <stability>
   <release>stable</release>
@@ -24,8 +24,9 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - Also use crc32_u32 in 64 bits
-  - Fixed crc32c only pick the first byte
+  - Added json serializer
+  - Added igbinary serializer
+  - change yac.serilalizer to string, "php", "json" etc
  </notes>
  <contents> 
   <dir name="/"> 
@@ -107,6 +108,24 @@
  </extsrcrelease>
  <changelog> 
   <release> 
+   <date>2020-03-31</date> 
+   <version>
+    <release>2.2.0</release> 
+    <api>2.2.0</api> 
+   </version> 
+   <stability> 
+    <release>stable</release> 
+    <api>stable</api> 
+   </stability> 
+   <license uri="http://www.php.net/license">PHP License</license> 
+   <notes>
+    - Added json serializer
+    - Added igbinary serializer
+    - change yac.serilalizer to string, "php", "json" etc
+   </notes> 
+  </release> 
+
+  <release> 
    <date>2020-03-27</date> 
    <version> 
     <release>2.1.2</release> 
@@ -123,7 +142,6 @@
     - Also use crc32_u32 in 64 bits
    </notes> 
   </release> 
-
   <release> 
    <date>2020-03-25</date> 
    <version> 
