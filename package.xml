@@ -102,7 +102,7 @@
  <providesextension>yac</providesextension>
  <extsrcrelease>
   <configureoption name="enable-igbinary" prompt="enable igbinary serializer support?" default="no"/>
-  <configureoption name="enable-json" prompt="enable json serializer support?" default="yes"/>
+  <configureoption name="enable-json" prompt="enable json serializer support?" default="no"/>
   <configureoption name="enable-msgpack" prompt="enable msgpack serializer support?" default="no"/>
  </extsrcrelease>
  <changelog> 
