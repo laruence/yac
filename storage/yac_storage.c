@@ -87,7 +87,7 @@ void yac_storage_shutdown(void) /* {{{ */ {
 
 /* {{{ MurmurHash2 (Austin Appleby)
  */
-static inline uint64_t yac_inline_hash_func1(char *data, unsigned int len) {
+static inline uint64_t yac_inline_hash_func1(const char *data, unsigned int len) {
     unsigned int h, k;
 
     h = 0 ^ len;
@@ -159,7 +159,7 @@ static inline uint64_t yac_inline_hash_func1(char *data, unsigned int len) {
  *                  -- Ralf S. Engelschall <rse@engelschall.com>
  */
 
-static inline uint64_t yac_inline_hash_func2(char *key, uint32_t len) {
+static inline uint64_t yac_inline_hash_func2(const char *key, uint32_t len) {
 	register uint64_t hash = 5381;
 
 	/* variant with the hash unrolled eight times */
@@ -341,7 +341,7 @@ static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
 }
 /* }}} */
 
-int yac_storage_find(char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas, unsigned long tv) /* {{{ */ {
+int yac_storage_find(const char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas, unsigned long tv) /* {{{ */ {
 	uint64_t h, hash, seed;
 	yac_kv_key k, *p;
 	yac_kv_val v;
@@ -419,7 +419,7 @@ do_verify:
 }
 /* }}} */
 
-int yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) /* {{{ */ {
+int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long tv) /* {{{ */ {
 	uint64_t hash, h, seed;
 	yac_kv_key k, *p;
 
@@ -465,7 +465,7 @@ int yac_storage_delete(char *key, unsigned int len, int ttl, unsigned long tv) /
 }
 /* }}} */
 
-int yac_storage_update(char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add, unsigned long tv) /* {{{ */ {
+int yac_storage_update(const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add, unsigned long tv) /* {{{ */ {
 	uint64_t hash, h;
 	int idx = 0, is_valid;
 	yac_kv_key *p, k, *paths[4];
