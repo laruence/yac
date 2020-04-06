@@ -522,10 +522,11 @@ static zval* yac_read_property(zval *zobj, zval *name, int type, void **cache_sl
 }
 /* }}} */
 
-static zval* yac_write_property(zval *zobj, zval *name, zval *value, void **cache_slot) /* {{{ */ {
+static YAC_WHANDLER yac_write_property(zval *zobj, zval *name, zval *value, void **cache_slot) /* {{{ */ {
 	yac_add_impl(Z_YACOBJ_P(zobj), Z_STR_P(name), value, 0, 0);
     Z_TRY_ADDREF_P(value);
-	return value;
+
+	YAC_WHANDLER_RET(value);
 }
 /* }}} */
 

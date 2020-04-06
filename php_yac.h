@@ -36,6 +36,14 @@ extern zend_module_entry yac_module_entry;
 
 #define PHP_YAC_VERSION "2.2.1-dev"
 
+#if PHP_VERSION_ID < 70400
+#define YAC_WHANDLER            void
+#define YAC_WHANDLER_RET(zv)    return
+#else
+#define YAC_WHANDLER            zval *
+#define YAC_WHANDLER_RET(zv)    return zv
+#endif
+
 #define YAC_CLASS_PROPERTY_PREFIX  "_prefix"
 #define YAC_ENTRY_COMPRESSED	   0x0020
 #define YAC_ENTRY_TYPE_MASK        0x1f
