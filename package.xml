@@ -12,11 +12,11 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2020-03-31</date>
- <time>15:40:00</time>
+ <date>2020-05-15</date>
+ <time>12:30:00</time>
  <version>
-  <release>2.2.0</release>
-  <api>2.2.0</api>
+  <release>2.2.1</release>
+  <api>2.2.1</api>
  </version>
  <stability>
   <release>stable</release>
@@ -24,9 +24,8 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - Added json serializer
-  - Added igbinary serializer
-  - change yac.serilalizer to string, "php", "json" etc
+  - Refactor key manipulation, avoding memory allocation
+  - Refactor Yac::__set/__get by using native objects_handler
  </notes>
  <contents> 
   <dir name="/"> 
@@ -113,6 +112,23 @@
   <release> 
    <date>2020-03-31</date> 
    <version>
+    <release>2.2.1</release> 
+    <api>2.2.1</api> 
+   </version> 
+   <stability> 
+    <release>stable</release> 
+    <api>stable</api> 
+   </stability> 
+   <license uri="http://www.php.net/license">PHP License</license> 
+   <notes>
+    - Refactor key manipulation, avoding memory allocation
+    - Refactor Yac::__set/__get by using native objects_handler
+   </notes> 
+  </release> 
+
+  <release> 
+   <date>2020-03-31</date> 
+   <version>
     <release>2.2.0</release> 
     <api>2.2.0</api> 
    </version> 
@@ -127,7 +143,6 @@
     - change yac.serilalizer to string, "php", "json" etc
    </notes> 
   </release> 
-
   <release> 
    <date>2020-03-27</date> 
    <version> 
