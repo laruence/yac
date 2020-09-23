@@ -504,17 +504,27 @@ static void yac_object_free(zend_object *object) /* {{{ */ {
 }
 /* }}} */
 
-static zval* yac_read_property_ptr(zval *zobj, zval *name, int type, void **cache_slot) /* {{{ */ {
+#if PHP_VERSION_ID < 80000
+static zval* yac_read_property_ptr(zval *zobj, zval *zname, int type, void **cache_slot) /* {{{ */ {
+#else
+static zval* yac_read_property_ptr(zend_object *obj, zend_string *name, int type, void **cache_slot) /* {{{ */ {
+#endif
 	return &EG(error_zval);
 }
 /* }}} */
 
-static zval* yac_read_property(zval *zobj, zval *name, int type, void **cache_slot, zval *rv) /* {{{ */ {
+#if PHP_VERSION_ID < 80000
+static zval* yac_read_property(zval *zobj, zval *zname, int type, void **cache_slot, zval *rv) /* {{{ */ {
+	zend_object *obj = Z_OBJ_P(zobj);
+	zend_string *name = Z_STR_P(zname);
+#else
+static zval* yac_read_property(zend_object *obj, zend_string *name, int type, void **cache_slot, zval *rv) /* {{{ */ {
+#endif
 	if (UNEXPECTED(type == BP_VAR_RW||type == BP_VAR_W)) {
 		return &EG(error_zval);
 	}
 
-	if (yac_get_impl(Z_YACOBJ_P(zobj), Z_STR_P(name), NULL, rv)) {
+	if (yac_get_impl(php_yac_fetch_object(obj), name, NULL, rv)) {
 		return rv;
 	}
 
@@ -522,16 +532,26 @@ static zval* yac_read_property(zval *zobj, zval *name, int type, void **cache_sl
 }
 /* }}} */
 
-static YAC_WHANDLER yac_write_property(zval *zobj, zval *name, zval *value, void **cache_slot) /* {{{ */ {
-	yac_add_impl(Z_YACOBJ_P(zobj), Z_STR_P(name), value, 0, 0);
+#if PHP_VERSION_ID < 80000
+static YAC_WHANDLER yac_write_property(zval *zobj, zval *zname, zval *value, void **cache_slot) /* {{{ */ {
+	yac_add_impl(Z_YACOBJ_P(zobj), Z_STR_P(zname), value, 0, 0);
+#else
+static YAC_WHANDLER yac_write_property(zend_object *obj, zend_string *name, zval *value, void **cache_slot) /* {{{ */ {
+	yac_add_impl(php_yac_fetch_object(obj), name, value, 0, 0);
+#endif
     Z_TRY_ADDREF_P(value);
 
 	YAC_WHANDLER_RET(value);
 }
 /* }}} */
 
-static void yac_unset_property(zval *zobj, zval *name, void **cache_slot) /* {{{ */ {
-	yac_delete_impl(Z_YACOBJ_P(zobj), Z_STR_P(name), 0);
+#if PHP_VERSION_ID < 80000
+static void yac_unset_property(zval *zobj, zval *zname, void **cache_slot) /* {{{ */ {
+	yac_delete_impl(Z_YACOBJ_P(zobj), Z_STR_P(zname), 0);
+#else
+static void yac_unset_property(zend_object *obj, zend_string *name, void **cache_slot) /* {{{ */ {
+	yac_delete_impl(php_yac_fetch_object(obj), name, 0);
+#endif
 }
 /* }}} */
 

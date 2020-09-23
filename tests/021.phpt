@@ -13,8 +13,12 @@ $yac = new Yac("prefix");
 
 $yac->value = "value";
 
-/* can not used in writen context */
-$yac->foo->bar = "bar";
+try {
+	/* can not used in writen context */
+	$yac->foo->bar = "bar";
+} catch (Error $e) {
+	/* expected exception on PHP 8 */
+}
 
 var_dump($yac->get("value"));
 var_dump($yac->value);
