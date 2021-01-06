@@ -12,11 +12,11 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2020-05-15</date>
- <time>12:30:00</time>
+ <date>2021-01-06</date>
+ <time>14:30:00</time>
  <version>
-  <release>2.2.1</release>
-  <api>2.2.1</api>
+  <release>2.3.0</release>
+  <api>2.3.0</api>
  </version>
  <stability>
   <release>stable</release>
@@ -24,8 +24,7 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - Refactor key manipulation, avoding memory allocation
-  - Refactor Yac::__set/__get by using native objects_handler
+  - PHP8 Supported
  </notes>
  <contents> 
   <dir name="/"> 
@@ -110,6 +109,22 @@
  </extsrcrelease>
  <changelog> 
   <release> 
+   <date>2021-01-06</date> 
+   <version>
+    <release>2.3.0</release> 
+    <api>2.3.0</api> 
+   </version> 
+   <stability> 
+    <release>stable</release> 
+    <api>stable</api> 
+   </stability> 
+   <license uri="http://www.php.net/license">PHP License</license> 
+   <notes>
+    - PHP8 Supported
+   </notes> 
+  </release> 
+
+  <release> 
    <date>2020-03-31</date> 
    <version>
     <release>2.2.1</release> 
@@ -125,7 +140,6 @@
     - Refactor Yac::__set/__get by using native objects_handler
    </notes> 
   </release> 
-
   <release> 
    <date>2020-03-31</date> 
    <version>
