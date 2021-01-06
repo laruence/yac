@@ -76,6 +76,10 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_delete, 0, 0, 1)
 	ZEND_ARG_INFO(0, ttl)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_dump, 0, 0, 0)
+	ZEND_ARG_INFO(0, limit)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_void, 0, 0, 0)
 ZEND_END_ARG_INFO()
 /* }}} */
@@ -486,10 +490,6 @@ static int yac_delete_multi_impl(yac_object *yac, zval *keys, int ttl) /* {{{ */
 static zend_object *yac_object_new(zend_class_entry *ce) /* {{{ */ {
 	yac_object *yac = emalloc(sizeof(yac_object) + zend_object_properties_size(ce));
 
-	if (!YAC_G(enable)) {
-		zend_throw_exception(NULL, "Yac is not enabled", 0);
-	}
-
 	zend_object_std_init(&yac->std, ce);
 	yac->std.handlers = &yac_obj_handlers;
 	yac->prefix_len = 0;
@@ -504,17 +504,34 @@ static void yac_object_free(zend_object *object) /* {{{ */ {
 }
 /* }}} */
 
-static zval* yac_read_property_ptr(zval *zobj, zval *name, int type, void **cache_slot) /* {{{ */ {
+static zval* yac_read_property_ptr(void *zobj, void *name, int type, void **cache_slot) /* {{{ */ {
+	zend_string *member;
+#if PHP_VERSION_ID < 80000
+	member = Z_STR_P((zval*)name);
+#else
+	member = (zend_string*)name;
+#endif
+	zend_throw_exception_ex(NULL, 0, "Retrieval of Yac->%s for modification is unsupported", ZSTR_VAL(member));
 	return &EG(error_zval);
 }
 /* }}} */
 
-static zval* yac_read_property(zval *zobj, zval *name, int type, void **cache_slot, zval *rv) /* {{{ */ {
+static zval* yac_read_property(void /* for PHP8 compatibility */ *zobj, void *name, int type, void **cache_slot, zval *rv) /* {{{ */ {
+	yac_object *yac;
+	zend_string *member;
+
 	if (UNEXPECTED(type == BP_VAR_RW||type == BP_VAR_W)) {
 		return &EG(error_zval);
 	}
+#if PHP_VERSION_ID < 80000
+	yac = Z_YACOBJ_P((zval*)zobj);
+	member = Z_STR_P((zval*)name);
+#else
+	yac = php_yac_fetch_object((zend_object*)zobj);
+	member = (zend_string*)name;
+#endif
 
-	if (yac_get_impl(Z_YACOBJ_P(zobj), Z_STR_P(name), NULL, rv)) {
+	if (yac_get_impl(yac, member, NULL, rv)) {
 		return rv;
 	}
 
@@ -522,16 +539,38 @@ static zval* yac_read_property(zval *zobj, zval *name, int type, void **cache_sl
 }
 /* }}} */
 
-static YAC_WHANDLER yac_write_property(zval *zobj, zval *name, zval *value, void **cache_slot) /* {{{ */ {
-	yac_add_impl(Z_YACOBJ_P(zobj), Z_STR_P(name), value, 0, 0);
+static YAC_WHANDLER yac_write_property(void *zobj, void *name, zval *value, void **cache_slot) /* {{{ */ {
+	yac_object *yac;
+	zend_string *member;
+
+#if PHP_VERSION_ID < 80000
+	yac = Z_YACOBJ_P((zval*)zobj);
+	member = Z_STR_P((zval*)name);
+#else
+	yac = php_yac_fetch_object((zend_object*)zobj);
+	member = (zend_string*)name;
+#endif
+
+	yac_add_impl(yac, member, value, 0, 0);
     Z_TRY_ADDREF_P(value);
 
 	YAC_WHANDLER_RET(value);
 }
 /* }}} */
 
-static void yac_unset_property(zval *zobj, zval *name, void **cache_slot) /* {{{ */ {
-	yac_delete_impl(Z_YACOBJ_P(zobj), Z_STR_P(name), 0);
+static void yac_unset_property(void *zobj, void *name, void **cache_slot) /* {{{ */ {
+	yac_object *yac;
+	zend_string *member;
+
+#if PHP_VERSION_ID < 80000
+	yac = Z_YACOBJ_P((zval*)zobj);
+	member = Z_STR_P((zval*)name);
+#else
+	yac = php_yac_fetch_object((zend_object*)zobj);
+	member = (zend_string*)name;
+#endif
+
+	yac_delete_impl(yac, member, 0);
 }
 /* }}} */
 
@@ -542,6 +581,10 @@ PHP_METHOD(yac, __construct) {
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|S", &prefix) == FAILURE) {
 		return;
+	}
+
+	if (!YAC_G(enable)) {
+		zend_throw_exception(NULL, "Yac is not enabled", 0);
 	}
 
 	if (prefix && ZSTR_LEN(prefix)) {
@@ -851,7 +894,7 @@ zend_function_entry yac_methods[] = {
 	PHP_ME(yac, delete, arginfo_yac_delete, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, flush, arginfo_yac_void, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, info, arginfo_yac_void, ZEND_ACC_PUBLIC)
-	PHP_ME(yac, dump, arginfo_yac_void, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, dump, arginfo_yac_dump, ZEND_ACC_PUBLIC)
 	{NULL, NULL, NULL}
 };
 /* }}} */
@@ -943,10 +986,10 @@ PHP_MINIT_FUNCTION(yac)
 	yac_obj_handlers.offset = XtOffsetOf(yac_object, std);
 	yac_obj_handlers.free_obj = yac_object_free;
 	if (YAC_G(enable)) {
-		yac_obj_handlers.read_property  = yac_read_property;
-		yac_obj_handlers.write_property = yac_write_property;
-		yac_obj_handlers.unset_property = yac_unset_property;
-		yac_obj_handlers.get_property_ptr_ptr = yac_read_property_ptr;
+		yac_obj_handlers.read_property  = (zend_object_read_property_t)yac_read_property;
+		yac_obj_handlers.write_property = (zend_object_write_property_t)yac_write_property;
+		yac_obj_handlers.unset_property = (zend_object_unset_property_t)yac_unset_property;
+		yac_obj_handlers.get_property_ptr_ptr = (zend_object_get_property_ptr_ptr_t)yac_read_property_ptr;
 	}
 
 	return SUCCESS;

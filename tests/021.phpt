@@ -14,7 +14,9 @@ $yac = new Yac("prefix");
 $yac->value = "value";
 
 /* can not used in writen context */
+try {
 $yac->foo->bar = "bar";
+} catch (Exception $e) {};
 
 var_dump($yac->get("value"));
 var_dump($yac->value);

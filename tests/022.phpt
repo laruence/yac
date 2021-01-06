@@ -12,10 +12,8 @@ try {
 	var_dump($e->getMessage());
 }
 
-var_dump($yac);
+@var_dump($yac);
 ?>
 --EXPECTF--
 string(18) "Yac is not enabled"
-
-Notice: Undefined variable: yac in %s022.php on line %d
 NULL
