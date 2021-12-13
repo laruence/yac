@@ -32,6 +32,11 @@
 #include "Zend/zend_exceptions.h"
 
 #include "php_yac.h"
+#if PHP_MAJOR_VERSION > 7
+#include "yac_arginfo.h"
+#else
+#include "yac_legacy_arginfo.h"
+#endif
 #include "storage/yac_storage.h"
 #include "serializer/yac_serializer.h"
 #ifdef HAVE_FASTLZ_H
@@ -54,35 +59,6 @@ ZEND_DECLARE_MODULE_GLOBALS(yac);
 
 static yac_serializer_t yac_serializer;
 static yac_unserializer_t yac_unserializer;
-
-/** {{{ ARG_INFO
- */
-ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_constructor, 0, 0, 0)
-	ZEND_ARG_INFO(0, prefix)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_add, 0, 0, 1)
-	ZEND_ARG_INFO(0, keys)
-	ZEND_ARG_INFO(0, value)
-	ZEND_ARG_INFO(0, ttl)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_get, 0, 0, 1)
-	ZEND_ARG_INFO(0, keys)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_delete, 0, 0, 1)
-	ZEND_ARG_INFO(0, keys)
-	ZEND_ARG_INFO(0, ttl)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_dump, 0, 0, 0)
-	ZEND_ARG_INFO(0, limit)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_yac_void, 0, 0, 0)
-ZEND_END_ARG_INFO()
-/* }}} */
 
 static PHP_INI_MH(OnChangeKeysMemoryLimit) /* {{{ */ {
 	if (new_value) {
@@ -887,14 +863,14 @@ zend_function_entry yac_functions[] = {
 /** {{{ yac_methods
 */
 zend_function_entry yac_methods[] = {
-	PHP_ME(yac, __construct, arginfo_yac_constructor, ZEND_ACC_PUBLIC|ZEND_ACC_CTOR)
-	PHP_ME(yac, add, arginfo_yac_add, ZEND_ACC_PUBLIC)
-	PHP_ME(yac, set, arginfo_yac_add, ZEND_ACC_PUBLIC)
-	PHP_ME(yac, get, arginfo_yac_get, ZEND_ACC_PUBLIC)
-	PHP_ME(yac, delete, arginfo_yac_delete, ZEND_ACC_PUBLIC)
-	PHP_ME(yac, flush, arginfo_yac_void, ZEND_ACC_PUBLIC)
-	PHP_ME(yac, info, arginfo_yac_void, ZEND_ACC_PUBLIC)
-	PHP_ME(yac, dump, arginfo_yac_dump, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, __construct, arginfo_class_Yac___construct, ZEND_ACC_PUBLIC|ZEND_ACC_CTOR)
+	PHP_ME(yac, add, arginfo_class_Yac_add, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, set, arginfo_class_Yac_set, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, get, arginfo_class_Yac_get, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, delete, arginfo_class_Yac_delete, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, flush, arginfo_class_Yac_flush, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, info, arginfo_class_Yac_info, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, dump, arginfo_class_Yac_dump, ZEND_ACC_PUBLIC)
 	{NULL, NULL, NULL}
 };
 /* }}} */

@@ -34,6 +34,8 @@
    <file name="config.m4"    role="src" />
    <file name="yac.c" role="src" />
    <file name="php_yac.h" role="src" />
+   <file name="yac_arginfo.h" role="src" />
+   <file name="yac_legacy_arginfo.h" role="src" />
    <dir name="storage">
     <file name="yac_storage.h" role="src" />
     <file name="yac_storage.c" role="src" />
@@ -87,6 +89,7 @@
     <file name="021.phpt" role="test" />
     <file name="022.phpt" role="test" />
     <file name="023.phpt" role="test" />
+    <file name="024.phpt" role="test" />
     <file name="issue012.phpt" role="test" />
    </dir>
   </dir> 
