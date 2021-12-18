@@ -12,11 +12,11 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2021-01-06</date>
- <time>14:30:00</time>
+ <date>2021-12-18</date>
+ <time>16:30:00</time>
  <version>
-  <release>2.3.0</release>
-  <api>2.3.0</api>
+  <release>2.3.1</release>
+  <api>2.3.1</api>
  </version>
  <stability>
   <release>stable</release>
@@ -24,7 +24,7 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - PHP8 Supported
+  - PHP8.1 Supports
  </notes>
  <contents> 
   <dir name="/"> 
@@ -89,7 +89,6 @@
     <file name="021.phpt" role="test" />
     <file name="022.phpt" role="test" />
     <file name="023.phpt" role="test" />
-    <file name="024.phpt" role="test" />
     <file name="issue012.phpt" role="test" />
    </dir>
   </dir> 
@@ -112,6 +111,22 @@
  </extsrcrelease>
  <changelog> 
   <release> 
+   <date>2021-12-18</date> 
+   <version>
+    <release>2.3.1</release> 
+    <api>2.3.1</api> 
+   </version> 
+   <stability> 
+    <release>stable</release> 
+    <api>stable</api> 
+   </stability> 
+   <license uri="http://www.php.net/license">PHP License</license> 
+   <notes>
+    - PHP8.1 Supports
+   </notes> 
+  </release> 
+
+  <release> 
    <date>2021-01-06</date> 
    <version>
     <release>2.3.0</release> 
@@ -126,7 +141,6 @@
     - PHP8 Supported
    </notes> 
   </release> 
-
   <release> 
    <date>2020-03-31</date> 
    <version>
