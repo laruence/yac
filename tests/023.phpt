@@ -14,4 +14,4 @@ yac.enable=0
 class Sub extends Yac {};
 ?>
 --EXPECTF--
-Fatal error: Class Sub may not inherit from final class (Yac) in %s023.php on line %d
+Fatal error: Class Sub %s final class %s
