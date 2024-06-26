@@ -1,8 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: 94c1b5ff7b5143a852b886d6977a168be8bdc3a3 */
-
-ZEND_STATIC_ASSERT(PHP_VERSION_ID >= 80000, "yac_arginfo.h only supports PHP version ID 80000 or newer, "
-	"but it is included on an older PHP version");
+ * Stub hash: 11d1b22c3df19d543a69341e05da1ab31cc9e230 */
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_class_Yac___construct, 0, 0, 0)
 	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, prefix, IS_STRING, 0, "\"\"")
@@ -14,7 +11,7 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Yac_add, 0, 2, _IS_BOOL, 1
 	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, ttl, IS_LONG, 0, "0")
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Yac_get, 0, 1, IS_MIXED, 0)
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Yac_get, 0, 1, IS_MIXED, 1)
 	ZEND_ARG_TYPE_MASK(0, key, MAY_BE_STRING|MAY_BE_ARRAY, NULL)
 	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(1, cas, IS_MIXED, 0, "NULL")
 ZEND_END_ARG_INFO()

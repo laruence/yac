@@ -1,8 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: 94c1b5ff7b5143a852b886d6977a168be8bdc3a3 */
-
-ZEND_STATIC_ASSERT(PHP_VERSION_ID >= 70000, "yac_arginfo.h only supports PHP version ID 70000 or newer, "
-	"but it is included on an older PHP version");
+ * Stub hash: 11d1b22c3df19d543a69341e05da1ab31cc9e230 */
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_class_Yac___construct, 0, 0, 0)
 	ZEND_ARG_INFO(0, prefix)

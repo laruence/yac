@@ -12,7 +12,7 @@ class Yac {
 
 	public function add(string|array $key, mixed $value, int $ttl = 0):?bool {}
 
-	public function get(string|array $key, mixed &$cas = NULL):mixed {}
+	public function get(string|array $key, mixed &$cas = NULL):?mixed {}
 
 	public function set(string|array $key, mixed $value = NULL, int $ttl = 0):?bool {}
 
