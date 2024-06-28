@@ -18,24 +18,26 @@ jobs:
             ZTS: "yes"
             OS: "ubuntu-latest"
     env:
-      PHP: $ {{ matrix.PHP }}
+      PHP: ${{ matrix.PHP }}
       GITHUB: "yes"
       enable_debug: "yes"
-      enable_maintainer_zts: $ {{ matrix.ZTS }}
       enable_session: "yes"
+      enable_maintainer_zts: ${{ matrix.ZTS }}
       TEST_PHP_ARGS : "--show-diff"
       REPORT_EXIT_STATUS: "yes"
       NO_INTERACTION: "yes"
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v2
         with:
           submodules: true
+      - name: Setup
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.PHP }}
       - name: Install
         run: |
-          sudo apt-get install -y \
-            php-cli \
-            php-pear \
-            re2c
+          sudo apt-get install -y re2c
       - name: Prepare
         run: |
             phpize
