@@ -27,10 +27,6 @@ jobs:
       REPORT_EXIT_STATUS: "yes"
       NO_INTERACTION: "yes"
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          submodules: true
       - name: Setup
         uses: shivammathur/setup-php@v2
         with:
