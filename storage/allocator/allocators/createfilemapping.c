@@ -66,6 +66,13 @@ static char *get_mmap_base_file(void) /* {{{ */ {
 }
 /* }}} */
 
+/* Delete the stale base address file so next startup gets a clean slate */
+static void cleanup_mmap_base_file(void) /* {{{ */ {
+	char *mmap_base_file = get_mmap_base_file();
+	remove(mmap_base_file);
+}
+/* }}} */
+
 static int yac_shared_alloc_reattach(size_t requested_size, char **error_in) /* {{{ */ {
 	void *wanted_mapping_base;
 	char *mmap_base_file = get_mmap_base_file();
@@ -73,12 +80,12 @@ static int yac_shared_alloc_reattach(size_t requested_size, char **error_in) /* 
 	MEMORY_BASIC_INFORMATION info;
 	
 	if (!fp) {
-		*error_in="fopen";
+		*error_in = "fopen";
 		return ALLOC_FAILURE;
 	}
 	
 	if (!fscanf(fp, "%p", &wanted_mapping_base)) {
-		*error_in="read mapping base";
+		*error_in = "read mapping base";
 		fclose(fp);
 		return ALLOC_FAILURE;
 	}
@@ -86,17 +93,17 @@ static int yac_shared_alloc_reattach(size_t requested_size, char **error_in) /* 
 
 	/* Check if the requested address space is free */
 	if (VirtualQuery(wanted_mapping_base, &info, sizeof(info)) == 0) {
-		*error_in="VirtualQuery";
+		*error_in = "VirtualQuery";
 		return ALLOC_FAILURE;
 	}
 
 	if (info.State != MEM_FREE) {
-		*error_in="info.State";
+		*error_in = "info.State";
 		return ALLOC_FAILURE;
 	}
 
 	if (info.RegionSize < requested_size) {
-		*error_in="info.RegionSize";
+		*error_in = "info.RegionSize";
 		return ALLOC_FAILURE;
 	}
 
@@ -112,7 +119,7 @@ static int yac_shared_alloc_reattach(size_t requested_size, char **error_in) /* 
 
 static int create_segments(unsigned long k_size, unsigned long v_size, yac_shared_segment_create_file **shared_segments_p, int *shared_segments_count, char **error_in) /* {{{ */ {
 	int ret;
-	unsigned long allocate_size, occupied_size =  0;
+	unsigned long allocate_size, occupied_size = 0;
 	unsigned int i, segment_size, segments_num = 1024, is_reattach = 0;
 	int map_retries = 0;
 	yac_shared_segment_create_file first_segment;
@@ -128,7 +135,7 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 	void *vista_mapping_base_set[] = { (void *) 0x20000000, (void *) 0x21000000, (void *) 0x30000000, (void *) 0x31000000, (void *) 0x50000000, 0 };
 #endif
 	void **wanted_mapping_base = default_mapping_base_set;
-	
+ 
 
 	k_size = YAC_SMM_ALIGNED_SIZE(k_size);
 	v_size = YAC_SMM_ALIGNED_SIZE(v_size);
@@ -147,20 +154,27 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 	do {
 		memfile = OpenFileMapping(FILE_MAP_WRITE, 0, create_name_with_username(ACCEL_FILEMAP_NAME));
 		if (memfile == NULL) {
+			/* No existing mapping found, will create a fresh one below */
 			break;
 		}
 
-		ret =  yac_shared_alloc_reattach((size_t)k_size, error_in);
+		ret = yac_shared_alloc_reattach((size_t)k_size, error_in);
 		if (ret == ALLOC_FAIL_MAPPING) {
 			/* Mapping failed, wait for mapping object to get freed and retry */
-            CloseHandle(memfile);
+			CloseHandle(memfile);
 			memfile = NULL;
 			Sleep(1000 * (map_retries + 1));
 		} else if (ret == SUCCESSFULLY_REATTACHED) {
 			is_reattach = 1;
 			break;
 		} else {
-			return ret;
+			/* Stale mapping detected (e.g. info.State != MEM_FREE, bad RegionSize,
+			   or missing/corrupt base file). Close the stale handle, delete the
+			   base address file, and fall through to create a fresh mapping. */
+			CloseHandle(memfile);
+			memfile = NULL;
+			cleanup_mmap_base_file();
+			break;
 		}
 	} while (++map_retries < MAX_MAP_RETRIES);
 
@@ -170,7 +184,7 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 	}
 
 	*shared_segments_p = (yac_shared_segment_create_file *)calloc(1, segments_num * sizeof(yac_shared_segment_create_file));
-	if(!*shared_segments_p) {
+	if (!*shared_segments_p) {
 		*error_in = "calloc";
 		return 0;
 	}
@@ -189,7 +203,7 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 
 			osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
 
-			if (! GetVersionEx ((OSVERSIONINFO *) &osvi)) {
+			if (!GetVersionEx((OSVERSIONINFO *) &osvi)) {
 				osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
 				if (!GetVersionEx((OSVERSIONINFO *)&osvi)) {
 					break;
@@ -220,22 +234,23 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 		memfile = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, allocate_size, create_name_with_username(ACCEL_FILEMAP_NAME));
 		if (memfile == NULL) {
 			*error_in = "CreateFileMapping";
-			return 0;	
+			return 0;
 		}
 
 		do {
 			first_segment.common.p = mapping_base = MapViewOfFileEx(memfile, FILE_MAP_ALL_ACCESS, 0, 0, 0, *wanted_mapping_base);
-			if (wanted_mapping_base == NULL) {
+			if (*wanted_mapping_base == NULL) {
 				break;
 			}
-			*wanted_mapping_base++;
+			wanted_mapping_base++;
 		} while (!mapping_base);
-	} 
+	}
 
 	if(mapping_base == NULL) {
 		*error_in = "MapViewOfFileEx";
 		return 0;
 	} else {
+		/* Save the mapping base address to file for reattach on next startup */
 		char *mmap_base_file = get_mmap_base_file();
 		FILE *fp = fopen(mmap_base_file, "w");
 		if (!fp) {
@@ -245,7 +260,7 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 		fprintf(fp, "%p", mapping_base);
 		fclose(fp);
 	}
-	
+
 	first_segment.common.p = mapping_base;
 	first_segment.size = allocate_size;
 	first_segment.common.size = k_size;
@@ -301,3 +316,4 @@ yac_shared_memory_handlers yac_alloc_create_file_handlers = /* {{{ */ {
  * vim600: noet sw=4 ts=4 fdm=marker
  * vim<600: noet sw=4 ts=4
  */
+
