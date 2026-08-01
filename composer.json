@@ -1,0 +1,23 @@
+{
+  "name": "laruence/yac",
+  "type": "php-ext",
+  "license": "PHP-3.01",
+  "description": "Yac is a shared and lockless memory user data cache for PHP.",
+  "require": {
+    "php": ">=7.0"
+  },
+  "replace": {
+    "ext-yac": "*"
+  },
+  "php-ext": {
+    "extension-name": "ext-yac",
+	"download-url-method": ["pre-packaged-binary", "composer-default"],
+	"priority": 73,
+    "configure-options": [
+      {
+        "name": "enable-yac",
+        "description": "whether to enable yac support"
+      }
+    ]
+  }
+}
