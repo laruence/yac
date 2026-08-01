@@ -26,7 +26,7 @@ $make && make install
 
 1.  Cache key cannot be longer than 48 (YAC_MAX_KEY_LEN) bytes
 2.  Cache Value cannot be longer than 64M (YAC_MAX_VALUE_RAW_LEN) bytes
-3.  Cache Value after compressed cannot be longer than 1M (YAC_MAX_VALUE_COMPRESSED_LEN) bytes
+3.  Cache Value after compressed cannot be longer than 1M (YAC_MAX_RAW_COMPRESSED_LEN) bytes
 
 ## InIs
 ````
