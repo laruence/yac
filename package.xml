@@ -89,6 +89,7 @@
     <file name="021.phpt" role="test" />
     <file name="022.phpt" role="test" />
     <file name="023.phpt" role="test" />
+    <file name="024.phpt" role="test" />
     <file name="issue012.phpt" role="test" />
    </dir>
   </dir> 
