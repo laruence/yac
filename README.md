@@ -167,7 +167,7 @@ $yac->set([
 Since Yac 2.1, `set()` may fail if CAS competition occurs. For critical values, retry until success:
 
 ```php
-while (!$yac->set("important", "value"));
+while (!$yac->set("important", "value") && $retry++ < 100/* guard against persistent CAS failure */);
 ```
 
 ### Yac::get
