@@ -62,7 +62,11 @@ static yac_unserializer_t yac_unserializer;
 
 static PHP_INI_MH(OnChangeKeysMemoryLimit) /* {{{ */ {
 	if (new_value) {
+#if PHP_VERSION_ID < 80200
 		YAC_G(k_msize) = zend_atol(ZSTR_VAL(new_value), ZSTR_LEN(new_value));
+#else
+		YAC_G(k_msize) = zend_ini_parse_quantity_warn(new_value, entry->name);
+#endif
 	}
 	return SUCCESS;
 }
@@ -70,7 +74,11 @@ static PHP_INI_MH(OnChangeKeysMemoryLimit) /* {{{ */ {
 
 static PHP_INI_MH(OnChangeValsMemoryLimit) /* {{{ */ {
 	if (new_value) {
+#if PHP_VERSION_ID < 80200
 		YAC_G(v_msize) = zend_atol(ZSTR_VAL(new_value), ZSTR_LEN(new_value));
+#else
+		YAC_G(v_msize) = zend_ini_parse_quantity_warn(new_value, entry->name);
+#endif
 	}
 	return SUCCESS;
 }
@@ -78,7 +86,11 @@ static PHP_INI_MH(OnChangeValsMemoryLimit) /* {{{ */ {
 
 static PHP_INI_MH(OnChangeCompressThreshold) /* {{{ */ {
 	if (new_value) {
+#if PHP_VERSION_ID < 80200
 		YAC_G(compress_threshold) = zend_atol(ZSTR_VAL(new_value), ZSTR_LEN(new_value));
+#else
+		YAC_G(compress_threshold) = zend_ini_parse_quantity_warn(new_value, entry->name);
+#endif
 		if (YAC_G(compress_threshold) < YAC_MIN_COMPRESS_THRESHOLD) {
 			YAC_G(compress_threshold) = YAC_MIN_COMPRESS_THRESHOLD;
 		}
@@ -102,7 +114,7 @@ PHP_INI_END()
 
 #define Z_YACOBJ_P(zv)   (php_yac_fetch_object(Z_OBJ_P(zv)))
 static inline yac_object *php_yac_fetch_object(zend_object *obj) /* {{{ */ {
-	return (yac_object *)((char*)(obj) - XtOffsetOf(yac_object, std));
+	return (yac_object *)((char*)(obj) - offsetof(yac_object, std));
 }
 /* }}} */
 
@@ -610,7 +622,8 @@ PHP_METHOD(yac, add) {
 			}
 			break;
 		default:
-			WRONG_PARAM_COUNT;
+			zend_wrong_param_count();
+			return;
 	}
 
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
@@ -660,7 +673,8 @@ PHP_METHOD(yac, set) {
 			}
 			break;
 		default:
-			WRONG_PARAM_COUNT;
+			zend_wrong_param_count();
+			return;
 	}
 
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
@@ -959,7 +973,7 @@ PHP_MINIT_FUNCTION(yac)
 	yac_class_ce->create_object = yac_object_new;
 
 	memcpy(&yac_obj_handlers, zend_get_std_object_handlers(), sizeof(zend_object_handlers));
-	yac_obj_handlers.offset = XtOffsetOf(yac_object, std);
+	yac_obj_handlers.offset = offsetof(yac_object, std);
 	yac_obj_handlers.free_obj = yac_object_free;
 	if (YAC_G(enable)) {
 		yac_obj_handlers.read_property  = (zend_object_read_property_t)yac_read_property;
