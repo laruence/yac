@@ -108,7 +108,7 @@ extern yac_storage_globals *yac_storage;
 int yac_storage_startup(unsigned long first_size, unsigned long size, char **err);
 void yac_storage_shutdown(void);
 int yac_storage_find(const char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas, unsigned long tv);
-int yac_storage_update(const char *key, unsigned int len, char *data, unsigned int size, unsigned int falg, int ttl, int add, unsigned long tv);
+int yac_storage_update(const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add, unsigned long tv);
 int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long tv);
 void yac_storage_flush(void);
 const char * yac_storage_shared_memory_name(void);
