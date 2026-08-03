@@ -22,5 +22,5 @@ class Yac {
 
 	public function info():array {}
 
-	public function dump(int $limit = 0):?array {}
+	public function dump(int $limit = 100):?array {}
 }
