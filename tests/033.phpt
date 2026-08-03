@@ -39,7 +39,7 @@ try {
     $yac = new Yac($prefix49);
     echo "should not reach here\n";
 } catch (\Exception $e) {
-    var_dump(str_contains($e->getMessage(), "48"));
+    var_dump(strpos($e->getMessage(), "48") !== false);
 }
 
 /* 5. prefix with special characters — works */
