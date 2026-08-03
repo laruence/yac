@@ -232,12 +232,10 @@ while (!$yac->set("important", "value") && $retry++ < 100/* guard against persis
 ### Yac::get
 
 ```php
-Yac::get(string|array $key[, int &$cas = null]): mixed
+Yac::get(string|array $key): mixed
 ```
 
 Fetches a stored variable from the cache. If an array is passed, each element is fetched and returned as a key-value array.
-
-`$cas` is an output parameter that receives the CAS token of the retrieved value, useful for implementing compare-and-swap patterns.
 
 Returns the cached value on success, `false` on failure (key not found, or integrity check failed).
 
