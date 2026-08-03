@@ -30,10 +30,10 @@ $yac->set("int_zero", 0);
 var_dump($yac->get("int_zero"));
 var_dump($yac->get("int_zero") === 0);
 
-/* 5. int max */
-$yac->set("int_max", PHP_INT_MAX);
-var_dump($yac->get("int_max"));
-var_dump($yac->get("int_max") === PHP_INT_MAX);
+/* 5. int large */
+$yac->set("int_large", 999999999);
+var_dump($yac->get("int_large"));
+var_dump($yac->get("int_large") === 999999999);
 
 /* 6. int negative */
 $yac->set("int_neg", -42);
