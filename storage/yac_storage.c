@@ -434,11 +434,7 @@ int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long
 		uint32_t i;
 		if (k.h == hash && YAC_KEY_KLEN(k) == len) {
 			if (!memcmp((char *)k.key, key, len)) {
-				if (ttl == 0) {
-					p->ttl = 1;
-				} else {
-					p->ttl = ttl + tv;
-				}
+				p->ttl = ttl? ttl + tv : 1;
 				return 1;
 			}
 		} 
@@ -455,7 +451,7 @@ int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long
 			if (k.val == NULL) {
 				return 1;
 			} else if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
-				p->ttl = 1;
+				p->ttl = ttl? ttl + tv : 1;
 				return 1;
 			}
 		}

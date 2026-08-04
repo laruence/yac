@@ -22,27 +22,53 @@ $ pecl install yac
 
 ```bash
 $ /path/to/phpize
-$ ./configure --with-php-config=/path/to/php-config
+$ ./configure --enable-yac \
+    [--enable-msgpack] \
+    [--enable-igbinary] \
+    [--enable-json] \
+    --with-php-config=/path/to-php-config
 $ make && make install
 ```
+
+The optional `--enable-msgpack`, `--enable-igbinary`, and `--enable-json` flags enable the corresponding serializers. See [Serializer](#serializer) below.
+
+### Important: CLI mode
+
+**Yac is disabled in CLI mode by default.** If you are testing or running scripts from the command line, add this to your `php.ini`:
+
+```ini
+yac.enable_cli = 1
+```
+
+Otherwise `new Yac()` will throw an exception.
+
+## When to use Yac
+
+Yac is a **lockless, shared memory cache**. It lives in the same process space as PHP (no network round-trip), and it never locks — which means:
+
+- **Best for**: read-heavy workloads with large, relatively stable key sets. Think configuration, routing tables, precomputed data, HTML fragments — things you read far more often than you write.
+- **Not ideal for**: high-contention write scenarios where multiple processes frequently `set()` the same keys simultaneously. There is no lock to arbitrate, so writes can corrupt under heavy contention. For those use cases, Redis or Memcached are safer choices.
+
+It trades perfect consistency for raw speed. `get()` is essentially a hash lookup in shared memory — microsecond-level latency.
 
 ## Note
 
 1. Yac is a lockless cache, you should try to avoid or reduce the probability of multiple processes setting the same key simultaneously.
-2. Yac uses partial CRC for integrity checks. You'd better re-arrange your cache content and place the most important (mutable) bytes at the head or tail of the value.
+2. Yac uses partial CRC for integrity checks. You'd better re-arrange your cache content and place the most important (mutable) bytes at the head or tail of the value. Values shorter than 256 bytes (`YAC_FULL_CRC_THRESHOLD`) use full CRC.
 
 ## Restrictions
 
-1. Cache key cannot be longer than 48 (YAC_MAX_KEY_LEN) bytes.
-2. Cache value cannot be longer than 67108863 (YAC_MAX_VALUE_RAW_LEN) bytes, i.e. `(1 << 26) - 1`.
-3. Cache value after compression cannot be longer than 1M (YAC_MAX_RAW_COMPRESSED_LEN) bytes.
+1. Cache key cannot be longer than 48 (`YAC_MAX_KEY_LEN`) bytes.
+2. Cache value cannot be longer than 67108863 (`YAC_MAX_VALUE_RAW_LEN`) bytes, i.e. `(1 << 26) - 1`.
+3. Cache value after compression cannot be longer than 1M (`YAC_MAX_RAW_COMPRESSED_LEN`) bytes.
 
 ## INI Settings
 
 ```ini
 yac.enable = 1
 
-yac.debug = 0  ; enable debug mode (PHP_INI_ALL)
+yac.debug = 0  ; enable debug mode (PHP_INI_ALL).
+               ; Currently reserved for future use.
 
 yac.keys_memory_size = 4M  ; 4M can hold ~30K key slots, 32M can hold ~100K key slots
 
@@ -84,6 +110,25 @@ YAC_SERIALIZER ; the serializer in use, determined by yac.serializer.
                ; Default is YAC_SERIALIZER_PHP.
 ```
 
+## Supported Data Types
+
+Yac can store all PHP types **except resources**:
+
+| Type | Notes |
+|------|-------|
+| `null` | Stored as-is |
+| `bool` | Both `true` and `false` — see [gotcha below](#false-ambiguity) |
+| `int` / `long` | Stored directly |
+| `float` / `double` | Stored directly |
+| `string` | Stored directly; compressed if larger than `yac.compress_threshold` |
+| `array` | Serialized (php/msgpack/igbinary/json), then compressed if needed |
+| `object` | Serialized and compressed same as array |
+| `resource` | **Not supported** — triggers a warning |
+
+### False ambiguity
+
+Since `get()` returns `false` both when a key is **not found** and when the cached value is literally `false`, you cannot distinguish the two cases by return value alone. Avoid storing `false` as a cache value.
+
 ## Methods
 
 ### Yac::__construct
@@ -106,6 +151,18 @@ $yac = new Yac("myproduct_");
 ?>
 ```
 
+#### Multi-tenant prefix example
+
+```php
+<?php
+// Two instances sharing the same memory pool but with isolated key namespaces:
+$userCache = new Yac("user_");
+$sysCache  = new Yac("sys_");
+
+$userCache->set("123", $userData);  // actual key: "user_123"
+$sysCache->set("config", $config);  // actual key: "sys_config"
+```
+
 ### Property Access
 
 Yac also supports array-like property access, which maps directly to `get`/`set`/`delete`:
@@ -117,6 +174,8 @@ $yac->foo = "bar";       // equivalent to $yac->set("foo", "bar")
 echo $yac->foo;          // equivalent to $yac->get("foo")
 unset($yac->foo);        // equivalent to $yac->delete("foo")
 ```
+
+**Note**: Property access always uses `set()` semantics (overwrite), not `add()`. TTL is not supported through property access — if you need TTL or `add` semantics, call the method explicitly.
 
 ### Yac::add
 
@@ -173,14 +232,14 @@ while (!$yac->set("important", "value") && $retry++ < 100/* guard against persis
 ### Yac::get
 
 ```php
-Yac::get(string|array $key[, int &$cas = null]): mixed
+Yac::get(string|array $key): mixed
 ```
 
 Fetches a stored variable from the cache. If an array is passed, each element is fetched and returned as a key-value array.
 
-`$cas` is an output parameter that receives the CAS token of the retrieved value, useful for implementing compare-and-swap patterns.
+Returns the cached value on success, `false` on failure (key not found, or integrity check failed).
 
-Returns the cached value on success, `false` on failure.
+> **Warning**: If the stored value is `false`, `get()` also returns `false`. See [False ambiguity](#false-ambiguity).
 
 ```php
 <?php
@@ -204,6 +263,8 @@ Yac::delete(string|array $keys[, int $delay = 0]): bool
 
 Removes a stored variable from the cache. If `$delay` is specified (in seconds), the value will be deleted after `$delay` seconds — a delayed deletion.
 
+> **Note**: `$delay` is a logical deletion: it marks the entry with a shorter TTL, and the space is reclaimed on the next access after expiry. It does not immediately free memory.
+
 Returns `true` on success, `false` on failure.
 
 ### Yac::flush
@@ -212,7 +273,7 @@ Returns `true` on success, `false` on failure.
 Yac::flush(): bool
 ```
 
-Immediately invalidates all existing items. This does not actually free any resources — it only marks all items as invalid.
+Immediately invalidates **all existing items across all Yac instances**. This does not actually free any resources — it only marks all items as invalid. The operation is global and affects the entire shared memory pool, regardless of which instance (or prefix) calls it.
 
 ### Yac::info
 
@@ -260,6 +321,12 @@ foreach ($entries as $entry) {
     echo $entry["key"] . " => ttl=" . $entry["ttl"] . "\n";
 }
 ```
+
+## Implementation Notes
+
+- **Compression**: Yac uses FastLZ for compression. Values exceeding `yac.compress_threshold` (or `YAC_STORAGE_MAX_ENTRY_LEN`) are compressed before storage.
+- **CRC32 acceleration**: If compiled on a CPU with SSE4.2 support, Yac uses the hardware `crc32` instruction for faster integrity checks. This is detected automatically at compile time (`./configure`).
+- **Shared memory**: Yac tries `mmap(MAP_ANON)` first, then `mmap(/dev/zero)`, then falls back to SysV IPC `shmget`. The chosen backend is determined at compile time.
 
 ## License
 

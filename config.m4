@@ -7,7 +7,7 @@ PHP_ARG_ENABLE(yac, whether to enable yac support,
 PHP_ARG_WITH(system-fastlz, whether to use system FastLZ library,
     [  --with-system-fastlz   Use system FastLZ library], no, no)
 
-PHP_ARG_ENABLE(json, whether to use igbinary as serializer,
+PHP_ARG_ENABLE(json, whether to use json as serializer,
     [  --enable-json          Use json as serializer], no, no)
 
 PHP_ARG_ENABLE(msgpack, whether to use msgpack as serializer,

@@ -290,6 +290,55 @@ static int yac_add_multi_impl(yac_object *yac, zval *kvs, int ttl, int add) /* {
 }
 /* }}} */
 
+static inline void yac_add_update_internal(INTERNAL_FUNCTION_PARAMETERS, int add) { /* {{{ */
+	zend_long ttl = 0;
+	zval *keys, *value = NULL;
+	int ret;
+
+	switch (ZEND_NUM_ARGS()) {
+		case 1:
+			if (zend_parse_parameters(ZEND_NUM_ARGS(), "a", &keys) == FAILURE) {
+				return;
+			}
+			break;
+		case 2:
+			if (zend_parse_parameters(ZEND_NUM_ARGS(), "zz", &keys, &value) == FAILURE) {
+				return;
+			}
+			if (Z_TYPE_P(keys) == IS_ARRAY) {
+				if (Z_TYPE_P(value) == IS_LONG) {
+					ttl = Z_LVAL_P(value);
+					value = NULL;
+				} else {
+					php_error_docref(NULL, E_WARNING, "ttl parameter must be an integer");
+					return;
+				}
+			}
+			break;
+		case 3:
+			if (zend_parse_parameters(ZEND_NUM_ARGS(), "zzl", &keys, &value, &ttl) == FAILURE) {
+				return;
+			}
+			break;
+		default:
+			zend_wrong_param_count();
+			return;
+	}
+
+	if (Z_TYPE_P(keys) == IS_ARRAY) {
+		ret = yac_add_multi_impl(Z_YACOBJ_P(getThis()), keys, ttl, add);
+	} else if (Z_TYPE_P(keys) == IS_STRING) {
+		ret = yac_add_impl(Z_YACOBJ_P(getThis()), Z_STR_P(keys), value, ttl, add);
+	} else {
+		zend_string *key = zval_get_string(keys);
+		ret = yac_add_impl(Z_YACOBJ_P(getThis()), key, value, ttl, add);
+		zend_string_release(key);
+	}
+
+	RETURN_BOOL(ret);
+}
+/* }}} */
+
 static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zval *rv) /* {{{ */ {
 	uint32_t flag, size = 0;
 	char *data, *msg;
@@ -592,102 +641,14 @@ PHP_METHOD(yac, __construct) {
 /** {{{ proto public Yac::add(mixed $keys, mixed $value[, int $ttl])
 */
 PHP_METHOD(yac, add) {
-	zend_long ttl = 0;
-	zval *keys, *value = NULL;
-	int ret;
-
-	switch (ZEND_NUM_ARGS()) {
-		case 1:
-			if (zend_parse_parameters(ZEND_NUM_ARGS(), "a", &keys) == FAILURE) {
-				return;
-			}
-			break;
-		case 2:
-			if (zend_parse_parameters(ZEND_NUM_ARGS(), "zz", &keys, &value) == FAILURE) {
-				return;
-			}
-			if (Z_TYPE_P(keys) == IS_ARRAY) {
-				if (Z_TYPE_P(value) == IS_LONG) {
-					ttl = Z_LVAL_P(value);
-					value = NULL;
-				} else {
-					php_error_docref(NULL, E_WARNING, "ttl parameter must be an integer");
-					return;
-				}
-			}
-			break;
-		case 3:
-			if (zend_parse_parameters(ZEND_NUM_ARGS(), "zzl", &keys, &value, &ttl) == FAILURE) {
-				return;
-			}
-			break;
-		default:
-			zend_wrong_param_count();
-			return;
-	}
-
-	if (Z_TYPE_P(keys) == IS_ARRAY) {
-		ret = yac_add_multi_impl(Z_YACOBJ_P(getThis()), keys, ttl, 1);
-	} else if (Z_TYPE_P(keys) == IS_STRING) {
-		ret = yac_add_impl(Z_YACOBJ_P(getThis()), Z_STR_P(keys), value, ttl, 1);
-	} else {
-		zend_string *key = zval_get_string(keys);
-		ret = yac_add_impl(Z_YACOBJ_P(getThis()), key, value, ttl, 1);
-		zend_string_release(key);
-	}
-
-	RETURN_BOOL(ret);
+	yac_add_update_internal(INTERNAL_FUNCTION_PARAM_PASSTHRU, 1);
 }
 /* }}} */
 
 /** {{{ proto public Yac::set(mixed $keys, mixed $value[, int $ttl])
 */
 PHP_METHOD(yac, set) {
-    zend_long ttl = 0;
-	zval *keys, *value = NULL;
-	int ret;
-
-	switch (ZEND_NUM_ARGS()) {
-		case 1:
-			if (zend_parse_parameters(ZEND_NUM_ARGS(), "a", &keys) == FAILURE) {
-				return;
-			}
-			break;
-		case 2:
-			if (zend_parse_parameters(ZEND_NUM_ARGS(), "zz", &keys, &value) == FAILURE) {
-				return;
-			}
-			if (Z_TYPE_P(keys) == IS_ARRAY) {
-				if (Z_TYPE_P(value) == IS_LONG) {
-					ttl = Z_LVAL_P(value);
-					value = NULL;
-				} else {
-					php_error_docref(NULL, E_WARNING, "ttl parameter must be an integer");
-					return;
-				}
-			}
-			break;
-		case 3:
-			if (zend_parse_parameters(ZEND_NUM_ARGS(), "zzl", &keys, &value, &ttl) == FAILURE) {
-				return;
-			}
-			break;
-		default:
-			zend_wrong_param_count();
-			return;
-	}
-
-	if (Z_TYPE_P(keys) == IS_ARRAY) {
-		ret = yac_add_multi_impl(Z_YACOBJ_P(getThis()), keys, ttl, 0);
-	} else if (Z_TYPE_P(keys) == IS_STRING) {
-		ret = yac_add_impl(Z_YACOBJ_P(getThis()), Z_STR_P(keys), value, ttl, 0);
-	} else {
-		zend_string *key = zval_get_string(keys);
-		ret = yac_add_impl(Z_YACOBJ_P(getThis()), key, value, ttl, 0);
-		zend_string_release(key);
-	}
-
-	RETURN_BOOL(ret);
+	yac_add_update_internal(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0);
 }
 /* }}} */
 
