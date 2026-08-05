@@ -751,6 +751,7 @@ PHP_METHOD(yac, info) {
 PHP_METHOD(yac, dump) {
 	long limit = 100;
 	yac_item_list *list, *l;
+	time_t tv;
 
 	array_init(return_value);
 
@@ -758,7 +759,8 @@ PHP_METHOD(yac, dump) {
 		return;
 	}
 
-	list = l = yac_storage_dump(limit);
+	tv = time(NULL);
+	list = l = yac_storage_dump(limit, tv);
 	for (; l; l = l->next) {
 		zval item;
 		array_init(&item);

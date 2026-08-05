@@ -103,6 +103,7 @@
     <file name="035.phpt" role="test" />
     <file name="036.phpt" role="test" />
     <file name="issue012.phpt" role="test" />
+    <file name="issue068.phpt" role="test" />
    </dir>
   </dir> 
  </contents> 
