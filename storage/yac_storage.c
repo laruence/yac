@@ -666,7 +666,7 @@ void yac_storage_free_info(yac_storage_info *info) /* {{{ */ {
 }
 /* }}} */
 
-yac_item_list * yac_storage_dump(unsigned int limit, unsigned long tv) /* {{{ */ {
+yac_item_list * yac_storage_dump(unsigned int limit) /* {{{ */ {
 	yac_kv_key k;
 	yac_item_list *item, *list = NULL;
 
@@ -674,7 +674,7 @@ yac_item_list * yac_storage_dump(unsigned int limit, unsigned long tv) /* {{{ */
 		unsigned int i = 0, n = 0;
 		for (; i<YAC_SG(slots_size) && n < YAC_SG(slots_num) && n < limit; i++) {
 			k = YAC_SG(slots)[i];
-			if (k.val && (k.ttl == 0 || k.ttl > tv)) {
+			if (k.val) {
 				item = USER_ALLOC(sizeof(yac_item_list));
 				item->index = i;
 				item->h = k.h;
