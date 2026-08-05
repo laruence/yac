@@ -208,7 +208,7 @@ Store a value into Yac cache. Keys are cache-unique, so storing a second value w
 
 `$ttl` is the time-to-live in seconds. `0` means the value never expires.
 
-Returns `true` on success, `false` on error (e.g. no memory left, or cannot obtain CAS write lock).
+Returns `true` on success, `false` on error (e.g. cannot obtain CAS write lock).
 
 ```php
 <?php
