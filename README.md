@@ -314,6 +314,15 @@ Dump cache entries for debugging. Returns an array of entries, each containing `
 
 `$limit` controls the maximum number of entries returned (default 100).
 
+> **Note**: `delete()` is a logical deletion — it marks the entry as expired
+> (sets its TTL to 1, or to a future timestamp for delayed deletion) but keeps
+> the slot until the space is reclaimed on a future access. Since `dump()` is a
+> raw scan of all occupied slots, **deleted entries may still show up in the
+> output**. To filter them out, check the `ttl` field: `ttl == 0` means never
+> expires; a non-zero `ttl` that is less than the current time indicates an
+> expired or deleted entry.
+
+
 ```php
 <?php
 $entries = $yac->dump(10);
