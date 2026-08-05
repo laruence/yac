@@ -356,30 +356,40 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 			case IS_NULL:
 				if (size == sizeof(int)) {
 					ZVAL_NULL(rv);
+					efree(data);
+					return rv;
 				}
 				efree(data);
 				break;
 			case IS_TRUE:
 				if (size == sizeof(int)) {
 					ZVAL_TRUE(rv);
+					efree(data);
+					return rv;
 				}
 				efree(data);
 				break;
 			case IS_FALSE:
 				if (size == sizeof(int)) {
 					ZVAL_FALSE(rv);
+					efree(data);
+					return rv;
 				}
 				efree(data);
 				break;
 			case IS_LONG:
 				if (size == sizeof(long)) {
 					ZVAL_LONG(rv, *(long*)data);
+					efree(data);
+					return rv;
 				}
 				efree(data);
 				break;
 			case IS_DOUBLE:
 				if (size == sizeof(double)) {
 					ZVAL_DOUBLE(rv, *(double*)data);
+					efree(data);
+					return rv;
 				}
 				efree(data);
 				break;
@@ -390,24 +400,22 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 				{
 					if ((flag & YAC_ENTRY_COMPRESSED)) {
 						size_t orig_len = ((uint32_t)flag >> YAC_ENTRY_ORIG_LEN_SHIT);
-						char *origin = emalloc(orig_len + 1);
-						uint32_t length;
-						length = fastlz_decompress(data, size, origin, orig_len);
+						zend_string *str = zend_string_alloc(orig_len, 0);
+						uint32_t length = fastlz_decompress(data, size, ZSTR_VAL(str), orig_len);
+						efree(data);
 						if (!length) {
 							php_error_docref(NULL, E_WARNING, "Decompression failed");
-							efree(data);
-							efree(origin);
-							return NULL;
+							zend_string_free(str);
+							break;
 						}
-						ZVAL_STRINGL(rv, origin, length);
-						efree(origin);
-						efree(data);
+						ZSTR_VAL(str)[length] = '\0';
+						ZVAL_NEW_STR(rv, str);
 					} else {
 						ZVAL_STRINGL(rv, data, size);
 						efree(data);
 					}
+					return rv;
 				}
-				break;
 			case IS_ARRAY:
 #ifdef IS_CONSTANT_ARRAY
 			case IS_CONSTANT_ARRAY:
@@ -422,7 +430,7 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 							php_error_docref(NULL, E_WARNING, "Decompression failed");
 							efree(data);
 							efree(origin);
-							return NULL;
+							break;
 						}
 						efree(data);
 						data = origin;
@@ -430,18 +438,16 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 					}
 					rv = yac_unserializer(data, size, &msg, rv);
 					efree(data);
+					return rv;
 				}
-				break;
 			default:
 				php_error_docref(NULL, E_WARNING, "Unexpected valued type '%d'", flag);
-				rv = NULL;
+				efree(data);
 				break;
 		}
-	} else {
-		rv = NULL;
 	}
 
-	return rv;
+	return NULL;
 }
 /* }}} */
 
