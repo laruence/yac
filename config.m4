@@ -241,6 +241,33 @@ ifdef([PHP_CHECK_CPU_SUPPORTS],
   fi
 ], [])
 
+dnl ARMv8 hardware CRC32C (Apple Silicon / ARM64 servers)
+case $host_cpu in
+aarch64*|arm64*)
+  AC_MSG_CHECKING([for ARMv8 CRC32C instruction support])
+  yac_saved_cflags="$CFLAGS"
+  CFLAGS="$CFLAGS -march=armv8-a+crc"
+  AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+#include <arm_acle.h>
+#include <stdint.h>
+]], [[
+uint64_t v = 0x0123456789abcdefULL;
+uint32_t crc = 0xffffffff;
+crc = __crc32cd(crc, v);
+crc = __crc32cw(crc, (uint32_t)v);
+crc = __crc32ch(crc, (uint16_t)v);
+crc = __crc32cb(crc, (uint8_t)v);
+return (int)crc;
+]])], [
+    AC_MSG_RESULT([yes])
+    AC_DEFINE([HAVE_ARM_CRC32], 1, [define if you have ARMv8 CRC32C instruction support])
+  ], [
+    AC_MSG_RESULT([no])
+    CFLAGS="$yac_saved_cflags"
+  ])
+  ;;
+esac
+
 AC_DEFUN([YAC_BUILTIN_ATOMIC],
 [
   AC_MSG_CHECKING([for __sync_bool_compare_and_swap supports])

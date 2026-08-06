@@ -28,6 +28,11 @@
 static uint32_t crc32c_sse42(const char *dagta, unsigned int size);
 #endif
 
+#if HAVE_ARM_CRC32
+#include <arm_acle.h>
+static uint32_t crc32c_arm(const char *data, unsigned int size);
+#endif
+
 #include "yac_atomic.h"
 #include "yac_storage.h"
 #include "allocator/yac_allocator.h"
@@ -57,9 +62,15 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, char **msg) /* 
 		yac_crc = crc32c_sse42;
 	} else
 #endif
+#if HAVE_ARM_CRC32
+	{
+		yac_crc = crc32c_arm;
+	}
+#else
 	{
 		yac_crc = crc32;
 	}
+#endif
 	size = YAC_SG(first_seg).size - ((char *)YAC_SG(slots) - (char *)yac_storage);
 	real_size = yac_storage_align_size(size / sizeof(yac_kv_key));
 	if (!((size / sizeof(yac_kv_key)) & ~(real_size << 1))) {
@@ -310,6 +321,33 @@ static uint32_t crc32c_sse42(const char *buf, unsigned int size) /* {{{ */ {
 	}
 	if (size) {
 		crc = _mm_crc32_u8(crc, *buf);
+	}
+
+	return crc ^ 0xFFFFFFFF;
+}
+/* }}} */
+#endif
+
+#if HAVE_ARM_CRC32
+static uint32_t crc32c_arm(const char *buf, unsigned int size) /* {{{ */ {
+	uint32_t crc = 0 ^ 0xFFFFFFFF;
+	while (size >= sizeof(uint64_t)) {
+		crc = __crc32cd(crc, *(uint64_t*)buf);
+		buf += sizeof(uint64_t);
+		size -= sizeof(uint64_t);
+	}
+	while (size >= sizeof(uint32_t)) {
+		crc = __crc32cw(crc, *(uint32_t*)buf);
+		buf += sizeof(uint32_t);
+		size -= sizeof(uint32_t);
+	}
+	if (size >= sizeof(uint16_t)) {
+		crc = __crc32ch(crc, *(uint16_t*)buf);
+		buf += sizeof(uint16_t);
+		size -= sizeof(uint16_t);
+	}
+	if (size) {
+		crc = __crc32cb(crc, *buf);
 	}
 
 	return crc ^ 0xFFFFFFFF;
