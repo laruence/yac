@@ -576,6 +576,7 @@ do_update:
 			READP(p);
 			++YAC_SG(kicks);
 			k.h = hash;
+			add = 0; /* key is absent (all 4 probes missed), eviction must not trip the add-exists check */
 
 			goto do_update;
 		}
