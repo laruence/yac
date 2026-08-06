@@ -360,11 +360,10 @@ read/write loop for 5 seconds at a 100:1 read:write ratio; the cache is warmed
 up first so reads are hits. Numbers are aggregate ops/s across all 16 workers,
 measuring real contention behavior rather than single-process speed.
 
-**Environment.** MacBook Pro (Apple M5 Pro, 15-core CPU, 48 GB RAM),
-macOS 26.5, PHP 8.5, APCu 5.1.28, php-memcached 3.4.0, local
-Memcached on 127.0.0.1:11211. `yac.keys_memory_size=32M`,
-`yac.values_memory_size=128M`, 20,000 shared keys, 64-byte values. Results
-are stable across repeated runs.
+**Environment.** MacBook Pro (macOS 26.5, Apple M5 Pro, 15-core CPU), PHP 8.5, 
+APCu 5.1.28, php-memcached 3.4.0, localMemcached on 127.0.0.1:11211. 
+`yac.keys_memory_size=32M`,`yac.values_memory_size=128M`, 20,000 shared keys, 
+64-byte values. Results are stable across repeated runs.
 
 **Reproduction.**
 
