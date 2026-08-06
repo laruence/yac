@@ -39,36 +39,45 @@ static inline int __yac_cas(unsigned int *lock, unsigned int old, unsigned int s
 #elif ZEND_WIN32
 #define	YAC_CAS(lock, old, set)  (InterlockedCompareExchange(lock, set, old) == old)
 #else
-#undef YAC_CAS
-#warning No atomic CAS supports
+#warning No atomic CAS support, per-slot locking disabled
 #endif
 
 #ifdef YAC_CAS
 
-#define	MUT_READ      0x0
-#define	MUT_WRITE     0x1
-#define CAS_MAX_SPIN  100
+/* FREE must be 0: yac_slot_unlock() uses __sync_lock_release(), which stores 0. */
+#define	YAC_SLOT_FREE    0x0
+#define	YAC_SLOT_LOCKED  0x1
+#define	YAC_CAS_MAX_SPIN 100
 
-static inline int yac_mutex_write(unsigned int *me) {
+static inline int yac_slot_lock(unsigned int *me) {
 	int retry = 0;
-	while (!YAC_CAS(me, MUT_READ, MUT_WRITE)) {
-		if (++retry == CAS_MAX_SPIN)  {
+	while (!YAC_CAS(me, YAC_SLOT_FREE, YAC_SLOT_LOCKED)) {
+		if (++retry == YAC_CAS_MAX_SPIN)  {
 			return 0;
 		}
 	}
 	return 1;
 }
 
-static inline void yac_mutex_read(unsigned int *me) {
-	*me = MUT_READ;
+static inline void yac_slot_unlock(unsigned int *me) {
+#if HAVE_BUILTIN_ATOMIC
+	__sync_lock_release(me);                        /* release store of 0 (== FREE) */
+#elif ZEND_WIN32
+	InterlockedExchange((LONG volatile *)me, YAC_SLOT_FREE);
+#else
+	__asm__ volatile ("" ::: "memory");             /* compiler barrier */
+	*me = YAC_SLOT_FREE;                            /* x86: plain store is store-ordered */
+#endif
 }
 
-#define	WRITEP(P)   yac_mutex_write(&(P->mutex))
-#define	READP(P)    yac_mutex_read(&(P->mutex))
-#else
-#undef YAC_CAS
+#define	WRITEP(P)   yac_slot_lock(&(P->mutex))
+#define	READP(P)    yac_slot_unlock(&(P->mutex))
+
+#else /* no atomic CAS: run without per-slot locking */
+
 #define WRITEP(P)   (1)
 #define READP(P)
-#endif
 
-#endif
+#endif /* YAC_CAS */
+
+#endif /* YAC_ATOMIC_H */
