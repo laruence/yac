@@ -465,7 +465,7 @@ int yac_storage_update(const char *key, unsigned int len, char *data, unsigned i
 	uint64_t hash, h;
 	int idx = 0, is_valid;
 	yac_kv_key *p, k, *paths[4];
-	yac_kv_val *val, *s;
+	yac_kv_val *val;
 	unsigned long real_size;
 
 	hash = h = yac_inline_hash_func1(key, len);
@@ -487,65 +487,54 @@ do_update:
 				return 0;
 			}
 			if ((k.size >= sizeof(yac_kv_val) + size - 1) && is_valid) {
-				s = USER_ALLOC(sizeof(yac_kv_val) + size - 1);
-				memcpy(s->data, data, size);
 				if (ttl) {
 					k.ttl = (uint64_t)tv + ttl;
 				} else {
 					k.ttl = 0;
 				}
-				s->atime = tv;
-				YAC_KEY_SET_LEN(*s, len, size);
-				memcpy((char *)k.val, (char *)s, sizeof(yac_kv_val) + size - 1);
-				k.crc = yac_crc32(s->data, size);
+				k.val->atime = tv;
+				YAC_KEY_SET_LEN(*k.val, len, size);
+				memcpy(k.val->data, data, size);
+				k.crc = yac_crc32(data, size);
 				k.flag = flag;
 				memcpy(k.key, key, len);
 				YAC_KEY_SET_LEN(k, len, size);
 				if (!WRITEP(p)) {
-					USER_FREE(s);
 					return 0;
 				}
 				*p = k;
 				READP(p);
-				USER_FREE(s);
 				return 1;
 			} else {
-				uint32_t msize;
 				real_size = yac_allocator_real_size(sizeof(yac_kv_val) + (size * YAC_STORAGE_FACTOR) - 1);
 				if (!real_size) {
 					++YAC_SG(fails);
 					return 0;
 				}
-				msize = sizeof(yac_kv_val) + size - 1;
-				s = USER_ALLOC(sizeof(yac_kv_val) + size - 1);
-				memcpy(s->data, data, size);
-				s->atime = tv;
-				YAC_KEY_SET_LEN(*s, len, size);
 				val = yac_allocator_raw_alloc(real_size, (int)hash);
 				if (val) {
-					memcpy((char *)val, (char *)s, msize);
+					val->atime = tv;
+					YAC_KEY_SET_LEN(*val, len, size);
+					memcpy(val->data, data, size);
 					if (ttl) {
 						k.ttl = tv + ttl;
 					} else {
 						k.ttl = 0;
 					}
-					k.crc = yac_crc32(s->data, size);
+					k.crc = yac_crc32(data, size);
 					k.val = val;
 					k.flag = flag;
 					k.size = real_size;
 					memcpy(k.key, key, len);
 					YAC_KEY_SET_LEN(k, len, size);
 					if (!WRITEP(p)) {
-						USER_FREE(s);
 						return 0;
 					}
 					*p = k;
 					READP(p);
-					USER_FREE(s);
 					return 1;
 				}
 				++YAC_SG(fails);
-				USER_FREE(s);
 				return 0;
 			}
 		} else {
@@ -597,13 +586,11 @@ do_add:
 			++YAC_SG(fails);
 			return 0;
 		}
-		s = USER_ALLOC(sizeof(yac_kv_val) + size - 1);
-		memcpy(s->data, data, size);
-		s->atime = tv;
-		YAC_KEY_SET_LEN(*s, len, size);
 		val = yac_allocator_raw_alloc(real_size, (int)hash);
 		if (val) {
-			memcpy((char *)val, (char *)s, sizeof(yac_kv_val) + size - 1);
+			val->atime = tv;
+			YAC_KEY_SET_LEN(*val, len, size);
+			memcpy(val->data, data, size);
 			if (p->val == NULL) {
 				++YAC_SG(slots_num);
 			}
@@ -611,7 +598,7 @@ do_add:
 			k.val = val;
 			k.flag = flag;
 			k.size = real_size;
-			k.crc = yac_crc32(s->data, size);
+			k.crc = yac_crc32(data, size);
 			memcpy(k.key, key, len);
 			YAC_KEY_SET_LEN(k, len, size);
 			if (ttl) {
@@ -620,16 +607,13 @@ do_add:
 				k.ttl = 0;
 			}
 			if (!WRITEP(p)) {
-				USER_FREE(s);
 				return 0;
 			}
 			*p = k;
 			READP(p);
-			USER_FREE(s);
 			return 1;
 		}
 		++YAC_SG(fails);
-		USER_FREE(s);
 	}
 	return 0;
 }
