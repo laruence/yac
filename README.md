@@ -44,12 +44,26 @@ Otherwise `new Yac()` will throw an exception.
 
 ## When to use Yac
 
-Yac is a **lockless, shared memory cache**. It lives in the same process space as PHP (no network round-trip), and it never locks — which means:
+Yac is a **lockless, shared memory cache**. It lives in the same process space as PHP (no network round-trip) and avoids coarse-grained locks — which means:
 
-- **Best for**: read-heavy workloads with large, relatively stable key sets. Think configuration, routing tables, precomputed data, HTML fragments — things you read far more often than you write.
-- **Not ideal for**: high-contention write scenarios where multiple processes frequently `set()` the same keys simultaneously. There is no lock to arbitrate, so writes can corrupt under heavy contention. For those use cases, Redis or Memcached are safer choices.
+- **Best for**: read-heavy workloads with large, relatively stable key sets — configuration, routing tables, precomputed data, HTML fragments — things you read far more often than you write. There is no global lock; arbitration is per-slot, so many worker processes can share one cache and throughput **scales with the worker count**, as long as writes are spread across keys (see [Benchmarks](#benchmarks)).
+- **Watch out for**: many processes writing the **same** key at once. That is the one case per-slot arbitration cannot parallelize away: under heavy same-key contention a `set()` can fail (it returns `false` — retry if the value matters), and readers see relaxed rather than strict read-your-writes consistency. If you need strong write consistency or atomic multi-key operations, use Redis or Memcached.
 
 It trades perfect consistency for raw speed. `get()` is essentially a hash lookup in shared memory — microsecond-level latency.
+
+## Benchmarks
+
+16 worker processes sharing one cache, mixed reads/writes at a 100:1 ratio
+(aggregate ops/s across all workers):
+
+| Backend   | Total ops/s    | Yac advantage |
+|-----------|----------------|---------------|
+| **Yac**   | **27,329,142** | —             |
+| APCu      | 1,096,357      | 24.9x         |
+| Memcached | 106,862        | 255.7x        |
+
+Measures throughput, not consistency — see [When to use Yac](#when-to-use-yac).
+Environment and reproduction: [Benchmark details](#benchmark-details).
 
 ## Note
 
@@ -336,6 +350,39 @@ foreach ($entries as $entry) {
 - **Compression**: Yac uses FastLZ for compression. Values exceeding `yac.compress_threshold` (or `YAC_STORAGE_MAX_ENTRY_LEN`) are compressed before storage.
 - **CRC32 acceleration**: If compiled on a CPU with SSE4.2 support, Yac uses the hardware `crc32` instruction for faster integrity checks. This is detected automatically at compile time (`./configure`).
 - **Shared memory**: Yac tries `mmap(MAP_ANON)` first, then `mmap(/dev/zero)`, then falls back to SysV IPC `shmget`. The chosen backend is determined at compile time.
+
+## Benchmark details
+
+**Workload.** Sixteen worker processes share one cache — mmap shared memory
+inherited across `fork()` for Yac/APCu (the same mechanism FPM workers use),
+per-process TCP connections for Memcached. Each worker runs an interleaved
+read/write loop for 5 seconds at a 100:1 read:write ratio; the cache is warmed
+up first so reads are hits. Numbers are aggregate ops/s across all 16 workers,
+measuring real contention behavior rather than single-process speed.
+
+**Environment.** MacBook Pro (Apple M5 Pro, 15-core CPU, 48 GB RAM),
+macOS 26.5, PHP 8.5, APCu 5.1.28, php-memcached 3.4.0, local
+Memcached on 127.0.0.1:11211. `yac.keys_memory_size=32M`,
+`yac.values_memory_size=128M`, 20,000 shared keys, 64-byte values. Results
+are stable across repeated runs.
+
+**Reproduction.**
+
+```bash
+make                                   # build modules/yac.so
+bench/run_mp.sh --procs=16 --seconds=5 --ratio=100
+```
+
+Also tunable: `--keys`, `--vallen`, `--backend=yac|apcu|memcached|all`.
+Unavailable backends (extension not loaded, Memcached not running) are skipped
+automatically.
+
+**Disclaimer.** These numbers were measured on one specific machine with one
+specific workload and are provided for rough orientation only. They are not a
+guarantee of performance: results vary with hardware, OS, PHP version and
+extensions, memory sizing, and your application's actual read/write ratio, key
+distribution and value sizes. Benchmark on your own hardware and workload
+before making capacity or architecture decisions.
 
 ## License
 
