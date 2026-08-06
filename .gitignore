@@ -57,3 +57,9 @@ tmp-php.ini
 
 # Archives
 yac-*.tgz
+
+# Dependency files
+*.dep
+
+# Test runner reports
+php_test_results_*.txt
