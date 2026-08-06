@@ -22,6 +22,7 @@
 
 #include "php.h"
 #include "storage/yac_storage.h"
+#include "storage/yac_atomic.h"
 #include "yac_allocator.h"
 
 int yac_allocator_startup(unsigned long k_size, unsigned long size, char **msg) /* {{{ */ {
@@ -96,7 +97,6 @@ static inline void *yac_allocator_alloc_algo2(unsigned long size, int hash) /* {
 	unsigned int seg_size, retry, pos, current;
 
 	current = hash & YAC_SG(segments_num_mask);
-	/* do we really need lock here? it depends the real life exam */
 	retry = 3;
 do_retry:
 	segment = YAC_SG(segments)[current];
@@ -104,11 +104,12 @@ do_retry:
 	pos = segment->pos;
 	if ((seg_size - pos) >= size) {
 do_alloc:
-		pos += size;
-		segment->pos = pos;
-		if (segment->pos == pos) {
-			return (void *)((char *)segment->p + (pos - size));
-		} else if (retry--) {
+		pos = segment->pos;
+		if ((seg_size - pos) >= size &&
+				YAC_CAS((unsigned int *)&segment->pos, pos, (unsigned int)(pos + size))) {
+			return (void *)((char *)segment->p + pos);
+		}
+		if (retry--) {
 			goto do_retry;
 		}
 		return NULL;
@@ -125,7 +126,6 @@ do_alloc:
 			}
 		}
 		segment->pos = 0;
-		pos = 0;
 		++YAC_SG(recycles);
 		goto do_alloc;
 	}
