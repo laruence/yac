@@ -486,7 +486,7 @@ do_update:
 			if (add && (!k.ttl || k.ttl > tv) && is_valid) {
 				return 0;
 			}
-			if (k.size >= size && is_valid) {
+			if ((k.size >= sizeof(yac_kv_val) + size - 1) && is_valid) {
 				s = USER_ALLOC(sizeof(yac_kv_val) + size - 1);
 				memcpy(s->data, data, size);
 				if (ttl) {
