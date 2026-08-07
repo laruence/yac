@@ -8,7 +8,7 @@ on:
 
 jobs:
   matrix:
-    name: "PHP"
+    name: "Linux PHP ${{ matrix.php }} (${{ matrix.ts }})"
     runs-on: ubuntu-latest
     strategy:
       matrix:
