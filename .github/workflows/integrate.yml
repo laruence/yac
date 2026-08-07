@@ -12,18 +12,18 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        PHP: ["7.0", "7.2", "7.4", "8.0", "8.2", "8.4", "8.5"]
-        ZTS: ["no"]
+        php: ["7.0", "7.2", "7.4", "8.0", "8.2", "8.4", "8.5"]
+        ts: ["nts"]
         include:
-          - PHP: "8.5"
-            ZTS: "yes"
+          - php: "8.5"
+            ts: "ts"
             OS: "ubuntu-latest"
     env:
-      PHP: ${{ matrix.PHP }}
+      PHP: ${{ matrix.php }}
       GITHUB: "yes"
       enable_debug: "yes"
       enable_session: "yes"
-      enable_maintainer_zts: ${{ matrix.ZTS }}
+      enable_maintainer_zts: ${{ matrix.ts == 'ts' && 'yes' || 'no' }}
       TEST_PHP_ARGS : "--show-diff"
       REPORT_EXIT_STATUS: "yes"
       NO_INTERACTION: "yes"
@@ -35,7 +35,7 @@ jobs:
       - name: Setup
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ matrix.PHP }}
+          php-version: ${{ matrix.php }}
       - name: Install
         run: |
           sudo apt-get install -y re2c
@@ -76,3 +76,7 @@ jobs:
           arch: x64
           ts: ${{ matrix.ts }}
           args: ${{ matrix.args }}
+          # yac's Windows shared memory is a per-user named file mapping, so
+          # parallel test workers attach to the same region and corrupt each
+          # other; tests must run serially
+          test-workers: 1
