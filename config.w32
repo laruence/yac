@@ -1,7 +1,9 @@
-// $Id$
 // vim:ft=javascript
 
 ARG_ENABLE("yac", "enable yac support", "no");
+ARG_ENABLE("json", "use json as yac serializer", "no");
+ARG_ENABLE("msgpack", "use msgpack as yac serializer", "no");
+ARG_ENABLE("igbinary", "use igbinary as yac serializer", "no");
 
 if (PHP_YAC != "no") {
 	if( CHECK_HEADER_ADD_INCLUDE("fastlz.h", "CFLAGS_YAC", PHP_YAC + ";" + configure_module_dirname + "\\compressor\\fastlz") &&
@@ -9,20 +11,57 @@ if (PHP_YAC != "no") {
 		CHECK_HEADER_ADD_INCLUDE("yac_storage.h", "CFLAGS_YAC", PHP_YAC + ";" + configure_module_dirname + "\\storage") &&
 		CHECK_HEADER_ADD_INCLUDE("yac_allocator.h", "CFLAGS_YAC", PHP_YAC + ";" + configure_module_dirname + "\\storage\\allocator")) {
 
-	EXTENSION("yac", "yac.c"); 
+		EXTENSION("yac", "yac.c");
 
-	ADD_SOURCES(configure_module_dirname + "\\compressor\\fastlz", "fastlz.c", "yac");
-	ADD_SOURCES(configure_module_dirname + "\\serializer", "php.c", "yac");
-	ADD_SOURCES(configure_module_dirname + "\\storage", "yac_storage.c", "yac");
-	ADD_SOURCES(configure_module_dirname + "\\storage\\allocator", "yac_allocator.c", "yac");
-	ADD_SOURCES(configure_module_dirname + "\\storage\\allocator\\allocators", "createfilemapping.c", "yac");
+		ADD_SOURCES(configure_module_dirname + "\\compressor\\fastlz", "fastlz.c", "yac");
+		ADD_SOURCES(configure_module_dirname + "\\serializer", "php.c", "yac");
+		ADD_SOURCES(configure_module_dirname + "\\storage", "yac_storage.c", "yac");
+		ADD_SOURCES(configure_module_dirname + "\\storage\\allocator", "yac_allocator.c", "yac");
+		ADD_SOURCES(configure_module_dirname + "\\storage\\allocator\\allocators", "createfilemapping.c", "yac");
 
-	AC_DEFINE('HAVE_YAC', 1, 'Have yac library');
+		AC_DEFINE('HAVE_YAC', 1, 'Have yac library');
 
-	ADD_FLAG("CFLAGS_YAC", ' /I "' + configure_module_dirname + '" ');
-	
+		// SSE4.2 CRC32C: MSVC needs no extra flag for the intrinsics, and
+		// yac_storage.c dispatches at runtime. zend_cpuinfo.h only exists as
+		// of PHP 7.3, so the header probe doubles as the version gate
+		// (mirrors config.m4).
+		if (CHECK_HEADER_ADD_INCLUDE("Zend/zend_cpuinfo.h", "CFLAGS_YAC")) {
+			AC_DEFINE("HAVE_SSE_CRC32", 1, "Have SSE4.2 CRC32C support");
+		}
+
+		if (PHP_JSON != "no") {
+			if (CHECK_HEADER_ADD_INCLUDE("ext/json/php_json.h", "CFLAGS_YAC")) {
+				AC_DEFINE("YAC_ENABLE_JSON", 1, "enable json serializer");
+				ADD_EXTENSION_DEP("yac", "json", true);
+				ADD_SOURCES(configure_module_dirname + "\\serializer", "json.c", "yac");
+			} else {
+				WARNING("yac json serializer requested, but ext/json/php_json.h not found");
+			}
+		}
+
+		if (PHP_MSGPACK != "no") {
+			if (CHECK_HEADER_ADD_INCLUDE("ext/msgpack/php_msgpack.h", "CFLAGS_YAC")) {
+				AC_DEFINE("YAC_ENABLE_MSGPACK", 1, "enable msgpack serializer");
+				ADD_EXTENSION_DEP("yac", "msgpack", true);
+				ADD_SOURCES(configure_module_dirname + "\\serializer", "msgpack.c", "yac");
+			} else {
+				WARNING("yac msgpack serializer requested, but ext/msgpack/php_msgpack.h not found");
+			}
+		}
+
+		if (PHP_IGBINARY != "no") {
+			if (CHECK_HEADER_ADD_INCLUDE("ext/igbinary/igbinary.h", "CFLAGS_YAC")) {
+				AC_DEFINE("YAC_ENABLE_IGBINARY", 1, "enable igbinary serializer");
+				ADD_EXTENSION_DEP("yac", "igbinary", true);
+				ADD_SOURCES(configure_module_dirname + "\\serializer", "igbinary.c", "yac");
+			} else {
+				WARNING("yac igbinary serializer requested, but ext/igbinary/igbinary.h not found");
+			}
+		}
+
+		ADD_FLAG("CFLAGS_YAC", ' /I "' + configure_module_dirname + '" ');
+
 	} else {
 		WARNING("yac not enabled, headers not found");
 	}
 }
-

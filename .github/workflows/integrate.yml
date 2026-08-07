@@ -51,3 +51,28 @@ jobs:
       - name: Test
         run: |
             make test
+
+  windows:
+    name: "Windows PHP ${{ matrix.php }} (${{ matrix.ts }})"
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["7.2", "8.0", "8.5"]
+        ts: ["nts"]
+        include:
+          - php: "8.5"
+            ts: "ts"
+          - php: "8.5"
+            ts: "nts"
+            args: "--enable-json"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build and test extension
+        uses: php/php-windows-builder/extension@v1
+        with:
+          php-version: ${{ matrix.php }}
+          arch: x64
+          ts: ${{ matrix.ts }}
+          args: ${{ matrix.args }}
