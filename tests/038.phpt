@@ -10,6 +10,7 @@ SIGFPE elsewhere. Now it falls back to a single segment.
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--
+display_startup_errors=0
 yac.enable=1
 yac.enable_cli=1
 yac.keys_memory_size=1M
@@ -38,7 +39,7 @@ $yac->set("sanity", "ok");
 var_dump($yac->get("sanity"));
 ?>
 --EXPECTF--
-%SWarning: %Syac.values_memory_size(1048576) is below the segment minimum(4194304), a single segment will be used in Unknown on line 0%A
+PHP Warning:  yac.values_memory_size(1048576) is below the segment minimum(4194304), a single segment will be used in Unknown on line 0%A
 string(5) "dummy"
 int(20)
 bool(true)
