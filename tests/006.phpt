@@ -28,5 +28,12 @@ for ($i = 0; $i<1000; $i++) {
 }
 
 var_dump($i);
+
+/* with default settings, strings over 1MB are transparently compressed */
+$big = str_repeat("abc123", 262144); /* 1.5MB */
+var_dump($yac->set("big", $big));
+var_dump($yac->get("big") === $big);
 --EXPECTF--
 int(1000)
+bool(true)
+bool(true)
