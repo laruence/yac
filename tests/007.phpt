@@ -33,9 +33,29 @@ var_dump($info['hits']);
 var_dump($info['miss']);
 var_dump($info['fails']);
 var_dump($info['kicks']);
+
+/* memory fields reflect the INI settings */
+var_dump($info['slots_memory_size']);
+var_dump($info['values_memory_size']);
+var_dump($info['memory_size'] === $info['slots_memory_size'] + $info['values_memory_size']);
+
+/* a get on a missing key counts as a miss */
+$yac->get("no_such_key");
+var_dump($yac->info()['miss']);
+
+/* once all slots are occupied, further inserts kick out older entries */
+for ($i = 0; $i < $info['slots_size'] + 100; $i++) {
+    $yac->set("kick_" . $i, $i);
+}
+var_dump($yac->info()['kicks'] > 0);
 --EXPECTF--
 bool(true)
 int(1000)
 int(0)
 int(0)
 int(0)
+int(4194304)
+int(33554432)
+bool(true)
+int(1)
+bool(true)
