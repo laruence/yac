@@ -25,6 +25,12 @@ var_dump($yac->get($key));            //bar
 sleep(1);
 var_dump($yac->add($key, $value));    //true
 
+/* a key holding false still counts as existing for add() */
+$yac->delete($key);
+var_dump($yac->add($key, false));     //true
+var_dump($yac->add($key, "x"));       //false
+var_dump($yac->get($key));            //false
+
 ?>
 --EXPECTF--
 bool(true)
@@ -36,3 +42,6 @@ bool(true)
 bool(false)
 string(3) "bar"
 bool(true)
+bool(true)
+bool(false)
+bool(false)
