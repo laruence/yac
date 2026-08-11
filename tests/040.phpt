@@ -29,7 +29,7 @@ var_dump($yac->set("small", "ok"));
 var_dump($yac->get("small"));
 ?>
 --EXPECTF--
-Warning: yac.values_memory_size(1048576) is below the segment minimum(4194304), a single segment will be used in Unknown on line 0
+%SWarning: %Syac.values_memory_size(1048576) is below the segment minimum(4194304), a single segment will be used in Unknown on line 0%A
 int(0)
 bool(false)
 bool(true)
