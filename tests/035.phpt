@@ -10,6 +10,7 @@ yac.enable_cli=1
 yac.keys_memory_size=4M
 yac.values_memory_size=32M
 yac.compress_threshold=1024
+memory_limit=256M
 --FILE--
 <?php
 $yac = new Yac();
@@ -44,6 +45,14 @@ $result = $yac->get("big_arr");
 var_dump(count($result));
 var_dump($result["key_0"]);
 var_dump($result["key_99"]);
+
+/* 6. incompressible value above the 1MB storage entry limit — fails cleanly */
+var_dump($yac->set("rnd", random_bytes(1100000)));
+var_dump($yac->get("rnd"));
+
+/* 7. value over YAC_MAX_VALUE_RAW_LEN — rejected before storage */
+var_dump($yac->set("huge", str_repeat("a", YAC_MAX_VALUE_RAW_LEN + 1)));
+var_dump($yac->get("huge"));
 ?>
 --EXPECTF--
 bool(true)
@@ -53,3 +62,11 @@ bool(true)
 int(100)
 string(40) "datadatadatadatadatadatadatadatadatadata"
 string(40) "datadatadatadatadatadatadatadatadatadata"
+
+Warning: Yac::set(): Compression failed in %s035.php on line %d
+bool(false)
+bool(false)
+
+Warning: Yac::set(): Value is too long(%d bytes) to be stored in %s035.php on line %d
+bool(false)
+bool(false)
