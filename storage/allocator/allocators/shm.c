@@ -50,13 +50,15 @@ static int create_segments(size_t k_size, size_t v_size, yac_shared_segment_shm 
 
 	shmget_flags = IPC_CREAT|SHM_R|SHM_W|IPC_EXCL;
     segments_num = 1024;
-    while ((v_size / segments_num) < YAC_SMM_SEGMENT_MIN_SIZE) {
+    /* don't shift segments_num to 0, v_size / 0 hangs on ARM */
+    while (segments_num > 1 && (v_size / segments_num) < YAC_SMM_SEGMENT_MIN_SIZE) {
         segments_num >>= 1;
     }
     segment_size = v_size / segments_num;
     allocate_size = YAC_SMM_SEGMENT_MAX_SIZE;
 
-    while ((shm_id = shmget(IPC_PRIVATE, allocate_size, shmget_flags)) < 0) {
+    while ((shm_id = shmget(IPC_PRIVATE, allocate_size, shmget_flags)) < 0
+            && allocate_size > YAC_SMM_SEGMENT_MIN_SIZE) {
         allocate_size >>= 1;
     }
 

@@ -38,6 +38,7 @@
 #include "yac_legacy_arginfo.h"
 #endif
 #include "storage/yac_storage.h"
+#include "storage/allocator/yac_allocator.h"
 #include "serializer/yac_serializer.h"
 #ifdef HAVE_FASTLZ_H
 #include <fastlz.h>
@@ -886,6 +887,11 @@ PHP_MINIT_FUNCTION(yac)
 	}
 
 	if (YAC_G(enable)) {
+		if (YAC_G(v_msize) < YAC_SMM_SEGMENT_MIN_SIZE) {
+			php_error(E_WARNING,
+					"yac.values_memory_size(%lu) is below the segment minimum(%d), a single segment will be used",
+					(unsigned long)YAC_G(v_msize), YAC_SMM_SEGMENT_MIN_SIZE);
+		}
 		if (!yac_storage_startup(YAC_G(k_msize), YAC_G(v_msize), &msg)) {
 			php_error(E_ERROR, "Shared memory allocator startup failed at '%s': %s", msg, strerror(errno));
 			return FAILURE;
