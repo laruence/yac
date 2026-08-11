@@ -45,6 +45,16 @@ $yac->set("del", "v");
 var_dump($yac->delete("del", -1));
 var_dump($yac->get("del"));
 
+/* overwriting a live entry without ttl clears its expiration */
+$yac->set("clr", "v1", 1);
+$yac->set("clr", "v2");
+/* overwriting a live persistent entry with ttl applies expiration */
+$yac->set("apply", "persistent");
+$yac->set("apply", "v", 1);
+sleep(1);
+var_dump($yac->get("clr"));
+var_dump($yac->get("apply"));
+
 ?>
 --EXPECTF--
 bool(true)
@@ -62,4 +72,6 @@ bool(false)
 bool(true)
 string(5) "added"
 bool(true)
+bool(false)
+string(2) "v2"
 bool(false)
