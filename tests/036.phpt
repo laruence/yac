@@ -40,6 +40,12 @@ $yac->delete("c");
 $batch4 = ["c" => "restored"];
 var_dump($yac->add($batch4));
 var_dump($yac->get("c"));
+
+/* 6. batch add is not atomic: on failure, new keys are still written */
+$batch5 = ["g" => "vg", "a" => "va_new"]; /* "a" exists since section 1 */
+var_dump($yac->add($batch5)); /* false — "a" already exists */
+var_dump($yac->get("g"));     /* "vg" — no rollback */
+var_dump($yac->get("a"));     /* "va" — untouched */
 ?>
 --EXPECTF--
 bool(true)
@@ -55,3 +61,6 @@ string(2) "vf"
 bool(true)
 bool(true)
 string(8) "restored"
+bool(false)
+string(2) "vg"
+string(2) "va"
