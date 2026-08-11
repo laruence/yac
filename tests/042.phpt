@@ -5,7 +5,9 @@ Jarvis (AI assistant to Laruence)
 --DESCRIPTION--
 Several forked workers hammer the same keys with set/get/delete; every
 read must return either false or one of the written values (never a torn
-or mixed value). Afterwards all workers race to add() the same key — the
+or mixed value). Serialized arrays larger than the full-CRC threshold are
+hammered too: a corrupted entry must degrade to a silent miss without any
+warning. Afterwards all workers race to add() the same key — the
 lock-free CAS layer must let exactly one of them win.
 --SKIPIF--
 <?php if (!extension_loaded("yac") || !extension_loaded("pcntl")) print "skip"; ?>
@@ -19,6 +21,7 @@ yac.values_memory_size=32M
 $workers = 4;
 $rounds = 500;
 $keys = 50;
+$pad = str_repeat("x", 512);
 
 $pids = array();
 for ($w = 0; $w < $workers; $w++) {
@@ -34,6 +37,16 @@ for ($w = 0; $w < $workers; $w++) {
                returned value must however always be one of the written ones */
             $got = $yac->get($key);
             if ($got !== false && (!is_string($got) || !preg_match('/^w\d+_\d+$/', $got))) exit(3);
+            /* same race for serialized arrays larger than the full-CRC
+               threshold (256B): a torn read that slips past the sampled
+               CRC must degrade to a silent miss, never a warning, and
+               never a mixed value */
+            $akey = "conflict_arr_" . ($i % $keys);
+            if (!$yac->set($akey, array("id" => "w{$w}_{$i}", "pad" => $pad))) exit(2);
+            $got = $yac->get($akey);
+            if ($got !== false && (!is_array($got)
+                || !preg_match('/^w\d+_\d+$/', (string)$got["id"])
+                || $got["pad"] !== $pad)) exit(3);
             if ($i % 5 === $w % 5) {
                 $yac->delete($key);
                 $got = $yac->get($key);

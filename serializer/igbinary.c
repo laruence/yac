@@ -42,9 +42,16 @@ int yac_serializer_igbinary_pack(zval *pzval, smart_str *buf, char **msg) /* {{{
 } /* }}} */
 
 zval * yac_serializer_igbinary_unpack(char *content, size_t len, char **msg, zval *rv) /* {{{ */ {
+	YAC_UNSERIALIZE_SUPPRESS_BEGIN();
 
 	ZVAL_NULL(rv);
-	igbinary_unserialize((uint8_t *)content, len, rv);
+	if (UNEXPECTED(igbinary_unserialize((uint8_t *)content, len, rv) != 0 || EG(exception))) {
+		zval_ptr_dtor(rv);
+		YAC_UNSERIALIZE_SUPPRESS_END();
+		return NULL;
+	}
+
+	YAC_UNSERIALIZE_SUPPRESS_END();
 	return rv;
 } /* }}} */
 

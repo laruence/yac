@@ -405,7 +405,7 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 						uint32_t length = fastlz_decompress(data, size, ZSTR_VAL(str), orig_len);
 						efree(data);
 						if (!length) {
-							php_error_docref(NULL, E_WARNING, "Decompression failed");
+							/* damaged payload, degrade to a miss silently */
 							zend_string_free(str);
 							break;
 						}
@@ -428,7 +428,7 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 						char *origin = emalloc(orig_len + 1);
 						length = fastlz_decompress(data, size, origin, orig_len);
 						if (!length) {
-							php_error_docref(NULL, E_WARNING, "Decompression failed");
+							/* damaged payload, degrade to a miss silently */
 							efree(data);
 							efree(origin);
 							break;
@@ -442,7 +442,7 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 					return rv;
 				}
 			default:
-				php_error_docref(NULL, E_WARNING, "Unexpected valued type '%d'", flag);
+				/* a corrupt entry flag, degrade to a miss silently */
 				efree(data);
 				break;
 		}

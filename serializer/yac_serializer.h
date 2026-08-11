@@ -21,6 +21,9 @@
 #ifndef YAC_SERIALIZER_H
 #define YAC_SERIALIZER_H
 
+#define YAC_UNSERIALIZE_SUPPRESS_BEGIN() int _yac_old_error_reporting = EG(error_reporting); EG(error_reporting) = 0;
+#define YAC_UNSERIALIZE_SUPPRESS_END()   EG(error_reporting) = _yac_old_error_reporting;
+
 typedef int (*yac_serializer_t)(zval*, smart_str*, char**);
 typedef zval* (*yac_unserializer_t)(char *, size_t, char**, zval*);
 

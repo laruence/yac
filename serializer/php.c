@@ -43,15 +43,19 @@ zval * yac_serializer_php_unpack(char *content, size_t len, char **msg, zval *rv
 	php_unserialize_data_t var_hash;
 	p = (const unsigned char*)content;
 
+	YAC_UNSERIALIZE_SUPPRESS_BEGIN();
 	ZVAL_FALSE(rv);
 	PHP_VAR_UNSERIALIZE_INIT(var_hash);
-	if (!php_var_unserialize(rv, &p, p + len,  &var_hash)) {
+	if (!php_var_unserialize(rv, &p, p + len,  &var_hash) || (size_t)(p - (const unsigned char*)content) != len) {
+		/* trailing bytes mean a damaged payload, treat it as a miss too */
 		zval_ptr_dtor(rv);
 		PHP_VAR_UNSERIALIZE_DESTROY(var_hash);
 		/* spprintf(msg, 0, "unpack error at offset %ld of %ld bytes", (long)((char*)p - content), len); */
+		YAC_UNSERIALIZE_SUPPRESS_END();
 		return NULL;
 	}
 	PHP_VAR_UNSERIALIZE_DESTROY(var_hash);
+	YAC_UNSERIALIZE_SUPPRESS_END();
 
 	return rv;
 } /* }}} */

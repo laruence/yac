@@ -37,8 +37,20 @@ int yac_serializer_msgpack_pack(zval *pzval, smart_str *buf, char **msg) /* {{{ 
 } /* }}} */
 
 zval * yac_serializer_msgpack_unpack(char *content, size_t len, char **msg, zval *rv) /* {{{ */ {
+	YAC_UNSERIALIZE_SUPPRESS_BEGIN();
+
 	ZVAL_NULL(rv);
 	php_msgpack_unserialize(rv, content, len);
+	/* damaged payload (truncated/garbage data reports failure and leaves
+	 * rv as false); a successful prefix parse with extra bytes is kept,
+	 * since in a torn read it is normally the complete new/old value */
+	if (UNEXPECTED(Z_TYPE_P(rv) == IS_FALSE || EG(exception))) {
+		zval_ptr_dtor(rv);
+		YAC_UNSERIALIZE_SUPPRESS_END();
+		return NULL;
+	}
+
+	YAC_UNSERIALIZE_SUPPRESS_END();
 	return rv;
 } /* }}} */
 

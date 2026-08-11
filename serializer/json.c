@@ -41,9 +41,18 @@ int yac_serializer_json_pack(zval *pzval, smart_str *buf, char **msg) /* {{{ */ 
 } /* }}} */
 
 zval* yac_serializer_json_unpack(char *content, size_t len, char **msg, zval *rv) /* {{{ */ {
+	YAC_UNSERIALIZE_SUPPRESS_BEGIN();
+
 	ZVAL_NULL(rv);
 	php_json_decode(rv, content, len, 1, 512);
+	/* php_json_decode leaves rv as null on failure; a stored array or
+	 * object can never legitimately decode to null */
+	if (UNEXPECTED(Z_TYPE_P(rv) == IS_NULL || EG(exception))) {
+		YAC_UNSERIALIZE_SUPPRESS_END();
+		return NULL;
+	}
 
+	YAC_UNSERIALIZE_SUPPRESS_END();
 	return rv;
 } /* }}} */
 
