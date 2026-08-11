@@ -30,8 +30,10 @@ for ($w = 0; $w < $workers; $w++) {
             $key = "conflict_" . ($i % $keys);
             $value = "w{$w}_{$i}";
             if (!$yac->set($key, $value)) exit(2);
+            /* a concurrent delete may legitimately make this read miss; a
+               returned value must however always be one of the written ones */
             $got = $yac->get($key);
-            if (!is_string($got) || !preg_match('/^w\d+_\d+$/', $got)) exit(3);
+            if ($got !== false && (!is_string($got) || !preg_match('/^w\d+_\d+$/', $got))) exit(3);
             if ($i % 5 === $w % 5) {
                 $yac->delete($key);
                 $got = $yac->get($key);
