@@ -102,6 +102,9 @@
     <file name="034.phpt" role="test" />
     <file name="035.phpt" role="test" />
     <file name="036.phpt" role="test" />
+    <file name="037.phpt" role="test" />
+    <file name="038.phpt" role="test" />
+    <file name="039.phpt" role="test" />
     <file name="issue012.phpt" role="test" />
    </dir>
   </dir> 
