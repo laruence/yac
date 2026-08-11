@@ -53,6 +53,15 @@ var_dump($yac->get("rnd"));
 /* 7. value over YAC_MAX_VALUE_RAW_LEN — rejected before storage */
 var_dump($yac->set("huge", str_repeat("a", YAC_MAX_VALUE_RAW_LEN + 1)));
 var_dump($yac->get("huge"));
+
+/* 8. overwriting one key across the threshold in both directions */
+$ok = true;
+foreach (array(100, 1024, 1025, 5000, 1024, 100) as $len) {
+    $v = str_repeat("g", $len);
+    $yac->set("grow", $v);
+    $ok = $ok && ($yac->get("grow") === $v);
+}
+var_dump($ok);
 ?>
 --EXPECTF--
 bool(true)
@@ -70,3 +79,4 @@ bool(false)
 Warning: Yac::set(): Value is too long(%d bytes) to be stored in %s035.php on line %d
 bool(false)
 bool(false)
+bool(true)
