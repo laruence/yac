@@ -35,6 +35,9 @@ var_dump($yac->get("no_delay"));
 
 /* 5. delayed delete on non-existent key */
 var_dump($yac->delete("never_set", 10)); /* false */
+
+/* 6. immediate delete on non-existent key */
+var_dump($yac->delete("never_set")); /* false */
 ?>
 --EXPECTF--
 bool(true)
@@ -43,5 +46,6 @@ bool(false)
 bool(true)
 bool(false)
 bool(true)
+bool(false)
 bool(false)
 bool(false)

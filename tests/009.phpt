@@ -32,8 +32,16 @@ $yac->delete($disable);
 
 $ret = $yac->get($keys);
 var_dump(count(array_filter($ret)) == 10);
+
+/* batch delete mixing existent and non-existent keys: returns false, but existent keys are still removed */
+$remaining = array_slice($keys, -10);
+var_dump($yac->delete(array_merge($remaining, array("nonexistent_key")))); /* false */
+$ret = $yac->get($keys);
+var_dump(count(array_filter($ret)) == 0);
 ?>
 --EXPECTF--
 bool(true)
 bool(true)
+bool(true)
+bool(false)
 bool(true)
