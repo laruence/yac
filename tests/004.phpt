@@ -51,9 +51,14 @@ $yac->set("clr", "v2");
 /* overwriting a live persistent entry with ttl applies expiration */
 $yac->set("apply", "persistent");
 $yac->set("apply", "v", 1);
+/* a re-set within the delete delay window cancels the delayed delete */
+$yac->set("dl", "old");
+$yac->delete("dl", 1);
+$yac->set("dl", "new");
 sleep(1);
 var_dump($yac->get("clr"));
 var_dump($yac->get("apply"));
+var_dump($yac->get("dl"));
 
 ?>
 --EXPECTF--
@@ -75,3 +80,4 @@ bool(true)
 bool(false)
 string(2) "v2"
 bool(false)
+string(3) "new"
