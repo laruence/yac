@@ -1,0 +1,6 @@
+# On Windows the shared memory region is a fixed per-user named file mapping
+# (CreateFileMapping "Yac.SharedMemoryArea@<user>"), so parallel test workers
+# attach to the same region and corrupt each other.  Linux (shmget IPC_PRIVATE)
+# and macOS (MAP_ANONYMOUS) are process-private and could run in parallel, but
+# CONFLICTS has no per-platform conditional, so we serialize everywhere.
+all
