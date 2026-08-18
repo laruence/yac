@@ -6,17 +6,15 @@
   "require": {
     "php": ">=7.0"
   },
-  "replace": {
-    "ext-yac": "*"
-  },
   "php-ext": {
-    "extension-name": "ext-yac",
-	"download-url-method": ["pre-packaged-binary", "composer-default"],
-	"priority": 73,
+    "extension-name": "yac",
+    "download-url-method": ["pre-packaged-binary", "composer-default"],
+    "priority": 73,
     "configure-options": [
       {
         "name": "enable-yac",
-        "description": "whether to enable yac support"
+        "description": "whether to enable yac support",
+        "needs-value": false
       }
     ]
   }
