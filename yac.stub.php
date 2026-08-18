@@ -10,7 +10,7 @@ class Yac {
 	/* methods */
 	public function __construct(string $prefix = "") {}
 
-	public function add(string|array $key, mixed $value, int $ttl = 0):?bool {}
+	public function add(string|array $key, mixed $value = NULL, int $ttl = 0):?bool {}
 
 	public function get(string|array $key, mixed &$cas = NULL):?mixed {}
 
