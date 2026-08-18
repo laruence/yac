@@ -115,6 +115,7 @@
     <file name="041.phpt" role="test" />
     <file name="042.phpt" role="test" />
     <file name="issue012.phpt" role="test" />
+    <file name="CONFLICTS" role="test" />
    </dir>
   </dir> 
  </contents> 
