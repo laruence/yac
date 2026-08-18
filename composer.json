@@ -15,6 +15,21 @@
         "name": "enable-yac",
         "description": "whether to enable yac support",
         "needs-value": false
+      },
+      {
+        "name": "enable-igbinary",
+        "description": "whether to use igbinary as serializer",
+        "needs-value": false
+      },
+      {
+        "name": "enable-json",
+        "description": "whether to use json as serializer",
+        "needs-value": false
+      },
+      {
+        "name": "enable-msgpack",
+        "description": "whether to use msgpack as serializer",
+        "needs-value": false
       }
     ]
   }

@@ -18,6 +18,22 @@ It can be used to replace APC or local memcached.
 $ pecl install yac
 ```
 
+### Install via PIE
+
+[PIE](https://php.github.io/pie/) (PHP Installer for Extensions) downloads, builds and installs the extension from [Packagist](https://packagist.org/packages/laruence/yac):
+
+```bash
+$ pie install laruence/yac
+```
+
+Optional serializers can be enabled at install time:
+
+```bash
+$ pie install laruence/yac --enable-json
+```
+
+See [PIE usage](https://php.github.io/pie/#docs/usage) for more options (e.g. installing a specific version).
+
 ### Compile from source
 
 ```bash

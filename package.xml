@@ -12,11 +12,11 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2021-12-18</date>
- <time>16:30:00</time>
+ <date>2026-08-18</date>
+ <time>13:00:00</time>
  <version>
-  <release>2.3.1</release>
-  <api>2.3.1</api>
+  <release>2.3.2</release>
+  <api>2.3.2</api>
  </version>
  <stability>
   <release>stable</release>
@@ -24,7 +24,13 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - PHP8.1 Supports
+  - PHP 8.2, 8.3, 8.4, 8.5 and 8.6 support
+  - Added ARMv8 hardware CRC32C support
+  - Fixed dead SSE4.2 CRC32 detection, modernized config.m4
+  - Retry on CAS failures in set()
+  - Treat decode/decompression failures as silent cache misses
+  - Fixed delete() returning true for non-existent keys
+  - Added PIE (PHP Installer for Extensions) support
  </notes>
  <contents> 
   <dir name="/"> 
@@ -128,22 +134,44 @@
   <configureoption name="enable-json" prompt="enable json serializer support?" default="no"/>
   <configureoption name="enable-msgpack" prompt="enable msgpack serializer support?" default="no"/>
  </extsrcrelease>
- <changelog> 
-  <release> 
-   <date>2021-12-18</date> 
+ <changelog>
+  <release>
+   <date>2026-08-18</date>
    <version>
-    <release>2.3.1</release> 
-    <api>2.3.1</api> 
-   </version> 
-   <stability> 
-    <release>stable</release> 
-    <api>stable</api> 
-   </stability> 
-   <license uri="http://www.php.net/license">PHP License</license> 
+    <release>2.3.2</release>
+    <api>2.3.2</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
+   <notes>
+    - PHP 8.2, 8.3, 8.4, 8.5 and 8.6 support
+    - Added ARMv8 hardware CRC32C support
+    - Fixed dead SSE4.2 CRC32 detection, modernized config.m4
+    - Retry on CAS failures in set()
+    - Treat decode/decompression failures as silent cache misses
+    - Fixed delete() returning true for non-existent keys
+    - Added PIE (PHP Installer for Extensions) support
+   </notes>
+  </release>
+
+  <release>
+   <date>2021-12-18</date>
+   <version>
+    <release>2.3.1</release>
+    <api>2.3.1</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
    <notes>
     - PHP8.1 Supports
-   </notes> 
-  </release> 
+   </notes>
+  </release>
 
   <release> 
    <date>2021-01-06</date> 
