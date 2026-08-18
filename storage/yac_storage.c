@@ -487,7 +487,8 @@ int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long
 			k = *p;
 			READP(p);
 			if (k.val == NULL) {
-				return 1;
+				/* empty slot: the key was never stored, so delete fails */
+				return 0;
 			} else if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
 				p->ttl = ttl? ttl + tv : 1;
 				return 1;
