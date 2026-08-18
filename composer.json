@@ -3,6 +3,14 @@
   "type": "php-ext",
   "license": "PHP-3.01",
   "description": "Yac is a shared and lockless memory user data cache for PHP.",
+  "keywords": ["cache", "shared memory", "extension"],
+  "homepage": "https://github.com/laruence/yac",
+  "authors": [
+    {
+      "name": "Laruence",
+      "homepage": "https://www.laruence.com"
+    }
+  ],
   "require": {
     "php": ">=7.0"
   },
