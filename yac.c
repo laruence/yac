@@ -271,7 +271,7 @@ static int yac_add_multi_impl(yac_object *yac, zval *kvs, int ttl, int add) /* {
 	ZEND_HASH_FOREACH_KEY_VAL(ht, idx, key, value) {
 		uint32_t should_free = 0;
 		if (!key) {
-			key = strpprintf(0, "%lu", idx);
+			key = strpprintf(0, ZEND_ULONG_FMT, idx);
 			should_free = 1;
 		}
 		if (yac_add_impl(yac, key, value, ttl, add)) {
