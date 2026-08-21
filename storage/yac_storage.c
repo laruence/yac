@@ -401,12 +401,6 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 				s = USER_ALLOC(YAC_KEY_VLEN(k) + 1);
 				memcpy(s, (char *)k.val->data, YAC_KEY_VLEN(k));
 do_verify:
-				if (k.len != v.len) {
-					USER_FREE(s);
-					++YAC_SG(miss);
-					return 0;
-				}
-
 				if (k.ttl) {
 					if (k.ttl <= tv) {
 						++YAC_SG(miss);
@@ -415,11 +409,20 @@ do_verify:
 					}
 				}
 
+				/* first guarder */
+				if (k.len != v.len) {
+					USER_FREE(s);
+					++YAC_SG(miss);
+					return 0;
+				}
+
+				/* second guarder */
 				if (k.crc != yac_crc32(s, YAC_KEY_VLEN(k))) {
 					USER_FREE(s);
 					++YAC_SG(miss);
 					return 0;
 				}
+
 				s[YAC_KEY_VLEN(k)] = '\0';
 				k.val->atime = tv;
 				*data = s;
