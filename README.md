@@ -293,7 +293,10 @@ Yac::delete(string|array $keys[, int $delay = 0]): bool
 
 Removes a stored variable from the cache. If `$delay` is specified (in seconds), the value will be deleted after `$delay` seconds — a delayed deletion.
 
-> **Note**: `$delay` is a logical deletion: it marks the entry with a shorter TTL, and the space is reclaimed on the next access after expiry. It does not immediately free memory.
+> **Note**: `delete()` is a logical deletion — it marks the entry as expired
+> (sets its TTL to 1, or to a future timestamp for delayed deletion) but keeps
+> the slot until the space is reclaimed on a future access. It does not
+> immediately free memory.
 
 Returns `true` on success, `false` on failure.
 
@@ -369,15 +372,9 @@ Dump cache entries for debugging. Returns an array of entries, each containing:
 - `atime` — last access time, updated on successful `get()`; the entry with the oldest `atime` is evicted first (since Yac 2.3.3)
 - `key` — the cache key
 
-`$limit` controls the maximum number of entries returned (default 100).
+`$limit` controls the maximum number of entries returned (default 100). Passing `-1` dumps **all** entries — intended for debugging only: the whole result is materialized as a PHP array and can consume a lot of memory on a busy cache.
 
-> **Note**: `delete()` is a logical deletion — it marks the entry as expired
-> (sets its TTL to 1, or to a future timestamp for delayed deletion) but keeps
-> the slot until the space is reclaimed on a future access. Since `dump()` is a
-> raw scan of all occupied slots, **deleted entries may still show up in the
-> output**. To filter them out, check the `ttl` field: `ttl == 0` means never
-> expires; a non-zero `ttl` that is less than the current time indicates an
-> expired or deleted entry.
+> **Note**: Since `delete()` only marks entries expired (see [Yac::delete](#yacdelete)) and `dump()` is a raw scan of all occupied slots, **deleted or expired entries may still show up in the output**. To filter them out, check the `ttl` field: `ttl == 0` means never expires; a non-zero `ttl` that is less than the current time indicates an expired or deleted entry.
 
 
 ```php
