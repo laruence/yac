@@ -318,19 +318,19 @@ Get cache info and statistics.
 var_dump($yac->info());
 /* will return an array like:
 array(13) {
-    ["memory_size"]        => int(541065216)
-    ["slots_memory_size"]  => int(4194304)
-    ["values_memory_size"] => int(536870912)
-    ["segment_size"]       => int(4194304)
-    ["segment_num"]        => int(128)
-    ["miss"]               => int(0)
-    ["hits"]               => int(955)
-    ["fails"]              => int(0)
-    ["kicks"]              => int(0)
-    ["recycles"]           => int(0)
-    ["start_time"]         => int(1787379043)
-    ["slots_size"]         => int(32768)
-    ["slots_used"]         => int(955)
+    ["memory_size"]        => int(541065216)   // slots + values memory in total (bytes)
+    ["slots_memory_size"]  => int(4194304)     // memory reserved for the slot table (bytes)
+    ["values_memory_size"] => int(536870912)   // memory reserved for values (bytes)
+    ["segment_size"]       => int(4194304)     // size of each value segment (bytes)
+    ["segment_num"]        => int(128)         // number of value segments
+    ["miss"]               => int(0)           // failed lookups (not found or expired)
+    ["hits"]               => int(955)         // successful lookups
+    ["fails"]              => int(0)           // failed writes (value too big to allocate, etc.)
+    ["kicks"]              => int(0)           // entries evicted to make room for new ones
+    ["recycles"]           => int(0)           // value segments wrapped around and reused
+    ["start_time"]         => int(1787379043)  // since Yac 2.3.3; when the shared memory was created (last (re)start), not reset by flush()
+    ["slots_size"]         => int(32768)       // total number of slots
+    ["slots_used"]         => int(955)         // slots currently occupied
 }
 */
 ```
@@ -341,7 +341,17 @@ array(13) {
 Yac::dump([int $limit = 100]): array
 ```
 
-Dump cache entries for debugging. Returns an array of entries, each containing `index`, `hash`, `crc`, `ttl`, `k_len`, `v_len`, `size`, `atime`, and `key`.
+Dump cache entries for debugging. Returns an array of entries, each containing:
+
+- `index` — slot index in the hash table
+- `hash` — 64-bit hash of the key, used for slot probing
+- `crc` — CRC32 checksum of the value payload
+- `ttl` — expiration timestamp (unix time); `0` means never expires
+- `k_len` — key length
+- `v_len` — value length (bytes)
+- `size` — allocated size of the value block in shared memory (bytes)
+- `atime` — last access time, updated on successful `get()`; the entry with the oldest `atime` is evicted first (since Yac 2.3.3)
+- `key` — the cache key
 
 `$limit` controls the maximum number of entries returned (default 100).
 
