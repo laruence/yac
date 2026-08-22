@@ -317,7 +317,7 @@ Get cache info and statistics.
 <?php
 var_dump($yac->info());
 /* will return an array like:
-array(12) {
+array(13) {
     ["memory_size"]        => int(541065216)
     ["slots_memory_size"]  => int(4194304)
     ["values_memory_size"] => int(536870912)
@@ -328,6 +328,7 @@ array(12) {
     ["fails"]              => int(0)
     ["kicks"]              => int(0)
     ["recycles"]           => int(0)
+    ["start_time"]         => int(1787379043)
     ["slots_size"]         => int(32768)
     ["slots_used"]         => int(955)
 }
@@ -340,7 +341,7 @@ array(12) {
 Yac::dump([int $limit = 100]): array
 ```
 
-Dump cache entries for debugging. Returns an array of entries, each containing `index`, `hash`, `crc`, `ttl`, `k_len`, `v_len`, `size`, and `key`.
+Dump cache entries for debugging. Returns an array of entries, each containing `index`, `hash`, `crc`, `ttl`, `k_len`, `v_len`, `size`, `atime`, and `key`.
 
 `$limit` controls the maximum number of entries returned (default 100).
 

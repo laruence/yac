@@ -34,6 +34,9 @@ var_dump($info['miss']);
 var_dump($info['fails']);
 var_dump($info['kicks']);
 
+/* start_time is set at MINIT: a sane timestamp in the past */
+var_dump($info['start_time'] > 1600000000 && $info['start_time'] <= time());
+
 /* memory fields reflect the INI settings */
 var_dump($info['slots_memory_size']);
 var_dump($info['values_memory_size']);
@@ -54,6 +57,7 @@ int(1000)
 int(0)
 int(0)
 int(0)
+bool(true)
 int(4194304)
 int(33554432)
 bool(true)

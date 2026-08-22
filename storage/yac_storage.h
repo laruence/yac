@@ -78,6 +78,7 @@ typedef struct {
 	unsigned long miss;
 	unsigned long kicks;
 	unsigned long hits;
+	unsigned long start_time;
 	unsigned int segments_num;
 	unsigned int segment_size;
 	unsigned int slots_num;
@@ -98,6 +99,7 @@ typedef struct {
 	unsigned long miss;
 	unsigned long kicks;
 	unsigned long hits;
+	unsigned long start_time;
 	yac_shared_segment **segments;
 	yac_shared_segment first_seg;
 } yac_storage_globals;

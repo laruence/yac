@@ -84,6 +84,7 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, char **msg) /* 
 	YAC_SG(hits)  		= 0;
 	YAC_SG(miss)    	= 0;
 	YAC_SG(kicks)    	= 0;
+	YAC_SG(start_time)  = time(NULL);
 
    	memset((char *)YAC_SG(slots), 0, sizeof(yac_kv_key) * real_size);
 
@@ -681,6 +682,7 @@ yac_storage_info * yac_storage_get_info(void) /* {{{ */ {
 	info->fails = YAC_SG(fails);
 	info->kicks = YAC_SG(kicks);
 	info->recycles = YAC_SG(recycles);
+	info->start_time = YAC_SG(start_time);
 	info->slots_size = YAC_SG(slots_size);
 	info->slots_num = YAC_SG(slots_num);
 
