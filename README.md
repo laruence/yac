@@ -354,6 +354,44 @@ Each field means:
 - `slots_size` — total number of slots
 - `slots_used` — slots currently occupied
 
+#### Memory management
+
+Yac maintains two independent pools:
+
+- **Keys memory** (`yac.keys_memory_size`) is a fixed-size hash table of
+  `slots_size` slots — it caps *how many* entries can exist at once. Each key
+  occupies one slot; a lookup probes up to 4 candidate slots. When inserting a
+  new key whose candidate slots are all occupied, the entry with the oldest
+  `atime` among them is evicted to make room — one **kick**.
+- **Values memory** (`yac.values_memory_size`) is split into `segment_num`
+  segments of `segment_size` bytes each (4M or more), managed as a ring:
+  writes advance a per-segment cursor and space is never freed per entry. When
+  an allocation no longer fits, the cursor wraps back to the start of a
+  segment — one **recycle**. A recycle does not invalidate the segment at
+  once: existing values stay readable until the wrapped cursor actually
+  overwrites them; overwritten values fail the integrity guard and turn into
+  misses.
+
+#### What to watch
+
+The core metric is the **hit rate**: `hits / (hits + miss)`. The counters
+accumulate from `start_time`, so compute it over the deltas between two
+`info()` snapshots to reflect the current window instead of the lifetime
+average.
+
+- **Hit rate is healthy (say ≥ 90%)** — the cache is fine. A high `kicks`
+  alone is not a problem: it just means the key distribution is not uniform,
+  so some probe groups collide more than others.
+- **Hit rate low and `kicks` high** — the slot table is too small for the key
+  set; live entries get evicted before they are re-read. Increase
+  `yac.keys_memory_size` (4M holds ~32K slots, scaling roughly linearly).
+- **Hit rate low and `recycles` frequent** — values are being overwritten
+  before they get re-read. Increase `yac.values_memory_size`.
+- **`fails` > 0** — writes that could not allocate space: most commonly a
+  single value larger than one segment, or transient allocator contention
+  under heavy concurrent writes. Enable compression
+  (`yac.compress_threshold`) or shrink oversized values.
+
 ### Yac::dump
 
 ```php
