@@ -100,7 +100,7 @@ yac.enable = 1
 yac.debug = 0  ; enable debug mode (PHP_INI_ALL).
                ; Currently reserved for future use.
 
-yac.keys_memory_size = 4M  ; 4M can hold ~30K key slots, 32M can hold ~100K key slots
+yac.keys_memory_size = 4M  ; 4M can hold ~32K key slots, 32M can hold ~256K key slots
 
 yac.values_memory_size = 64M
 
