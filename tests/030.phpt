@@ -42,8 +42,10 @@ var_dump(isset($first["ttl"]));
 var_dump(isset($first["index"]));
 var_dump(isset($first["hash"]));
 var_dump(isset($first["crc"]));
+var_dump(isset($first["atime"]));
 var_dump(is_int($first["index"]));
 var_dump(is_int($first["ttl"]));
+var_dump(is_int($first["atime"]));
 var_dump(is_string($first["key"]));
 ?>
 --EXPECTF--
@@ -53,6 +55,8 @@ bool(true)
 int(100)
 int(50)
 int(150)
+bool(true)
+bool(true)
 bool(true)
 bool(true)
 bool(true)

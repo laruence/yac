@@ -56,6 +56,7 @@ typedef struct _yac_item_list {
 	unsigned int index;
 	unsigned long h;
 	unsigned long crc;
+	unsigned long atime;
 	unsigned int ttl;
 	unsigned int k_len;
 	unsigned int v_len;
@@ -74,15 +75,15 @@ typedef struct {
 typedef struct {
 	unsigned long k_msize;
 	unsigned long v_msize;
+	unsigned long miss;
+	unsigned long kicks;
+	unsigned long hits;
 	unsigned int segments_num;
 	unsigned int segment_size;
 	unsigned int slots_num;
 	unsigned int slots_size;
-	unsigned int miss;
 	unsigned int fails;
-	unsigned int kicks;
 	unsigned int recycles;
-	unsigned long hits;
 } yac_storage_info;
 
 typedef struct {
@@ -90,14 +91,14 @@ typedef struct {
 	unsigned int slots_mask;
 	unsigned int slots_num;
 	unsigned int slots_size;
-	unsigned int miss;
 	unsigned int fails;
-	unsigned int kicks;
 	unsigned int recycles;
-	unsigned long hits;
-	yac_shared_segment **segments;
 	unsigned int segments_num;
 	unsigned int segments_num_mask;
+	unsigned long miss;
+	unsigned long kicks;
+	unsigned long hits;
+	yac_shared_segment **segments;
 	yac_shared_segment first_seg;
 } yac_storage_globals;
 

@@ -706,6 +706,7 @@ yac_item_list * yac_storage_dump(unsigned int limit) /* {{{ */ {
 				item->index = i;
 				item->h = k.h;
 				item->crc = k.crc;
+				item->atime = k.val->atime;
 				item->ttl = k.ttl;
 				item->k_len = YAC_KEY_KLEN(k);
 				item->v_len = YAC_KEY_VLEN(k);

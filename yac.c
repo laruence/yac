@@ -770,6 +770,7 @@ PHP_METHOD(yac, dump) {
 		add_assoc_long(&item, "k_len", l->k_len);
 		add_assoc_long(&item, "v_len", l->v_len);
 		add_assoc_long(&item, "size", l->size);
+		add_assoc_long(&item, "atime", l->atime);
 		add_assoc_stringl(&item, "key", (char*)l->key, l->k_len);
 		add_next_index_zval(return_value, &item);
 	}
