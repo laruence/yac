@@ -386,7 +386,13 @@ average.
   set; live entries get evicted before they are re-read. Increase
   `yac.keys_memory_size` (4M holds ~32K slots, scaling roughly linearly).
 - **Hit rate low and `recycles` frequent** — values are being overwritten
-  before they get re-read. Increase `yac.values_memory_size`.
+  before they get re-read. Increase `yac.values_memory_size`, or enable
+  compression (`yac.compress_threshold`) to shrink stored values.
+- **`recycles` frequent while the slot table still has room (`slots_used`
+  below `slots_size`), regardless of hit rate** — the value ring is wrapping
+  fast while keys memory is not the constraint: values memory is undersized
+  for the write volume. Increase `yac.values_memory_size`, or enable
+  compression (`yac.compress_threshold`).
 - **`fails` > 0** — writes that could not allocate space: most commonly a
   single value larger than one segment, or transient allocator contention
   under heavy concurrent writes. Enable compression
