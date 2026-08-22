@@ -328,7 +328,7 @@ array(13) {
     ["fails"]              => int(0)           // failed writes (value too big to allocate, etc.)
     ["kicks"]              => int(0)           // entries evicted to make room for new ones
     ["recycles"]           => int(0)           // value segments wrapped around and reused
-    ["start_time"]         => int(1787379043)  // since Yac 2.4.0; when the shared memory was created (last (re)start), not reset by flush()
+    ["start_time"]         => int(1787379043)  // since Yac 2.3.3; when the shared memory was created (last (re)start), not reset by flush()
     ["slots_size"]         => int(32768)       // total number of slots
     ["slots_used"]         => int(955)         // slots currently occupied
 }
@@ -350,7 +350,7 @@ Dump cache entries for debugging. Returns an array of entries, each containing:
 - `k_len` — key length
 - `v_len` — value length (bytes)
 - `size` — allocated size of the value block in shared memory (bytes)
-- `atime` — last access time, updated on successful `get()`; the entry with the oldest `atime` is evicted first (since Yac 2.4.0)
+- `atime` — last access time, updated on successful `get()`; the entry with the oldest `atime` is evicted first (since Yac 2.3.3)
 - `key` — the cache key
 
 `$limit` controls the maximum number of entries returned (default 100).
