@@ -444,6 +444,11 @@ do_verify:
 			}
 			k = *p;
 			READP(p);
+			if (k.val == NULL) {
+				/* empty slot: insert takes the first empty probe slot,
+				 * so the key cannot exist beyond this point */
+				break;
+			}
 			if (k.h == hash && YAC_KEY_KLEN(k) == len) {
 				v = *(k.val);
 				if (!memcmp(k.key, key, len)) {
