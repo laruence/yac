@@ -399,17 +399,14 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 		if (k.h == hash && YAC_KEY_KLEN(k) == len) {
 			v = *(k.val);
 			if (!memcmp(k.key, key, len)) {
+				if (k.ttl && k.ttl <= tv) {
+					/* expired: bail out before copying the value */
+					++YAC_SG(miss);
+					return 0;
+				}
 				s = USER_ALLOC(YAC_KEY_VLEN(k) + 1);
 				memcpy(s, (char *)k.val->data, YAC_KEY_VLEN(k));
 do_verify:
-				if (k.ttl) {
-					if (k.ttl <= tv) {
-						++YAC_SG(miss);
-						USER_FREE(s);
-						return 0;
-					}
-				}
-
 				/* first guarder */
 				if (k.len != v.len) {
 					USER_FREE(s);
@@ -452,6 +449,11 @@ do_verify:
 			if (k.h == hash && YAC_KEY_KLEN(k) == len) {
 				v = *(k.val);
 				if (!memcmp(k.key, key, len)) {
+					if (k.ttl && k.ttl <= tv) {
+						/* expired: bail out before copying the value */
+						++YAC_SG(miss);
+						return 0;
+					}
 					s = USER_ALLOC(YAC_KEY_VLEN(k) + 1);
 					memcpy(s, (char *)k.val->data, YAC_KEY_VLEN(k));
 					goto do_verify;
