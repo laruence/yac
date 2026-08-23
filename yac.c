@@ -629,6 +629,7 @@ PHP_METHOD(yac, __construct) {
 
 	if (!YAC_G(enable)) {
 		zend_throw_exception(NULL, "Yac is not enabled", 0);
+		return;
 	}
 
 	if (prefix && ZSTR_LEN(prefix)) {
