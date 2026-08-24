@@ -40,10 +40,10 @@
 #include "storage/yac_storage.h"
 #include "storage/allocator/yac_allocator.h"
 #include "serializer/yac_serializer.h"
-#ifdef HAVE_FASTLZ_H
-#include <fastlz.h>
+#ifdef HAVE_LZ4_H
+#include <lz4.h>
 #else
-#include "compressor/fastlz/fastlz.h"
+#include "compressor/lz4/lz4.h"
 #endif
 
 /* Embedded value helpers (zend-type aware; tag layout in yac_storage.h).
@@ -279,8 +279,8 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 						return ret;
 					}
 
-					compressed = emalloc(Z_STRLEN_P(value) * 1.05);
-					compressed_len = fastlz_compress(Z_STRVAL_P(value), Z_STRLEN_P(value), compressed);
+					compressed = emalloc(LZ4_compressBound(Z_STRLEN_P(value)));
+					compressed_len = LZ4_compress_default(Z_STRVAL_P(value), compressed, Z_STRLEN_P(value), LZ4_compressBound(Z_STRLEN_P(value)));
 					if (!compressed_len || compressed_len > Z_STRLEN_P(value)) {
 						php_error_docref(NULL, E_WARNING, "Compression failed");
 						efree(compressed);
@@ -325,8 +325,8 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 							return ret;
 						}
 
-						compressed = emalloc(buf.s->len * 1.05);
-						compressed_len = fastlz_compress(ZSTR_VAL(buf.s), ZSTR_LEN(buf.s), compressed);
+						compressed = emalloc(LZ4_compressBound(buf.s->len));
+						compressed_len = LZ4_compress_default(ZSTR_VAL(buf.s), compressed, ZSTR_LEN(buf.s), LZ4_compressBound(buf.s->len));
 						if (!compressed_len || compressed_len > buf.s->len) {
 							php_error_docref(NULL, E_WARNING, "Compression failed");
 							efree(compressed);
@@ -511,9 +511,9 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 					if ((flag & YAC_ENTRY_COMPRESSED)) {
 						size_t orig_len = ((uint32_t)flag >> YAC_ENTRY_ORIG_LEN_SHIT);
 						zend_string *str = zend_string_alloc(orig_len, 0);
-						uint32_t length = fastlz_decompress(data, size, ZSTR_VAL(str), orig_len);
+						int length = LZ4_decompress_safe(data, ZSTR_VAL(str), size, orig_len);
 						efree(data);
-						if (!length) {
+						if (length <= 0) {
 							/* damaged payload, degrade to a miss silently */
 							zend_string_free(str);
 							break;
@@ -533,10 +533,10 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 			case IS_OBJECT:
 				{
 					if ((flag & YAC_ENTRY_COMPRESSED)) {
-						size_t length, orig_len = ((uint32_t)flag >> YAC_ENTRY_ORIG_LEN_SHIT);
+						size_t orig_len = ((uint32_t)flag >> YAC_ENTRY_ORIG_LEN_SHIT);
 						char *origin = emalloc(orig_len + 1);
-						length = fastlz_decompress(data, size, origin, orig_len);
-						if (!length) {
+						int length = LZ4_decompress_safe(data, origin, size, orig_len);
+						if (length <= 0) {
 							/* damaged payload, degrade to a miss silently */
 							efree(data);
 							efree(origin);

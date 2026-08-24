@@ -3,8 +3,8 @@ dnl config.m4 for extension yac
 PHP_ARG_ENABLE([yac], [whether to enable yac support],
   [AS_HELP_STRING([--enable-yac], [Enable yac support])])
 
-PHP_ARG_WITH([system-fastlz], [whether to use system FastLZ library],
-  [AS_HELP_STRING([--with-system-fastlz], [Use system FastLZ library])], [no], [no])
+PHP_ARG_WITH([system-lz4], [whether to use system LZ4 library],
+  [AS_HELP_STRING([--with-system-lz4], [Use system LZ4 library])], [no], [no])
 
 PHP_ARG_ENABLE([json], [whether to use json as serializer],
   [AS_HELP_STRING([--enable-json], [Use json as serializer])], [no], [no])
@@ -219,18 +219,18 @@ int main(void) {
 }]], [HAVE_ARM_CRC32])
 
 dnl ---------------------------------------------------------------------
-dnl Compressor: system FastLZ or the bundled copy
+dnl Compressor: system LZ4 or the bundled copy
 dnl ---------------------------------------------------------------------
 
 YAC_FILES="yac.c storage/yac_storage.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c serializer/igbinary.c serializer/json.c"
-if test "$PHP_SYSTEM_FASTLZ" != "no"; then
-  AC_CHECK_HEADERS([fastlz.h], [],
-    [AC_MSG_ERROR([system FastLZ requested, but fastlz.h was not found])])
-  PHP_CHECK_LIBRARY(fastlz, fastlz_compress,
-    [PHP_ADD_LIBRARY(fastlz, 1, YAC_SHARED_LIBADD)],
-    [AC_MSG_ERROR([system FastLZ requested, but libfastlz was not found])])
+if test "$PHP_SYSTEM_LZ4" != "no"; then
+  AC_CHECK_HEADERS([lz4.h], [],
+    [AC_MSG_ERROR([system LZ4 requested, but lz4.h was not found])])
+  PHP_CHECK_LIBRARY(lz4, LZ4_compress_default,
+    [PHP_ADD_LIBRARY(lz4, 1, YAC_SHARED_LIBADD)],
+    [AC_MSG_ERROR([system LZ4 requested, but liblz4 was not found])])
 else
-  YAC_FILES="$YAC_FILES compressor/fastlz/fastlz.c"
+  YAC_FILES="$YAC_FILES compressor/lz4/lz4.c"
 fi
 
 dnl ---------------------------------------------------------------------
@@ -245,7 +245,7 @@ PHP_ADD_BUILD_DIR([
   $ext_builddir/storage/allocator/allocators
   $ext_builddir/serializer
   $ext_builddir/compressor
-  $ext_builddir/compressor/fastlz
+  $ext_builddir/compressor/lz4
 ])
 
 dnl PHP_ADD_EXTENSION_DEP must be called after PHP_NEW_EXTENSION

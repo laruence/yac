@@ -6,14 +6,14 @@ ARG_ENABLE("msgpack", "use msgpack as yac serializer", "no");
 ARG_ENABLE("igbinary", "use igbinary as yac serializer", "no");
 
 if (PHP_YAC != "no") {
-	if( CHECK_HEADER_ADD_INCLUDE("fastlz.h", "CFLAGS_YAC", PHP_YAC + ";" + configure_module_dirname + "\\compressor\\fastlz") &&
+	if( CHECK_HEADER_ADD_INCLUDE("lz4.h", "CFLAGS_YAC", PHP_YAC + ";" + configure_module_dirname + "\\compressor\\lz4") &&
 		CHECK_HEADER_ADD_INCLUDE("yac_serializer.h", "CFLAGS_YAC", PHP_YAC + ";" + configure_module_dirname + "\\serializer") &&
 		CHECK_HEADER_ADD_INCLUDE("yac_storage.h", "CFLAGS_YAC", PHP_YAC + ";" + configure_module_dirname + "\\storage") &&
 		CHECK_HEADER_ADD_INCLUDE("yac_allocator.h", "CFLAGS_YAC", PHP_YAC + ";" + configure_module_dirname + "\\storage\\allocator")) {
 
 		EXTENSION("yac", "yac.c");
 
-		ADD_SOURCES(configure_module_dirname + "\\compressor\\fastlz", "fastlz.c", "yac");
+		ADD_SOURCES(configure_module_dirname + "\\compressor\\lz4", "lz4.c", "yac");
 		ADD_SOURCES(configure_module_dirname + "\\serializer", "php.c", "yac");
 		ADD_SOURCES(configure_module_dirname + "\\storage", "yac_storage.c", "yac");
 		ADD_SOURCES(configure_module_dirname + "\\storage\\allocator", "yac_allocator.c", "yac");

@@ -57,11 +57,10 @@
     </dir>
    </dir>
    <dir name="compressor">
-    <dir name="fastlz">
+    <dir name="lz4">
      <file name="LICENSE" role="doc" />
-     <file name="README.TXT" role="doc" />
-     <file name="fastlz.h" role="src" />
-     <file name="fastlz.c" role="src" />
+     <file name="lz4.h" role="src" />
+     <file name="lz4.c" role="src" />
     </dir>
    </dir>
    <dir name="serializer">
