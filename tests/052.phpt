@@ -16,6 +16,24 @@ yac.keys_memory_size=4M
 yac.values_memory_size=32M
 --FILE--
 <?php
+/* 32-bit-safe helpers: on builds where zend_long is 32 bits, full-width
+ * int multiplications would overflow into doubles and lose bits, so the
+ * multiply is decomposed into 16-bit partial products (each < 2^53, exact
+ * in doubles) and the result is folded back into a signed 32-bit int.
+ * The shifts in murmur are logical (unsigned), which PHP only gives for
+ * free on non-negative ints, hence the lsr32() wrapper. */
+function imul32(int $a, int $b): int {
+    $al = $a & 0xFFFF; $ah = ($a >> 16) & 0xFFFF;
+    $bl = $b & 0xFFFF; $bh = ($b >> 16) & 0xFFFF;
+    $r = fmod($al * $bl + fmod($al * $bh + $ah * $bl, 65536.0) * 65536.0,
+              4294967296.0);
+    return $r >= 2147483648.0 ? (int)($r - 4294967296.0) : (int)$r;
+}
+
+function lsr32(int $v, int $n): int {
+    return $v >= 0 ? $v >> $n : (($v >> $n) & ((1 << (32 - $n)) - 1));
+}
+
 /* replica of yac_inline_hash_func1 (MurmurHash2, 32-bit) */
 function murmur(string $data): int {
     $m = 0x5bd1e995;
@@ -25,33 +43,35 @@ function murmur(string $data): int {
     while ($len - $i >= 4) {
         $k = ord($data[$i]) | (ord($data[$i+1]) << 8)
            | (ord($data[$i+2]) << 16) | (ord($data[$i+3]) << 24);
-        $k = ($k * $m) & 0xFFFFFFFF;
-        $k ^= $k >> 24;
-        $k = ($k * $m) & 0xFFFFFFFF;
-        $h = ($h * $m) & 0xFFFFFFFF;
+        $k = imul32($k, $m);
+        $k ^= lsr32($k, 24);
+        $k = imul32($k, $m);
+        $h = imul32($h, $m);
         $h ^= $k;
         $i += 4;
     }
     $rem = $len - $i;
     if ($rem >= 3) $h ^= ord($data[$i+2]) << 16;
     if ($rem >= 2) $h ^= ord($data[$i+1]) << 8;
-    if ($rem >= 1) { $h ^= ord($data[$i]); $h = ($h * $m) & 0xFFFFFFFF; }
-    $h ^= $h >> 13;
-    $h = ($h * $m) & 0xFFFFFFFF;
-    $h ^= $h >> 15;
+    if ($rem >= 1) { $h ^= ord($data[$i]); $h = imul32($h, $m); }
+    $h ^= lsr32($h, 13);
+    $h = imul32($h, $m);
+    $h ^= lsr32($h, 15);
     return $h;
 }
 
 /* yac_inline_hash_func2 (DJBX33A) reduced mod $mod each step; only the low
    bits are ever used by the storage layer (seed & slots_mask), and $mod is
-   a power of two, so the reduction is exact */
+   a power of two, so the reduction is exact. Accumulate in doubles:
+   $h < $mod <= 2^26 keeps $h * 33 + c < 2^53, which is exact on every
+   build, unlike a zend_long accumulation on 32-bit platforms */
 function djb2mod(string $key, int $mod): int {
     $h = 5381 % $mod;
     $n = strlen($key);
     for ($i = 0; $i < $n; $i++) {
-        $h = (($h << 5) + $h + ord($key[$i])) % $mod;
+        $h = fmod($h * 33.0 + ord($key[$i]), $mod);
     }
-    return $h;
+    return (int)$h;
 }
 
 $yac = new Yac();
