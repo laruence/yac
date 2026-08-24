@@ -34,9 +34,10 @@
 #define USER_ALLOC					emalloc
 #define USER_FREE					efree
 
-typedef struct { 
-	unsigned long atime;
+typedef struct {
 	unsigned int len;
+	unsigned int hits;
+	unsigned long atime;
 	char data[1];
 } yac_kv_val;
 
@@ -44,8 +45,17 @@ typedef struct {
 	unsigned long h;
 	unsigned int len;
 	unsigned int ttl;
-	unsigned int flag;
 	unsigned int mutex;
+	union {
+		/* block values: serializer metadata (type bits +
+		 * YAC_ENTRY_COMPRESSED + the original length), which shared
+		 * memory cannot hold any other way */
+		unsigned int flag;
+		/* embedded values: the low 3 bits of val already tell what the
+		 * value is and the rest of the word is payload, so the same
+		 * bytes keep the find() hit count instead */
+		unsigned int hits;
+	} u1;
 	union {
 		struct {
 			unsigned int crc;
@@ -54,10 +64,19 @@ typedef struct {
 		/* embedded entries don't use crc/size, atime lives here instead;
 		 * must stay the same width as yac_kv_val.atime (unsigned long) */
 		unsigned long atime;
-	} u;
+	} u2;
 	yac_kv_val *val;
 	unsigned char key[YAC_STORAGE_MAX_KEY_LEN];
 } yac_kv_key;
+
+/* by storage form, an entry keeps its read count and atime either in
+ * the slot's u1/u2 unions (embedded, no value block) or in the block
+ * itself. Code that already knows the form accesses the union/fields
+ * directly; these macros are only for sites where the form is still
+ * unknown and must be dispatched on */
+#define YAC_KV_HITS(k)  ((k).val == NULL ? 0 : \
+	(YAC_IS_EMBED((k).val) ? (k).u1.hits : (k).val->hits))
+#define YAC_KV_ATIME(k) (YAC_IS_EMBED((k).val) ? (k).u2.atime : (k).val->atime)
 
 /* Embedded scalar values.
  *
@@ -105,6 +124,7 @@ typedef struct _yac_item_list {
 	unsigned long h;
 	unsigned long crc;
 	unsigned long atime;
+	unsigned long hits;
 	unsigned int ttl;
 	unsigned int k_len;
 	unsigned int v_len;
