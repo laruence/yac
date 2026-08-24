@@ -1,7 +1,5 @@
 --TEST--
 Yac rapid set/delete alternation — no dirty reads
---CREDITS--
-Jarvis (AI assistant to Laruence)
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--

@@ -281,8 +281,15 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 
 					compressed = emalloc(LZ4_compressBound(Z_STRLEN_P(value)));
 					compressed_len = LZ4_compress_default(Z_STRVAL_P(value), compressed, Z_STRLEN_P(value), LZ4_compressBound(Z_STRLEN_P(value)));
-					if (!compressed_len || compressed_len > Z_STRLEN_P(value)) {
+					if (!compressed_len) {
 						php_error_docref(NULL, E_WARNING, "Compression failed");
+						efree(compressed);
+						return ret;
+					}
+					if (compressed_len > Z_STRLEN_P(value)) {
+						php_error_docref(NULL, E_WARNING,
+								"Compression makes the value larger(%ld -> %d bytes), skipped",
+								(long)Z_STRLEN_P(value), compressed_len);
 						efree(compressed);
 						return ret;
 					}
@@ -327,8 +334,15 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 
 						compressed = emalloc(LZ4_compressBound(buf.s->len));
 						compressed_len = LZ4_compress_default(ZSTR_VAL(buf.s), compressed, ZSTR_LEN(buf.s), LZ4_compressBound(buf.s->len));
-						if (!compressed_len || compressed_len > buf.s->len) {
+						if (!compressed_len) {
 							php_error_docref(NULL, E_WARNING, "Compression failed");
+							efree(compressed);
+							return ret;
+						}
+						if (compressed_len > buf.s->len) {
+							php_error_docref(NULL, E_WARNING,
+									"Compression makes the value larger(%ld -> %d bytes), skipped",
+									(long)buf.s->len, compressed_len);
 							efree(compressed);
 							return ret;
 						}

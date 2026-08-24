@@ -1,7 +1,5 @@
 --TEST--
 Yac values_memory_size below segment minimum (4M) must not hang startup
---CREDITS--
-Jarvis (AI assistant to Laruence)
 --DESCRIPTION--
 create_segments() halved segments_num while (v_size / segments_num) < 4M.
 With v_size < 4M, segments_num reached 0 and v_size / 0 hung forever on
@@ -33,7 +31,8 @@ var_dump($ok);
 var_dump($yac->get("k19") === str_repeat("x", 100000));
 var_dump($yac->info()["recycles"] > 0);
 
-/* a value larger than the whole segment fails cleanly, cache stays usable */
+/* an incompressible value fails cleanly (compression would grow it),
+   cache stays usable */
 var_dump($yac->set("toobig", random_bytes(1100000)));
 $yac->set("sanity", "ok");
 var_dump($yac->get("sanity"));
@@ -45,6 +44,6 @@ int(20)
 bool(true)
 bool(true)
 
-Warning: Yac::set(): Compression failed in %s038.php on line %d
+Warning: Yac::set(): Compression makes the value larger(%d -> %d bytes), skipped in %s038.php on line %d
 bool(false)
 string(2) "ok"

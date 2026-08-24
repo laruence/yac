@@ -1,7 +1,5 @@
 --TEST--
 Yac false ambiguity — get() returns false for both missing keys and stored false
---CREDITS--
-Jarvis (AI assistant to Laruence)
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--

@@ -1,7 +1,5 @@
 --TEST--
 Yac compression round-trip with threshold boundary
---CREDITS--
-Jarvis (AI assistant to Laruence)
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--
@@ -46,7 +44,7 @@ var_dump(count($result));
 var_dump($result["key_0"]);
 var_dump($result["key_99"]);
 
-/* 6. incompressible value above the 1MB storage entry limit — fails cleanly */
+/* 6. incompressible value — compression would grow it, so it is skipped */
 var_dump($yac->set("rnd", random_bytes(1100000)));
 var_dump($yac->get("rnd"));
 
@@ -72,7 +70,7 @@ int(100)
 string(40) "datadatadatadatadatadatadatadatadatadata"
 string(40) "datadatadatadatadatadatadatadatadatadata"
 
-Warning: Yac::set(): Compression failed in %s035.php on line %d
+Warning: Yac::set(): Compression makes the value larger(%d -> %d bytes), skipped in %s035.php on line %d
 bool(false)
 bool(false)
 

@@ -1,7 +1,5 @@
 --TEST--
 Yac::dump() default limit and explicit limit
---CREDITS--
-Jarvis (AI assistant to Laruence)
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--

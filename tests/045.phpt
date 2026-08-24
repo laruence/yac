@@ -12,8 +12,6 @@ NULL/bool/small ints/strings up to 3 bytes/empty arrays embed on every
 platform (32-bit short-string cap is 3 bytes). The 7-byte string sits right
 at the 64-bit cap, so its embedded-ness follows the pointer width and is
 asserted against PHP_INT_SIZE.
---CREDITS--
-Jarvis (AI assistant to Laruence)
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--

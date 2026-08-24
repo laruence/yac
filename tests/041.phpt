@@ -1,7 +1,5 @@
 --TEST--
 Yac constructor throws in CLI when yac.enable_cli=0
---CREDITS--
-Jarvis (AI assistant to Laruence)
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--

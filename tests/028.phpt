@@ -1,7 +1,5 @@
 --TEST--
 Yac multi-process concurrent set/get
---CREDITS--
-Jarvis (AI assistant to Laruence)
 --SKIPIF--
 <?php
 if (!extension_loaded("yac")) print "skip";

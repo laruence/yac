@@ -1,7 +1,5 @@
 --TEST--
 Yac delete with delay
---CREDITS--
-Jarvis (AI assistant to Laruence)
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--

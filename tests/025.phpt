@@ -1,7 +1,5 @@
 --TEST--
 Yac get() with second parameter — accepted but stays unchanged (CAS not implemented)
---CREDITS--
-Jarvis (AI assistant to Laruence)
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--

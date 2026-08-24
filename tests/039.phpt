@@ -1,7 +1,5 @@
 --TEST--
 Yac binary safety — strings with NUL bytes round-trip byte-exact
---CREDITS--
-Jarvis (AI assistant to Laruence)
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--

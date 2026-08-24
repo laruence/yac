@@ -1,7 +1,5 @@
 --TEST--
 Yac fails counter increments when a value cannot fit in values memory
---CREDITS--
-Jarvis (AI assistant to Laruence)
 --DESCRIPTION--
 With a single 1M segment, a 1MB value plus serialization overhead cannot be
 allocated; set() must fail cleanly and bump info()'s fails counter instead

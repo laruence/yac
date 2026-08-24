@@ -72,10 +72,9 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, char **msg) /* 
 	}
 #endif
 	size = YAC_SG(first_seg).size - ((char *)YAC_SG(slots) - (char *)yac_storage);
+	/* rounds down to a power of two and never exceeds its input, so the
+	 * slot array always fits within the first segment */
 	real_size = yac_storage_align_size(size / sizeof(yac_kv_key));
-	if (!((size / sizeof(yac_kv_key)) & ~(real_size << 1))) {
-		real_size <<= 1;
-	}
 
 	YAC_SG(slots_size) 	= real_size;
 	YAC_SG(slots_mask) 	= real_size - 1;
@@ -354,8 +353,8 @@ static uint32_t crc32c_arm(const char *buf, unsigned int size) /* {{{ */ {
 /* }}} */
 #endif
 
-/* large values are only crc'ed on a sample */
 static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
+	/* large values are only crc'ed on a sample */
 	if (size < YAC_FULL_CRC_THRESHOLD) {
 		return yac_crc(data, size);
 	} else {
@@ -379,9 +378,9 @@ static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
 }
 /* }}} */
 
-/* embedded entries keep atime in the crc/size union; val is loaded once
- * so a concurrent writer cannot flip it between test and dereference */
 static inline unsigned long yac_kv_atime(const yac_kv_key *k) /* {{{ */ {
+	/* embedded entries keep atime in the crc/size union; val is loaded once
+ 	* so a concurrent writer cannot flip it between test and dereference */
 	yac_kv_val *v = k->val;
 	return YAC_IS_EMBED(v) ? k->u.atime : v->atime;
 }

@@ -1,7 +1,5 @@
 --TEST--
 Yac::add() must not fail when inserting requires evicting a valid entry
---CREDITS--
-Jarvis (AI assistant to Laruence)
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--

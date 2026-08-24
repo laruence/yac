@@ -1,7 +1,5 @@
 --TEST--
 Yac::get stops probing at an empty slot (empty-key miss must not crash)
---CREDITS--
-Jarvis (AI assistant to Laruence)
 --DESCRIPTION--
 Inserts take the first empty probe slot and eviction only replaces full
 slots, so a key can never live beyond an empty slot; find() may abort the

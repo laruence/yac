@@ -1,7 +1,5 @@
 --TEST--
 Yac resource type triggers E_WARNING
---CREDITS--
-Jarvis (AI assistant to Laruence)
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--

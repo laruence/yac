@@ -1,7 +1,5 @@
 --TEST--
 Yac flush() is global across all instances
---CREDITS--
-Jarvis (AI assistant to Laruence)
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--

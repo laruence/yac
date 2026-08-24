@@ -1,7 +1,5 @@
 --TEST--
 Yac multi-process contention: no torn reads, atomic add()
---CREDITS--
-Jarvis (AI assistant to Laruence)
 --DESCRIPTION--
 Several forked workers hammer the same keys with set/get/delete; every
 read must return either false or one of the written values (never a torn
