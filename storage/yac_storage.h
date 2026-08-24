@@ -42,15 +42,63 @@ typedef struct {
 
 typedef struct {
 	unsigned long h;
-	unsigned int crc;
-	unsigned int ttl;
 	unsigned int len;
+	unsigned int ttl;
 	unsigned int flag;
-	unsigned int size;
 	unsigned int mutex;
+	union {
+		struct {
+			unsigned int crc;
+			unsigned int size;
+		};
+		/* embedded entries don't use crc/size, atime lives here instead;
+		 * must stay the same width as yac_kv_val.atime (unsigned long) */
+		unsigned long atime;
+	} u;
 	yac_kv_val *val;
 	unsigned char key[YAC_STORAGE_MAX_KEY_LEN];
 } yac_kv_key;
+
+/* Embedded scalar values.
+ *
+ * val normally points to a block from the bump allocator. Blocks are
+ * 8-byte aligned (YAC_SMM_ALIGNMENT), so the low 3 bits of a real
+ * pointer are always zero; a non-zero tag there marks an embedded value
+ * carried in the word itself, no block allocated. NULL still means
+ * "empty slot".
+ *
+ * tags:
+ *   0x1 NULL          (no payload)
+ *   0x2 TRUE          (no payload)
+ *   0x3 FALSE         (no payload)
+ *   0x4 LONG          (zend_long in the high bits)
+ *   0x5 SHORT_STR     ([5..3] length 0..YAC_EMBED_STR_MAX_LEN, bytes from bit 6)
+ *   0x6 EMPTY_ARRAY   (no payload)
+ *   0x7 reserved
+ *
+ * the zend-type aware helpers live in yac.c; everything here is plain C
+ * so the allocator backends can include this header without php.h
+ */
+#define YAC_EMBED_MASK              0x7
+
+#define YAC_EMBED_NULL              0x1
+#define YAC_EMBED_TRUE              0x2
+#define YAC_EMBED_FALSE             0x3
+#define YAC_EMBED_LONG              0x4
+#define YAC_EMBED_STR               0x5
+#define YAC_EMBED_EMPTY_ARRAY       0x6
+
+/* applies to both the slot's val and the char *data passed through
+ * find()/update(): non-zero low bits mean the value word itself, zero
+ * means a real block pointer (or NULL = empty slot) */
+#define YAC_IS_EMBED(p)             (((uintptr_t)(p)) & YAC_EMBED_MASK)
+
+/* short strings: up to 7 bytes on 64-bit, 3 bytes on 32-bit;
+ * longs fit in (word bits - 3) signed bits: [-2^60, 2^60-1] on 64-bit,
+ * [-2^28, 2^28-1] on 32-bit */
+#define YAC_EMBED_STR_MAX_LEN       ((unsigned int)((sizeof(void*) * 8 - 6) / 8))
+#define YAC_EMBED_STR_LEN(p)        ((unsigned int)((((uintptr_t)(p)) >> 3) & 0x7))
+#define YAC_EMBED_STR_DATA(p)       (((uintptr_t)(p)) >> 6)
 
 typedef struct _yac_item_list {
 	unsigned int index;
@@ -62,6 +110,7 @@ typedef struct _yac_item_list {
 	unsigned int v_len;
 	unsigned int flag;
 	unsigned int size;
+	unsigned char embedded;
 	unsigned char key[YAC_STORAGE_MAX_KEY_LEN];
 	struct _yac_item_list *next;
 } yac_item_list;
@@ -110,7 +159,11 @@ extern yac_storage_globals *yac_storage;
 
 int yac_storage_startup(unsigned long first_size, unsigned long size, char **err);
 void yac_storage_shutdown(void);
+/* data carries either a heap buffer (*data is an efree-able copy) or an
+ * embedded value word (test with YAC_IS_EMBED); size is 0 for embeds */
 int yac_storage_find(const char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas, unsigned long tv);
+/* if YAC_IS_EMBED(data), the tagged word itself is stored instead of
+ * allocating a block (size is only kept as the displayed v_len) */
 int yac_storage_update(const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add, unsigned long tv);
 int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long tv);
 void yac_storage_flush(void);
@@ -119,7 +172,6 @@ yac_storage_info * yac_storage_get_info(void);
 void yac_storage_free_info(yac_storage_info *info);
 yac_item_list * yac_storage_dump(unsigned int limit);
 void yac_storage_free_list(yac_item_list *list);
-#define yac_storage_exists(ht, key, len)  yac_storage_find(ht, key, len, NULL)
 
 #endif	/* YAC_STORAGE_H */
 

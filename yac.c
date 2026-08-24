@@ -46,6 +46,91 @@
 #include "compressor/fastlz/fastlz.h"
 #endif
 
+/* Embedded value helpers (zend-type aware; tag layout in yac_storage.h).
+ * shift counts are sizeof-derived, so 32/64-bit both work; encoding
+ * shifts unsigned (signed left-shift of negatives would be UB), decoding
+ * relies on arithmetic right shift as every supported compiler does */
+static inline int yac_long_embedable(zend_long v) {
+	return (((zend_ulong)(v) + ((zend_ulong)1 << (sizeof(zend_long) * 8 - 4)))
+			>> (sizeof(zend_long) * 8 - 3)) == 0;
+}
+
+static inline int yac_str_embedable(zend_string *str) {
+	return ZSTR_LEN(str) <= YAC_EMBED_STR_MAX_LEN;
+}
+
+static inline int yac_arr_embedable(zend_array *arr) {
+	return zend_hash_num_elements(arr) == 0;
+}
+
+#define yac_embed_long(v) \
+	((char *)(uintptr_t)((((zend_ulong)(zend_long)(v)) << 3) | YAC_EMBED_LONG))
+#define yac_embed_long_val(p) \
+	((zend_long)(((zend_long)(uintptr_t)(p)) >> 3))
+
+#define yac_embed_null()        ((char *)(uintptr_t)YAC_EMBED_NULL)
+#define yac_embed_true()        ((char *)(uintptr_t)YAC_EMBED_TRUE)
+#define yac_embed_false()       ((char *)(uintptr_t)YAC_EMBED_FALSE)
+#define yac_embed_empty_array() ((char *)(uintptr_t)YAC_EMBED_EMPTY_ARRAY)
+
+static inline char *yac_embed_str(const char *s, unsigned int len) {
+	uintptr_t u = YAC_EMBED_STR | ((uintptr_t)len << 3);
+	unsigned int i;
+
+	for (i = 0; i < len; i++) {
+		u |= ((uintptr_t)(unsigned char)s[i]) << (6 + i * 8);
+	}
+	return (char *)u;
+}
+
+/* rebuild a zval straight from a tagged word; NULL means a corrupt tag
+ * and the caller degrades the hit to a miss */
+static zval* yac_embed_to_zval(const char *data, zval *rv) /* {{{ */ {
+	switch (((uintptr_t)data) & YAC_EMBED_MASK) {
+		case YAC_EMBED_NULL:
+			ZVAL_NULL(rv);
+			return rv;
+		case YAC_EMBED_TRUE:
+			ZVAL_TRUE(rv);
+			return rv;
+		case YAC_EMBED_FALSE:
+			ZVAL_FALSE(rv);
+			return rv;
+		case YAC_EMBED_LONG:
+			ZVAL_LONG(rv, yac_embed_long_val(data));
+			return rv;
+		case YAC_EMBED_STR:
+			{
+				unsigned int slen = YAC_EMBED_STR_LEN(data);
+				uintptr_t payload = YAC_EMBED_STR_DATA(data);
+
+				if (slen == 0) {
+					ZVAL_EMPTY_STRING(rv);
+				} else {
+					zend_string *str = zend_string_alloc(slen, 0);
+					unsigned int i;
+
+					for (i = 0; i < slen; i++) {
+						ZSTR_VAL(str)[i] = (char)((payload >> (i * 8)) & 0xff);
+					}
+					ZSTR_VAL(str)[slen] = '\0';
+					ZVAL_NEW_STR(rv, str);
+				}
+				return rv;
+			}
+		case YAC_EMBED_EMPTY_ARRAY:
+#if PHP_VERSION_ID >= 80000
+			ZVAL_EMPTY_ARRAY(rv);
+#else
+			array_init(rv);
+#endif
+			return rv;
+		default:
+			return NULL;
+	}
+}
+/* }}} */
+
 zend_class_entry *yac_class_ce;
 
 static zend_object_handlers yac_obj_handlers;
@@ -114,6 +199,7 @@ PHP_INI_END()
 /* }}} */
 
 #define Z_YACOBJ_P(zv)   (php_yac_fetch_object(Z_OBJ_P(zv)))
+
 static inline yac_object *php_yac_fetch_object(zend_object *obj) /* {{{ */ {
 	return (yac_object *)((char*)(obj) - offsetof(yac_object, std));
 }
@@ -156,12 +242,20 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 	tv = time(NULL);
 	switch (Z_TYPE_P(value)) {
 		case IS_NULL:
+			ret = yac_storage_update(key, key_len, yac_embed_null(), 0, flag, ttl, add, tv);
+			break;
 		case IS_TRUE:
+			ret = yac_storage_update(key, key_len, yac_embed_true(), 0, flag, ttl, add, tv);
+			break;
 		case IS_FALSE:
-			ret = yac_storage_update(key, key_len, (char *)&flag, sizeof(int), flag, ttl, add, tv);
+			ret = yac_storage_update(key, key_len, yac_embed_false(), 0, flag, ttl, add, tv);
 			break;
 		case IS_LONG:
-			ret = yac_storage_update(key, key_len, (char *)&Z_LVAL_P(value), sizeof(long), flag, ttl, add, tv);
+			if (yac_long_embedable(Z_LVAL_P(value))) {
+				ret = yac_storage_update(key, key_len, yac_embed_long(Z_LVAL_P(value)), 0, flag, ttl, add, tv);
+			} else {
+				ret = yac_storage_update(key, key_len, (char *)&Z_LVAL_P(value), sizeof(zend_long), flag, ttl, add, tv);
+			}
 			break;
 		case IS_DOUBLE:
 			ret = yac_storage_update(key, key_len, (char *)&Z_DVAL_P(value), sizeof(double), flag, ttl, add, tv);
@@ -171,7 +265,11 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 		case IS_CONSTANT:
 #endif
 			{
-				if (Z_STRLEN_P(value) > YAC_G(compress_threshold) || Z_STRLEN_P(value) > YAC_STORAGE_MAX_ENTRY_LEN) {
+				if (yac_str_embedable(Z_STR_P(value))) {
+					ret = yac_storage_update(key, key_len,
+							yac_embed_str(Z_STRVAL_P(value), (unsigned int)Z_STRLEN_P(value)),
+							Z_STRLEN_P(value), flag, ttl, add, tv);
+				} else if (Z_STRLEN_P(value) > YAC_G(compress_threshold) || Z_STRLEN_P(value) > YAC_STORAGE_MAX_ENTRY_LEN) {
 					int compressed_len;
 					char *compressed;
 
@@ -208,9 +306,14 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 #ifdef IS_CONSTANT_ARRAY
 		case IS_CONSTANT_ARRAY:
 #endif
+			if (yac_arr_embedable(Z_ARRVAL_P(value))) {
+				ret = yac_storage_update(key, key_len, yac_embed_empty_array(), 0, flag, ttl, add, tv);
+				break;
+			}
 		case IS_OBJECT:
 			{
 				smart_str buf = {0};
+
 
 				if (yac_serializer(value, &buf, &msg)) {
 					if (buf.s->len > YAC_G(compress_threshold) || buf.s->len > YAC_STORAGE_MAX_ENTRY_LEN) {
@@ -353,6 +456,10 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 
 	tv = time(NULL);
 	if (yac_storage_find(key, key_len, &data, &size, &flag, (int *)cas, tv)) {
+		if (YAC_IS_EMBED(data)) {
+			/* the value word itself, no heap buffer to free */
+			return yac_embed_to_zval(data, rv);
+		}
 		switch ((flag & YAC_ENTRY_TYPE_MASK)) {
 			case IS_NULL:
 				if (size == sizeof(int)) {
@@ -379,8 +486,10 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 				efree(data);
 				break;
 			case IS_LONG:
-				if (size == sizeof(long)) {
-					ZVAL_LONG(rv, *(long*)data);
+				if (size == sizeof(zend_long)) {
+					zend_long lval;
+					memcpy(&lval, data, sizeof(zend_long));
+					ZVAL_LONG(rv, lval);
 					efree(data);
 					return rv;
 				}
@@ -773,6 +882,7 @@ PHP_METHOD(yac, dump) {
 		add_assoc_long(&item, "v_len", l->v_len);
 		add_assoc_long(&item, "size", l->size);
 		add_assoc_long(&item, "atime", l->atime);
+		add_assoc_bool(&item, "embedded", l->embedded);
 		add_assoc_stringl(&item, "key", (char*)l->key, l->k_len);
 		add_next_index_zval(return_value, &item);
 	}
