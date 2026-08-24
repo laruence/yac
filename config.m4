@@ -183,7 +183,11 @@ AC_CACHE_CHECK([for __sync_bool_compare_and_swap support], [yac_cv_builtin_atomi
   ]])], [yac_cv_builtin_atomic=yes], [yac_cv_builtin_atomic=no])])
 AS_VAR_IF([yac_cv_builtin_atomic], [yes],
   [AC_DEFINE([HAVE_BUILTIN_ATOMIC], [1],
-    [Define to 1 if the compiler supports __sync_bool_compare_and_swap().])])
+    [Define to 1 if the compiler supports __sync_bool_compare_and_swap().])],
+  [AS_CASE([$host_alias],
+    [i?86-*|x86_64-*|amd64-*], [],
+    [*mingw*|*cygwin*|*-msvc*], [],
+    [AC_MSG_ERROR([no atomic CAS support: yac needs __sync builtins, x86 inline asm, or Win32 Interlocked*])])])
 
 dnl ---------------------------------------------------------------------
 dnl Hardware-accelerated CRC32C (yac_storage.c)

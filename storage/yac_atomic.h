@@ -39,10 +39,8 @@ static inline int __yac_cas(unsigned int *lock, unsigned int old, unsigned int s
 #elif ZEND_WIN32
 #define	YAC_CAS(lock, old, set)  (InterlockedCompareExchange(lock, set, old) == old)
 #else
-#warning No atomic CAS support, per-slot locking disabled
+#error No atomic CAS support: per-slot locking is mandatory for a shared-memory cache
 #endif
-
-#ifdef YAC_CAS
 
 /* FREE must be 0: yac_slot_unlock() uses __sync_lock_release(), which stores 0. */
 #define	YAC_SLOT_FREE    0x0
@@ -72,12 +70,5 @@ static inline void yac_slot_unlock(unsigned int *me) {
 
 #define	WRITEP(P)   yac_slot_lock(&(P->mutex))
 #define	READP(P)    yac_slot_unlock(&(P->mutex))
-
-#else /* no atomic CAS: run without per-slot locking */
-
-#define WRITEP(P)   (1)
-#define READP(P)
-
-#endif /* YAC_CAS */
 
 #endif /* YAC_ATOMIC_H */
