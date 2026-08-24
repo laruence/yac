@@ -63,3 +63,11 @@ yac-*.tgz
 
 # Test runner reports
 php_test_results_*.txt
+
+# Local editor / build artifacts
+.tags
+configure~
+make.log
+
+# Local PIE test scripts
+.pie-*.sh
