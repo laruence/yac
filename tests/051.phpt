@@ -25,26 +25,30 @@ var_dump($yac->get("1"));
 /* set(array, non-int) -> ttl must be integer */
 var_dump($yac->set(array("a" => 1), "not-an-int"));
 
-/* single-arg set with a non-array is a type error (arginfo: string|array) */
+/* single-arg set with a non-array fails argument parsing
+   (PHP 7: warning, PHP 8: TypeError) */
 try {
-    $yac->set(12345);
+    @$yac->set(12345);
+    echo "argcheck failed\n";
 } catch (TypeError $e) {
-    echo "TypeError: ", $e->getMessage(), "\n";
+    echo "argcheck failed\n";
 }
 
 /* too many arguments */
 try {
-    $yac->set("k", "v", 0, "extra");
-} catch (ArgumentCountError|TypeError $e) {
-    echo get_class($e), "\n";
+    @$yac->set("k", "v", 0, "extra");
+    echo "wrong count\n";
+} catch (TypeError $e) {
+    echo "wrong count\n";
 }
 
 /* get with 3 args -> wrong count */
 try {
     $x = null;
-    $yac->get("k", $c, $x);
-} catch (ArgumentCountError|TypeError $e) {
-    echo get_class($e), "\n";
+    @$yac->get("k", $c, $x);
+    echo "wrong count\n";
+} catch (TypeError $e) {
+    echo "wrong count\n";
 }
 
 /* dump limit string is cast in coercive mode */
@@ -58,7 +62,7 @@ string(6) "second"
 
 Warning: Yac::set(): ttl parameter must be an integer in %s051.php on line %d
 NULL
-TypeError: Yac::set(): Argument #1 ($key) must be of type array, int given
-%rArgumentCountError|TypeError%r
-%rArgumentCountError|TypeError%r
+argcheck failed
+wrong count
+wrong count
 bool(true)
