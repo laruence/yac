@@ -1,4 +1,4 @@
-Yac 2.4.0 Release Notes (draft — release rolled back 2026-08-25, re-use when re-tagging)
+Yac 2.4.0 Release Notes
 
 ## Notes
 
@@ -13,15 +13,17 @@ Yac 2.4.0 Release Notes (draft — release rolled back 2026-08-25, re-use when r
 - Fixed Windows shared memory cleanup (view unmapped exactly once)
 - Fixed valgrind-reported leaks and uninitialized reads (MINFO output, compression error paths)
 
-## Pending before re-release
+## Re-release record
 
-- Windows x86 CI: `TEST 43/56 [tests/043.phpt]` fails on all PHP versions (x86-only); run-tests.php
-  dies with a 4MB allocation error right after that test. Root cause not yet identified.
+- First 2.4.0 tag was rolled back the same day: the Windows x86 CI failed at
+  tests/043.phpt. Root cause was the test itself — its PHP-side MurmurHash2
+  replica overflowed 32-bit integers (not a storage bug); the resulting flood
+  of deprecation notices exhausted x86 run-tests.php's memory. Fixed in
+  ef989d3, Windows (x86/x64) and Linux CI all green.
 
 ## Re-release checklist
 
-1. Fix/skip the x86 043.phpt issue
-2. `git tag 2.4.0 && git push origin 2.4.0` (tag push triggers nothing; release created via gh)
-3. `gh release create 2.4.0 --title 2.4.0 --notes-file RELEASE_NOTES.md --prerelease`
-   (or drop --prerelease) — this fires the `release` workflow that builds Windows DLLs
-4. package.xml changelog already carries these notes; keep in sync
+1. `git tag 2.4.0 && git push origin 2.4.0` (tag push triggers nothing; release created via gh)
+2. `gh release create 2.4.0 --title 2.4.0 --notes-file RELEASE_NOTES.md`
+   — this fires the `release` workflow that builds Windows DLLs
+3. package.xml changelog already carries these notes; keep in sync
