@@ -599,7 +599,12 @@ int yac_storage_update(const char *key, unsigned int len, char *data, unsigned i
 		return 0;
 	}
 
-	/* 5. commit under the slot lock */
+	/* 5. commit under the slot lock. update the fields individually
+	 * instead of copying the whole slot: the u1/u2 unions alias
+	 * (flag|hits, crc/size|atime) depending on the storage form, and a
+	 * whole-slot copy would re-publish the stale union bytes grabbed in
+	 * step 1 over lock-free statistics updates or a concurrent
+	 * writer's freshly written crc/size */
 	k.h = hash;
 	k.ttl = ttl ? tv + ttl : 0;
 	memcpy(k.key, key, len);
@@ -607,7 +612,13 @@ int yac_storage_update(const char *key, unsigned int len, char *data, unsigned i
 	if (!WRITEP(p)) {
 		return 0;
 	}
-	*p = k;
+	p->h = k.h;
+	p->ttl = k.ttl;
+	memcpy(p->key, k.key, len);
+	p->len = k.len;
+	p->u1 = k.u1;
+	p->u2 = k.u2;
+	p->val = k.val;
 	READP(p);
 
 	return 1;
