@@ -19,12 +19,12 @@ var_dump($yac->get("delayed"));   /* still "value" — not yet expired */
 
 /* 2. after sleep, the value is gone */
 sleep(1);
-var_dump($yac->get("delayed"));   /* NULL — expired */
+var_dump($yac->get("delayed"));   /* false — expired */
 
 /* 3. delete with 0 delay — same as immediate delete */
 $yac->set("immediate", "now");
 var_dump($yac->delete("immediate", 0));
-var_dump($yac->get("immediate")); /* NULL — already gone */
+var_dump($yac->get("immediate")); /* false — already gone */
 
 /* 4. delete without delay argument — immediate */
 $yac->set("no_delay", "x");
@@ -40,10 +40,10 @@ var_dump($yac->delete("never_set")); /* false */
 --EXPECTF--
 bool(true)
 string(5) "value"
-NULL
+bool(false)
 bool(true)
-NULL
+bool(false)
 bool(true)
-NULL
+bool(false)
 bool(false)
 bool(false)

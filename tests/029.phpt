@@ -28,9 +28,9 @@ var_dump($yac_raw->get("raw_k"));
 $yac_a->flush();
 
 /* All instances see empty cache — flush is truly global */
-var_dump($yac_a->get("k"));       /* NULL */
-var_dump($yac_b->get("k"));       /* NULL */
-var_dump($yac_raw->get("raw_k")); /* NULL */
+var_dump($yac_a->get("k"));       /* false */
+var_dump($yac_b->get("k"));       /* false */
+var_dump($yac_raw->get("raw_k")); /* false */
 
 /* After flush, new writes work normally */
 $yac_a->set("k", "after_flush");
@@ -40,7 +40,7 @@ var_dump($yac_a->get("k"));
 string(6) "from_a"
 string(6) "from_b"
 string(8) "from_raw"
-NULL
-NULL
-NULL
+bool(false)
+bool(false)
+bool(false)
 string(11) "after_flush"

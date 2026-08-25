@@ -45,12 +45,12 @@ var_dump($yac->get("rnd_arr"));
 --EXPECTF--
 Warning: Yac::set(): Value is too long(%d bytes) to be stored in %s048.php on line %d
 bool(false)
-NULL
+bool(false)
 
 Warning: Yac::set(): Value is too big to be stored in %s048.php on line %d
 bool(false)
-NULL
+bool(false)
 
 Warning: Yac::set(): Compression makes the value larger(%d -> %d bytes), skipped in %s048.php on line %d
 bool(false)
-NULL
+bool(false)

@@ -1,5 +1,5 @@
 --TEST--
-Yac::get() returns NULL for missing keys and false for stored false — no ambiguity
+Yac false ambiguity — a miss returns false; a default value disambiguates
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--
@@ -11,34 +11,32 @@ yac.values_memory_size=32M
 <?php
 $yac = new Yac();
 
-/* 1. key that never existed → NULL */
-var_dump($yac->get("never_set"));
-
-/* 2. store literal false → get returns false */
+/* 1. without a default, a miss and a stored false are indistinguishable */
 $yac->set("bool_false", false);
+var_dump($yac->get("never_set"));
 var_dump($yac->get("bool_false"));
-
-/* 3. the two are distinguishable by return value */
-var_dump($yac->get("never_set") === NULL);
-var_dump($yac->get("bool_false") === false);
 var_dump($yac->get("never_set") === $yac->get("bool_false"));
 
-/* 4. explicit type check: NULL vs boolean */
+/* 2. with a sentinel default the two become distinguishable */
+var_dump($yac->get("never_set", "__NONE__"));   // miss -> the sentinel
+var_dump($yac->get("bool_false", "__NONE__")); // stored false is returned as-is
+
+/* 3. explicit type check: both are boolean false without a default */
 var_dump(gettype($yac->get("never_set")));
 var_dump(gettype($yac->get("bool_false")));
 
-/* 5. store true for contrast */
+/* 4. store true for contrast — get returns true, distinguishable from a miss */
 $yac->set("bool_true", true);
 var_dump($yac->get("bool_true"));
 var_dump($yac->get("bool_true") === $yac->get("never_set"));
 ?>
 --EXPECTF--
-NULL
+bool(false)
 bool(false)
 bool(true)
-bool(true)
+string(8) "__NONE__"
 bool(false)
-string(4) "NULL"
+string(7) "boolean"
 string(7) "boolean"
 bool(true)
 bool(false)

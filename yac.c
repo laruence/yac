@@ -575,7 +575,7 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 }
 /* }}} */
 
-static zval* yac_get_multi_impl(yac_object *yac, zval *keys, zval *cas, zval *rv) /* {{{ */ {
+static zval* yac_get_multi_impl(yac_object *yac, zval *keys, zval *def, zval *rv) /* {{{ */ {
 	zval *value;
 	HashTable *ht = Z_ARRVAL_P(keys);
 
@@ -589,6 +589,8 @@ static zval* yac_get_multi_impl(yac_object *yac, zval *keys, zval *cas, zval *rv
 			case IS_STRING:
 				if ((v = yac_get_impl(yac, Z_STR_P(value), &lcas, &tmp))) {
 					zend_symtable_update(Z_ARRVAL_P(rv), Z_STR_P(value), v);
+				} else if (def) {
+					zend_symtable_update(Z_ARRVAL_P(rv), Z_STR_P(value), def);
 				}
 				continue;
 			default:
@@ -596,6 +598,8 @@ static zval* yac_get_multi_impl(yac_object *yac, zval *keys, zval *cas, zval *rv
 					zend_string *key = zval_get_string(value);
 					if ((v = yac_get_impl(yac, key, &lcas, &tmp))) {
 						zend_symtable_update(Z_ARRVAL_P(rv), key, v);
+					} else if (def) {
+						zend_symtable_update(Z_ARRVAL_P(rv), key, def);
 					}
 					zend_string_release(key);
 				}
@@ -777,18 +781,18 @@ PHP_METHOD(yac, set) {
 }
 /* }}} */
 
-/** {{{ proto public Yac::get(mixed $keys[, int &$cas])
+/** {{{ proto public Yac::get(mixed $keys[, mixed $default = NULL])
 */
 PHP_METHOD(yac, get) {
 	uint32_t lcas = 0;
-	zval *ret, *keys, *cas = NULL;
+	zval *ret, *keys, *def = NULL;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z|z", &keys, &cas) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z|z", &keys, &def) == FAILURE) {
 		return;
 	}
 
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
-		ret = yac_get_multi_impl(Z_YACOBJ_P(getThis()), keys, cas, return_value);
+		ret = yac_get_multi_impl(Z_YACOBJ_P(getThis()), keys, def, return_value);
 	} else if (Z_TYPE_P(keys) == IS_STRING) {
 		ret = yac_get_impl(Z_YACOBJ_P(getThis()), Z_STR_P(keys), &lcas, return_value);
 	} else {
@@ -798,7 +802,12 @@ PHP_METHOD(yac, get) {
 	}
 
 	if (ret == NULL) {
-		RETURN_NULL();
+		/* miss: return the caller-provided default when given, otherwise
+		 * false (the historical behavior) */
+		if (def) {
+			RETURN_COPY_VALUE(def);
+		}
+		RETURN_FALSE;
 	}
 }
 /* }}} */

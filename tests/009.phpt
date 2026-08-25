@@ -39,11 +39,12 @@ var_dump($yac->delete(array_merge($remaining, array("nonexistent_key")))); /* fa
 $ret = $yac->get($keys);
 var_dump(count(array_filter($ret)) == 0);
 
-/* multi-get omits missing keys */
+/* multi-get omits missing keys (a default value fills them instead) */
 $yac->set("present", "v");
 $ret = $yac->get(array("present", "absent"));
 var_dump($ret["present"]);
 var_dump(array_key_exists("absent", $ret));
+var_dump($yac->get(array("present", "absent"), "miss")["absent"]);
 
 /* numeric-indexed batch set stores values under string keys "0", "1", ... */
 var_dump($yac->set(array("zero", "one")));
@@ -52,7 +53,7 @@ var_dump($yac->get("1"));
 
 /* batch set with a non-integer ttl warns and writes nothing */
 var_dump($yac->set(array("w" => "v"), "not_int"));
-var_dump($yac->get("w") === null);
+var_dump($yac->get("w"));
 ?>
 --EXPECTF--
 bool(true)
@@ -62,10 +63,11 @@ bool(false)
 bool(true)
 string(1) "v"
 bool(false)
+string(4) "miss"
 bool(true)
 string(4) "zero"
 string(3) "one"
 
 Warning: Yac::set(): ttl parameter must be an integer in %s on line %d
 NULL
-bool(true)
+bool(false)

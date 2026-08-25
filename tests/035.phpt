@@ -72,9 +72,9 @@ string(40) "datadatadatadatadatadatadatadatadatadata"
 
 Warning: Yac::set(): Compression makes the value larger(%d -> %d bytes), skipped in %s035.php on line %d
 bool(false)
-NULL
+bool(false)
 
 Warning: Yac::set(): Value is too long(%d bytes) to be stored in %s035.php on line %d
 bool(false)
-NULL
+bool(false)
 bool(true)

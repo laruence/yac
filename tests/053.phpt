@@ -89,6 +89,6 @@ int(0)
 int(0)
 int(0)
 bool(true)
-NULL
+bool(false)
 int(0)
 int(0)

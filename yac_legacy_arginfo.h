@@ -13,7 +13,7 @@ ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_class_Yac_get, 0, 0, 1)
 	ZEND_ARG_INFO(0, key)
-	ZEND_ARG_INFO(1, cas)
+	ZEND_ARG_INFO(0, default)
 ZEND_END_ARG_INFO()
 
 #define arginfo_class_Yac_set arginfo_class_Yac_add

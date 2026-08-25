@@ -40,7 +40,7 @@ for ($w = 0; $w < $workers; $w++) {
                 /* a concurrent delete may legitimately make this read miss; a
                    returned value must however always be one of the written ones */
                 $got = $yac->get($key);
-                if ($got !== null && (!is_string($got) || !preg_match('/^w\d+_\d+$/', $got))) exit(3);
+                if ($got !== false && (!is_string($got) || !preg_match('/^w\d+_\d+$/', $got))) exit(3);
             }
             /* same race for serialized arrays larger than the full-CRC
                threshold (256B): a torn read that slips past the sampled
@@ -49,14 +49,14 @@ for ($w = 0; $w < $workers; $w++) {
             $akey = "conflict_arr_" . ($i % $keys);
             if ($yac->set($akey, array("id" => "w{$w}_{$i}", "pad" => $pad))) {
                 $got = $yac->get($akey);
-                if ($got !== null && (!is_array($got)
+                if ($got !== false && (!is_array($got)
                     || !preg_match('/^w\d+_\d+$/', (string)$got["id"])
                     || $got["pad"] !== $pad)) exit(3);
             }
             if ($i % 5 === $w % 5) {
                 $yac->delete($key);
                 $got = $yac->get($key);
-                if ($got !== null && (!is_string($got) || !preg_match('/^w\d+_\d+$/', $got))) exit(4);
+                if ($got !== false && (!is_string($got) || !preg_match('/^w\d+_\d+$/', $got))) exit(4);
             }
         }
         /* phase 2: all workers race to add() the same key */

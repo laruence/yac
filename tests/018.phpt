@@ -92,4 +92,4 @@ Warning: Yac::set(): Type 'IS_RESOURCE' cannot be stored in %s018.php on line %d
 bool(false)
 bool(true)
 bool(true)
-NULL
+bool(false)

@@ -31,5 +31,5 @@ var_dump($info['slots_used']);
 ?>
 --EXPECTF--
 bool(true)
-NULL
+bool(false)
 int(0)

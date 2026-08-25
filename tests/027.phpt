@@ -19,7 +19,7 @@ ob_start();
 $result = $yac->set("res_key", $fh);
 $output = ob_get_clean();
 var_dump($result);                  /* false — resource not stored */
-var_dump($yac->get("res_key"));     /* NULL — not in cache */
+var_dump($yac->get("res_key"));     /* false — not in cache */
 fclose($fh);
 
 /* 2. array containing a resource — the array is serialized as a whole */
@@ -39,6 +39,6 @@ var_dump($yac->get("sanity"));
 --EXPECTF--
 bool(true)
 bool(false)
-NULL
+bool(false)
 bool(true)
 string(2) "ok"

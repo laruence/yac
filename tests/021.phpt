@@ -31,7 +31,7 @@ var_dump($yac->value);
 --EXPECT--
 string(5) "value"
 string(5) "value"
+bool(false)
 NULL
-NULL
-NULL
+bool(false)
 NULL

@@ -32,6 +32,6 @@ PHP Warning:  yac.values_memory_size(1048576) is below the segment minimum(41943
 int(0)
 bool(false)
 bool(true)
-NULL
+bool(false)
 bool(true)
 string(2) "ok"
