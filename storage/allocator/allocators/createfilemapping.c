@@ -288,15 +288,9 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 /* }}} */
 
 static int detach_segment(yac_shared_segment *shared_segment) /* {{{ */ {
-	/* the whole pool is one CreateFileMapping view; the per-segment
-	 * yac_shared_segment_create_file::size of the first segment carries
-	 * the total mapping size (value segments keep 0), so detach exactly
-	 * once when the first segment is released */
-	if (shared_segment->size && mapping_base) {
+	if (mapping_base && shared_segment->p == mapping_base) {
 		UnmapViewOfFile(mapping_base);
 		CloseHandle(memfile);
-		mapping_base = NULL;
-		memfile = NULL;
 	}
 	return 0;
 }
