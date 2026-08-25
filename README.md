@@ -146,8 +146,8 @@ Yac can store all PHP types **except resources**:
 
 | Type | Notes |
 |------|-------|
-| `null` | Stored as-is |
-| `bool` | Both `true` and `false` — see [gotcha below](#false-ambiguity) |
+| `null` | Stored as-is; to read it back unambiguously from a miss, see [Missing keys](#missing-keys) |
+| `bool` | Stored as-is; a miss returns `NULL`, so a stored `false` stays distinguishable |
 | `int` / `long` | Stored directly |
 | `float` / `double` | Stored directly |
 | `string` | Stored directly; compressed if larger than `yac.compress_threshold` |
@@ -155,9 +155,32 @@ Yac can store all PHP types **except resources**:
 | `object` | Serialized and compressed same as array |
 | `resource` | **Not supported** — triggers a warning |
 
-### False ambiguity
+### Missing keys
 
-Since `get()` returns `false` both when a key is **not found** and when the cached value is literally `false`, you cannot distinguish the two cases by return value alone. Avoid storing `false` as a cache value.
+`get()` returns `NULL` for a key that does not exist. A stored `false` is
+returned as `false`, so a miss and a stored `false` never collide.
+
+> **Note**: Before 2.4.0, `get()` returned `false` for a missing key — the
+> same value as a stored `false`, so the two cases were indistinguishable.
+
+If you store `NULL` as a value, the return value is again indistinguishable
+from a miss. To tell them apart, read the key via the array form:
+`get(array($key))` returns an array containing only the keys that **exist** —
+a missing key is simply absent from the result:
+
+```php
+<?php
+$yac->set("n", NULL);
+
+var_dump($yac->get("n"));                    // NULL — same as a miss
+
+$ret = $yac->get(array("n"));
+var_dump(array_key_exists("n", $ret));       // true — "n" exists, value is NULL
+
+$ret = $yac->get(array("missing"));
+var_dump(array_key_exists("missing", $ret)); // false — key does not exist
+?>
+```
 
 ## Methods
 
@@ -262,26 +285,30 @@ while (!$yac->set("important", "value") && $retry++ < 100/* guard against persis
 ### Yac::get
 
 ```php
-Yac::get(string|array $key): mixed
+Yac::get(string $key): mixed
+Yac::get(array $keys): array
 ```
 
-Fetches a stored variable from the cache. If an array is passed, each element is fetched and returned as a key-value array.
+Fetches a stored variable from the cache.
 
-Returns the cached value on success, `false` on failure (key not found, or integrity check failed).
+For a single key, returns the cached value on success and `NULL` when the key
+does not exist (or the integrity check fails).
 
-> **Warning**: If the stored value is `false`, `get()` also returns `false`. See [False ambiguity](#false-ambiguity).
+> **Note**: Before 2.4.0, a missing key returned `false`.
+
+For an array of keys, returns an array of the found key-value pairs. Keys
+that do not exist are simply **omitted** from the result, so the presence of
+a key in the returned array means it exists in the cache:
 
 ```php
 <?php
 $yac = new Yac();
-$yac->set("foo", "bar");
-$yac->set([
-    "dummy"  => "foo",
-    "dummy2" => "foo",
-]);
+$yac->set("dummy", "foo");
+$yac->set("dummy2", "foo");
 
-$yac->get("dummy");
-$yac->get(["dummy", "dummy2"]);
+$yac->get("dummy");                       // "foo"
+$yac->get("missing");                     // NULL
+$yac->get(["dummy", "missing"]);          // ["dummy" => "foo"] — "missing" omitted
 ?>
 ```
 
@@ -350,7 +377,7 @@ Each field means:
 - `fails` — failed writes (value too big to allocate, etc.)
 - `kicks` — entries evicted to make room for new ones
 - `recycles` — value segments wrapped around and reused
-- `start_time` — when the shared memory was created (last (re)start), not reset by `flush()` (since Yac 2.3.3)
+- `start_time` — when the shared memory was created (last (re)start), not reset by `flush()` (since Yac 2.4.0)
 - `slots_size` — total number of slots
 - `slots_used` — slots currently occupied
 
@@ -408,13 +435,23 @@ Dump cache entries for debugging. Returns an array of entries, each containing:
 
 - `index` — slot index in the hash table
 - `hash` — 64-bit hash of the key, used for slot probing
-- `crc` — CRC32 checksum of the value payload
+- `crc` — CRC32 checksum of the value payload; `0` for embedded entries
 - `ttl` — expiration timestamp (unix time); `0` means never expires
 - `k_len` — key length
 - `v_len` — value length (bytes)
-- `size` — allocated size of the value block in shared memory (bytes)
-- `atime` — last access time, updated on successful `get()`; the entry with the oldest `atime` is evicted first (since Yac 2.3.3)
+- `size` — allocated size of the value block in shared memory (bytes); `0` for embedded entries
+- `atime` — last access time, updated on successful `get()`; the entry with the oldest `atime` among the candidate slots is evicted first (since Yac 2.4.0)
+- `hits` — per-entry hit counter, bumped on every successful `get()`; reset when the entry is overwritten, deleted or expires (since Yac 2.4.0)
+- `embedded` — whether the value is stored directly inside the slot (see below) (since Yac 2.4.0)
 - `key` — the cache key
+
+> **Note**: Before 2.4.0, `dump()` did not report `atime`, `hits` or `embedded` — these fields do not exist in older versions.
+
+Small values are **embedded** in the slot itself instead of allocating a value
+block: `NULL`, booleans, small integers, strings up to 7 bytes and empty
+arrays. Embedded entries allocate no value memory at all, so for them `crc`
+and `size` are reported as `0`, while `atime` and `hits` are kept in the slot
+and remain meaningful.
 
 `$limit` controls the maximum number of entries returned (default 100). Passing `-1` dumps **all** entries — intended for debugging only: the whole result is materialized as a PHP array and can consume a lot of memory on a busy cache.
 
