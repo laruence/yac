@@ -321,7 +321,6 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 			{
 				smart_str buf = {0};
 
-
 				if (yac_serializer(value, &buf, &msg)) {
 					if (buf.s->len > YAC_G(compress_threshold) || buf.s->len > YAC_STORAGE_MAX_ENTRY_LEN) {
 						int compressed_len;
@@ -329,6 +328,7 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 
 						if (buf.s->len > YAC_ENTRY_MAX_ORIG_LEN) {
 							php_error_docref(NULL, E_WARNING, "Value is too big to be stored");
+							smart_str_free(&buf);
 							return ret;
 						}
 
@@ -336,6 +336,7 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 						compressed_len = LZ4_compress_default(ZSTR_VAL(buf.s), compressed, ZSTR_LEN(buf.s), LZ4_compressBound(buf.s->len));
 						if (!compressed_len) {
 							php_error_docref(NULL, E_WARNING, "Compression failed");
+							smart_str_free(&buf);
 							efree(compressed);
 							return ret;
 						}
@@ -343,12 +344,14 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 							php_error_docref(NULL, E_WARNING,
 									"Compression makes the value larger(%ld -> %d bytes), skipped",
 									(long)buf.s->len, compressed_len);
+							smart_str_free(&buf);
 							efree(compressed);
 							return ret;
 						}
 
 						if (compressed_len > YAC_STORAGE_MAX_ENTRY_LEN) {
 							php_error_docref(NULL, E_WARNING, "Value is too big to be stored");
+							smart_str_free(&buf);
 							efree(compressed);
 							return ret;
 						}
