@@ -35,3 +35,24 @@ jobs:
           # parallel test workers attach to the same region and corrupt each
           # other; tests must run serially
           test-workers: 1
+
+  windows-x86:
+    name: "Windows PHP ${{ matrix.php }} (${{ matrix.ts }}, x86)"
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["8.4", "8.5"]
+        ts: ["nts"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Build and test extension
+        uses: php/php-windows-builder/extension@v1
+        with:
+          php-version: ${{ matrix.php }}
+          arch: x86
+          ts: ${{ matrix.ts }}
+          # x86 PHP CLI is capped at 128M, and yac's shared memory forbids
+          # parallel workers anyway; run serially
+          test-workers: 1

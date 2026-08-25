@@ -12,11 +12,11 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2026-08-18</date>
- <time>13:00:00</time>
+ <date>2026-08-25</date>
+ <time>19:11:33</time>
  <version>
-  <release>2.3.2</release>
-  <api>2.3.2</api>
+  <release>2.4.0</release>
+  <api>2.4.0</api>
  </version>
  <stability>
   <release>stable</release>
@@ -24,13 +24,16 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - PHP 8.2, 8.3, 8.4, 8.5 and 8.6 support
-  - Added ARMv8 hardware CRC32C support
-  - Fixed dead SSE4.2 CRC32 detection, modernized config.m4
-  - Retry on CAS failures in set()
-  - Treat decode/decompression failures as silent cache misses
-  - Fixed delete() returning true for non-existent keys
-  - Added PIE (PHP Installer for Extensions) support
+  - Embed small scalars directly in the hash slot, avoiding value allocations for tiny entries
+  - Switch compression from FastLZ to LZ4 (better ratio and speed)
+  - get() accepts an optional $default argument (returned on miss instead of NULL)
+  - dump() gains an $offset parameter and reports hits, atime, embedded and c_len per entry
+  - Per-entry hit counters and start_time exposed in info()/dump()
+  - Multi-get omits missing keys (filled with $default when given) instead of false placeholders
+  - Field-by-field slot commits and spinlock backoff (pause/yield) reduce contention overhead
+  - Fixed a startup hang when values_memory_size is below the 4M segment minimum
+  - Fixed Windows shared memory cleanup (view unmapped exactly once)
+  - Fixed valgrind-reported leaks and uninitialized reads (MINFO output, compression error paths)
  </notes>
  <contents> 
   <dir name="/"> 
@@ -113,6 +116,19 @@
     <file name="040.phpt" role="test" />
     <file name="041.phpt" role="test" />
     <file name="042.phpt" role="test" />
+    <file name="043.phpt" role="test" />
+    <file name="044.phpt" role="test" />
+    <file name="045.phpt" role="test" />
+    <file name="046.phpt" role="test" />
+    <file name="047.phpt" role="test" />
+    <file name="048.phpt" role="test" />
+    <file name="049.phpt" role="test" />
+    <file name="050.phpt" role="test" />
+    <file name="051.phpt" role="test" />
+    <file name="052.phpt" role="test" />
+    <file name="053.phpt" role="test" />
+    <file name="054.phpt" role="test" />
+    <file name="055.phpt" role="test" />
     <file name="issue012.phpt" role="test" />
     <file name="CONFLICTS" role="test" />
    </dir>
@@ -135,6 +151,31 @@
   <configureoption name="enable-msgpack" prompt="enable msgpack serializer support?" default="no"/>
  </extsrcrelease>
  <changelog>
+  <release>
+   <date>2026-08-25</date>
+   <version>
+    <release>2.4.0</release>
+    <api>2.4.0</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
+   <notes>
+    - Embed small scalars directly in the hash slot, avoiding value allocations for tiny entries
+    - Switch compression from FastLZ to LZ4 (better ratio and speed)
+    - get() accepts an optional $default argument (returned on miss instead of NULL)
+    - dump() gains an $offset parameter and reports hits, atime, embedded and c_len per entry
+    - Per-entry hit counters and start_time exposed in info()/dump()
+    - Multi-get omits missing keys (filled with $default when given) instead of false placeholders
+    - Field-by-field slot commits and spinlock backoff (pause/yield) reduce contention overhead
+    - Fixed a startup hang when values_memory_size is below the 4M segment minimum
+    - Fixed Windows shared memory cleanup (view unmapped exactly once)
+    - Fixed valgrind-reported leaks and uninitialized reads (MINFO output, compression error paths)
+   </notes>
+  </release>
+
   <release>
    <date>2026-08-18</date>
    <version>

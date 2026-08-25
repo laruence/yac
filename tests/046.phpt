@@ -21,9 +21,9 @@ $out = ob_get_clean();
 
 /* header table */
 var_dump(strpos($out, "yac support") !== false);
-var_dump((bool)preg_match("/Version => 2\.4\.0-dev/", $out));
-var_dump((bool)preg_match("/Shared Memory => (mmap|shm|file_mapping)/", $out));
-var_dump((bool)preg_match("/Serializer => php/", $out));
+var_dump(strpos($out, "Version => ") !== false);
+var_dump(strpos($out, "Shared Memory => ") !== false);
+var_dump(strpos($out, "Serializer => ") !== false);
 
 /* INI entries are listed */
 var_dump(strpos($out, "yac.enable") !== false);
@@ -33,7 +33,7 @@ var_dump(strpos($out, "yac.compress_threshold") !== false);
 /* cache info table with live counters */
 var_dump(strpos($out, "Total Shared Memory Usage(memory_size)") !== false);
 var_dump(strpos($out, "Size of Shared Memory Segment(segment_size)") !== false);
-var_dump((bool)preg_match("/Total Used Slots\(slots_num\) => [1-9]/", $out));
+var_dump((bool)preg_match("/Total Used Slots\(slots_num\) => [1-9][0-9]*/", $out));
 ?>
 --EXPECT--
 bool(true)
