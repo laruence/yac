@@ -21,8 +21,11 @@ It can be used to replace APC or local memcached.
 
 Behavior changes worth knowing:
 
-- `get()` returns `NULL` on a miss instead of `false`, so a miss is
-  distinguishable from a stored `false` — see [Missing keys](#missing-keys).
+- `get()` gained an optional default argument: `get($key, $default)`
+  returns the default when the key is missing, so a miss can be told
+  apart from a stored `false` — see [Missing keys](#missing-keys).
+  Without it, `get()` keeps the historical behavior and returns `false`
+  on a miss.
 - Slots now track `atime` and per-entry hit counters (eviction picks the
   least recently accessed entry), `flush()` no longer resets `start_time`,
   and `dump()` gained `atime`/`hits`/`embedded`/`c_len` fields and an
@@ -169,8 +172,8 @@ Yac can store all PHP types **except resources**:
 
 | Type | Notes |
 |------|-------|
-| `null` | Stored as-is; to read it back unambiguously from a miss, see [Missing keys](#missing-keys) |
-| `bool` | Stored as-is; a miss returns `NULL`, so a stored `false` stays distinguishable |
+| `null` | Stored as-is; it comes back as `NULL`, while a miss returns `false` (or the default) — see [Missing keys](#missing-keys) |
+| `bool` | Stored as-is; to tell a stored `false` apart from a miss, pass a default — see [Missing keys](#missing-keys) |
 | `int` / `long` | Stored directly |
 | `float` / `double` | Stored directly |
 | `string` | Stored directly; compressed if larger than `yac.compress_threshold` |
@@ -180,30 +183,29 @@ Yac can store all PHP types **except resources**:
 
 ### Missing keys
 
-`get()` returns `NULL` for a key that does not exist. A stored `false` is
-returned as `false`, so a miss and a stored `false` never collide.
+Without a second argument, `get()` returns `false` for a key that does
+not exist (or that fails the integrity check) — the same value a stored
+`false` returns, so the two cases are indistinguishable by return value
+alone.
 
-> **Note**: Before 2.4.0, `get()` returned `false` for a missing key — the
-> same value as a stored `false`, so the two cases were indistinguishable.
-
-If you store `NULL` as a value, the return value is again indistinguishable
-from a miss. To tell them apart, read the key via the array form:
-`get(array($key))` returns an array containing only the keys that **exist** —
-a missing key is simply absent from the result:
+Since 2.4.0, `get()` accepts an optional default argument that is
+returned when the key is missing:
 
 ```php
 <?php
-$yac->set("n", NULL);
+$yac->set("f", false);
 
-var_dump($yac->get("n"));                    // NULL — same as a miss
+var_dump($yac->get("f"));                    // bool(false) — the stored value
+var_dump($yac->get("missing"));              // bool(false) — a miss, same shape
 
-$ret = $yac->get(array("n"));
-var_dump(array_key_exists("n", $ret));       // true — "n" exists, value is NULL
-
-$ret = $yac->get(array("missing"));
-var_dump(array_key_exists("missing", $ret)); // false — key does not exist
+var_dump($yac->get("f", "__NONE__"));        // bool(false) — the stored value
+var_dump($yac->get("missing", "__NONE__"));  // string(8) "__NONE__" — the default
 ?>
 ```
+
+With a sentinel default, a miss can be told apart from **every** stored
+value, including stored `false` and stored `NULL`. The default is passed
+by value, so any expression works: `get("n", 0)`, `get("n", [])`, etc.
 
 ## Methods
 
@@ -308,20 +310,27 @@ while (!$yac->set("important", "value") && $retry++ < 100/* guard against persis
 ### Yac::get
 
 ```php
-Yac::get(string $key): mixed
-Yac::get(array $keys): array
+Yac::get(string $key[, mixed $default]): mixed
+Yac::get(array $keys[, mixed $default]): array
 ```
 
 Fetches a stored variable from the cache.
 
-For a single key, returns the cached value on success and `NULL` when the key
-does not exist (or the integrity check fails).
+For a single key, returns the cached value on success. On a miss (key
+does not exist, or integrity check fails) it returns `$default` if one
+was passed, otherwise `false` — see [Missing keys](#missing-keys).
 
-> **Note**: Before 2.4.0, a missing key returned `false`.
+For an array of keys, returns an array of the found key-value pairs.
+Missing keys are **omitted** from the result when no default is given,
+so the presence of a key in the returned array means it exists in the
+cache; when a default is given, each missing key is present in the
+result with the default as its value.
 
-For an array of keys, returns an array of the found key-value pairs. Keys
-that do not exist are simply **omitted** from the result, so the presence of
-a key in the returned array means it exists in the cache:
+> **Note**: Before 2.4.0, `get()` with an array of keys inserted a
+> `false` placeholder for every missing key. Since 2.4.0 they are
+> omitted (or filled with the given default) instead — code that reads
+> `$result[$key]` without checking existence may now raise an
+> undefined-key warning.
 
 ```php
 <?php
@@ -329,9 +338,11 @@ $yac = new Yac();
 $yac->set("dummy", "foo");
 $yac->set("dummy2", "foo");
 
-$yac->get("dummy");                       // "foo"
-$yac->get("missing");                     // NULL
-$yac->get(["dummy", "missing"]);          // ["dummy" => "foo"] — "missing" omitted
+$yac->get("dummy");                        // "foo"
+$yac->get("missing");                      // false — a miss
+$yac->get("missing", "fallback");          // "fallback"
+$yac->get(["dummy", "missing"]);           // ["dummy" => "foo"] — "missing" omitted
+$yac->get(["dummy", "missing"], "none");   // ["dummy" => "foo", "missing" => "none"]
 ?>
 ```
 
