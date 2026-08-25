@@ -27,7 +27,7 @@ var_dump($yac->get("clamped") === $v);
 
 foreach ($yac->dump() as $item) {
     if ($item["key"] === "clamped") {
-        var_dump($item["v_len"] < 2000); /* stored compressed */
+        var_dump($item["c_len"] < 2000); /* stored compressed */
     }
 }
 ?>

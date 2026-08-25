@@ -887,7 +887,12 @@ PHP_METHOD(yac, dump) {
 		add_assoc_long(&item, "crc", l->crc);
 		add_assoc_long(&item, "ttl", l->ttl);
 		add_assoc_long(&item, "k_len", l->k_len);
-		add_assoc_long(&item, "v_len", l->v_len);
+		if ((l->flag & YAC_ENTRY_COMPRESSED)) {
+			add_assoc_long(&item, "v_len", (((uint32_t)l->flag) >> YAC_ENTRY_ORIG_LEN_SHIT));
+			add_assoc_long(&item, "c_len", l->v_len);
+		} else {
+			add_assoc_long(&item, "v_len", l->v_len);
+		}
 		add_assoc_long(&item, "size", l->size);
 		add_assoc_long(&item, "atime", l->atime);
 		add_assoc_long(&item, "hits", l->hits);
