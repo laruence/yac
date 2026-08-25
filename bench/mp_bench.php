@@ -14,14 +14,19 @@
  * read-heavy workload typical of real caches. The cache is warmed up first so
  * reads are hits.
  *
+ * The key space is split evenly across two value classes by default: 6-byte
+ * values (small enough for Yac to embed in the slot) and 128-byte values.
+ * Compression is intentionally left off so every backend stores values as-is.
+ *
  * Throughput is reported as AGGREGATE ops/s across all workers over wall time,
  * which measures real contention behavior — not the sum of isolated single-process
  * runs.
  *
  * Usage (prefer run_mp.sh, which loads yac.so and the CLI switches):
  *   ./run_mp.sh
- *   ./run_mp.sh --procs=16 --seconds=5 --ratio=100 --keys=20000 --vallen=64
- *   --backend=yac|apcu|memcached|all     run a single backend instead of all
+ *   ./run_mp.sh --procs=16 --seconds=5 --ratio=100 --keys=20000
+ *   --mixed=6,128                       value size classes in bytes (default)
+ *   --backend=yac|apcu|memcached|all    run a single backend instead of all
  */
 
 error_reporting(E_ALL);
@@ -31,47 +36,70 @@ $PROCS   = 16;      // number of concurrent worker processes
 $SECONDS = 5;       // how long each worker runs the mixed loop
 $RATIO   = 100;     // reads per write (100 => ~1 write per 100 reads)
 $KEYS    = 20000;   // shared key space; all workers hit the same keys (contention)
-$VALLEN  = 64;      // value size in bytes
 $BACKEND = 'all';
 $MC_HOST = '127.0.0.1';
 $MC_PORT = 11211;
+$MIXED   = [6, 128];    // value size classes in bytes: half short, half long
 
 foreach (array_slice($argv, 1) as $a) {
-    if (preg_match('/^--(procs|seconds|ratio|keys|vallen|backend|host|port)=(.+)$/', $a, $m)) {
+    if (preg_match('/^--(procs|seconds|ratio|keys|backend|host|port|mixed)=(.+)$/', $a, $m)) {
         switch ($m[1]) {
             case 'procs':   $PROCS   = max(1, (int)$m[2]); break;
             case 'seconds': $SECONDS = max(1, (int)$m[2]); break;
             case 'ratio':   $RATIO   = max(1, (int)$m[2]); break;
             case 'keys':    $KEYS    = (int)$m[2]; break;
-            case 'vallen':  $VALLEN  = (int)$m[2]; break;
             case 'backend': $BACKEND = $m[2]; break;
             case 'host':    $MC_HOST = $m[2]; break;
             case 'port':    $MC_PORT = (int)$m[2]; break;
+            case 'mixed':   $MIXED   = array_map('intval', explode(',', $m[2])); break;
         }
     }
 }
 if ($KEYS <= 0 || $PROCS <= 0) { fwrite(STDERR, "--keys/--procs must be > 0\n"); exit(2); }
+if (count($MIXED) < 1) { fwrite(STDERR, "--mixed needs at least one size\n"); exit(2); }
 if (!function_exists('pcntl_fork')) { fwrite(STDERR, "pcntl extension is required\n"); exit(2); }
 
 /* -----------------------------------------------------------------------
  * Pre-generate data in the parent. Workers inherit these by fork (read-only,
- * copy-on-write), so every worker sees the identical keys / value / access
+ * copy-on-write), so every worker sees the identical keys / values / access
  * sequence and no RNG cost falls inside the timed loop.
+ *
+ * Values are assembled from a pool of random 8-byte words: random enough to
+ * be realistic (no pathological repetition), still text-like. Compression is
+ * off in this benchmark, so the content only needs to be plausible.
  * --------------------------------------------------------------------- */
+mt_srand(20260806);
+
+$pool = [];
+for ($i = 0; $i < 256; $i++) {
+    $w = '';
+    for ($j = 0; $j < 8; $j++) { $w .= chr(mt_rand(97, 122)); }
+    $pool[] = $w;
+}
+
+function make_value(array $pool, int $len): string {
+    $words = max(1, intdiv($len + 7, 8));
+    $parts = [];
+    $n = count($pool);
+    for ($j = 0; $j < $words; $j++) { $parts[] = $pool[mt_rand(0, $n - 1)]; }
+    return substr(implode('', $parts), 0, $len);
+}
+
 $keys = [];
 for ($i = 0; $i < $KEYS; $i++) { $keys[] = "bench_key_$i"; }
-$value = str_pad('payload-' . str_repeat('x', 8), $VALLEN, 'v');
+$nclasses = count($MIXED);
+$values = [];
+for ($i = 0; $i < $KEYS; $i++) { $values[] = make_value($pool, $MIXED[$i % $nclasses]); }
 
 /* Pre-computed random key indices for the mixed loop. Fixed seed so all
  * backends use the exact same access pattern. */
-mt_srand(20260806);
 $IDX_N = 262144;                 // pool of random indices, cycled in the loop
 $idx = [];
 for ($i = 0; $i < $IDX_N; $i++) { $idx[] = mt_rand(0, $KEYS - 1); }
 
 printf(
-    "Multi-process mixed benchmark: procs=%d  duration=%ds  read:write=%d:1  keys=%d  vallen=%d\n",
-    $PROCS, $SECONDS, $RATIO, $KEYS, $VALLEN
+    "Multi-process mixed benchmark: procs=%d  duration=%ds  read:write=%d:1  keys=%d  mixed=%s bytes  compression=off\n",
+    $PROCS, $SECONDS, $RATIO, $KEYS, implode('/', $MIXED)
 );
 
 /**
@@ -82,7 +110,7 @@ printf(
  * unavailable (extension missing / CLI disabled / server down).
  */
 function run_backend(string $name, int $procs, int $seconds, int $ratio,
-                     array $keys, $value, array $idx,
+                     array $keys, array $values, array $idx,
                      string $host, int $port): ?array {
     $nkeys = count($keys);
 
@@ -96,13 +124,13 @@ function run_backend(string $name, int $procs, int $seconds, int $ratio,
         if ($info['slots_size'] < $nkeys) {
             fwrite(STDERR, "  [warn] Yac slots_size={$info['slots_size']} < keys=$nkeys; eviction will occur\n");
         }
-        for ($i = 0; $i < $nkeys; $i++) { $y->set($keys[$i], $value); }   // warm-up
+        for ($i = 0; $i < $nkeys; $i++) { $y->set($keys[$i], $values[$i]); }   // warm-up
 
     } elseif ($name === 'apcu') {
         if (!extension_loaded('apcu') ||
             !filter_var(ini_get('apc.enable_cli'), FILTER_VALIDATE_BOOL)) { return null; }
         apcu_clear_cache();
-        for ($i = 0; $i < $nkeys; $i++) { apcu_store($keys[$i], $value); } // warm-up
+        for ($i = 0; $i < $nkeys; $i++) { apcu_store($keys[$i], $values[$i]); } // warm-up
 
     } elseif ($name === 'memcached') {
         if (!extension_loaded('memcached')) { return null; }
@@ -112,7 +140,7 @@ function run_backend(string $name, int $procs, int $seconds, int $ratio,
         $m->set('__mp_probe__', 'x');
         if ($m->get('__mp_probe__') !== 'x') { return null; }
         $m->delete('__mp_probe__');
-        for ($i = 0; $i < $nkeys; $i++) { $m->set($keys[$i], $value); }    // warm-up
+        for ($i = 0; $i < $nkeys; $i++) { $m->set($keys[$i], $values[$i]); }    // warm-up
 
     } else {
         return null;
@@ -140,12 +168,15 @@ function run_backend(string $name, int $procs, int $seconds, int $ratio,
             $stride = $ratio + 1;            // one write every (ratio+1) ops
 
             /* Open-addressing backends reuse the handle inherited from the parent
-             * (shared memory); memcached needs its own connection per process. */
+             * (shared memory); memcached needs its own connection per process.
+             * Client-side compression is disabled so all backends store values
+             * as-is, matching Yac/APCu in this benchmark. */
             $m = null;
             if ($name === 'memcached') {
                 $m = new Memcached();
                 if (defined('Memcached::OPT_BINARY_PROTOCOL')) { $m->setOption(Memcached::OPT_BINARY_PROTOCOL, true); }
                 if (defined('Memcached::OPT_NO_BLOCK'))        { $m->setOption(Memcached::OPT_NO_BLOCK, true); }
+                if (defined('Memcached::OPT_COMPRESSION'))     { $m->setOption(Memcached::OPT_COMPRESSION, false); }
                 $m->addServer($host, $port);
             }
 
@@ -153,12 +184,13 @@ function run_backend(string $name, int $procs, int $seconds, int $ratio,
              * of microtime() is amortized and does not skew fast backends. */
             while (true) {
                 for ($b = 0; $b < 1024; $b++, $i++) {
-                    $k = $keys[$idx[$i % $idxN]];
+                    $ki = $idx[$i % $idxN];
+                    $k = $keys[$ki];
                     if ($i % $stride === 0) {
                         /* ---- write ---- */
-                        if ($name === 'yac')             { $y->set($k, $value); }
-                        elseif ($name === 'apcu')        { apcu_store($k, $value); }
-                        else                             { $m->set($k, $value); }
+                        if ($name === 'yac')             { $y->set($k, $values[$ki]); }
+                        elseif ($name === 'apcu')        { apcu_store($k, $values[$ki]); }
+                        else                             { $m->set($k, $values[$ki]); }
                         $writes++;
                     } else {
                         /* ---- read ---- */
@@ -211,7 +243,7 @@ $want = $BACKEND === 'all' ? ['yac', 'apcu', 'memcached'] : [$BACKEND];
 $results = []; $skipped = [];
 foreach ($want as $name) {
     echo "\n>>> $name\n";
-    $r = run_backend($name, $PROCS, $SECONDS, $RATIO, $keys, $value, $idx, $MC_HOST, $MC_PORT);
+    $r = run_backend($name, $PROCS, $SECONDS, $RATIO, $keys, $values, $idx, $MC_HOST, $MC_PORT);
     if ($r === null) {
         $skipped[$name] = 'extension not loaded / apc.enable_cli off / server unreachable';
         echo "  skipped\n";
