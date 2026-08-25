@@ -56,3 +56,19 @@ jobs:
           # x86 PHP CLI is capped at 128M, and yac's shared memory forbids
           # parallel workers anyway; run serially
           test-workers: 1
+      # run-tests.php on x86 dies at tests/043.phpt with a 4MB allocation;
+      # keep the failed test's evidence (.out/.exp/.diff) to see what the
+      # test actually produced before the runner crashed
+      - name: Upload test evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: x86-test-evidence-php${{ matrix.php }}-${{ matrix.ts }}
+          path: |
+            build/*/tests/*.out
+            build/*/tests/*.exp
+            build/*/tests/*.diff
+            build/*/tests/*.log
+            build/*/tests/*.php
+            build/*/tests/*.sh
+          if-no-files-found: ignore
