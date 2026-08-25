@@ -6,31 +6,6 @@ Yac is a shared and lockless memory user data cache for PHP.
 
 It can be used to replace APC or local memcached.
 
-## What's new in 2.4.0
-
-- **Embedded small values** — `NULL`, booleans, integers, strings up to 7
-  bytes and empty arrays are stored directly inside the slot: no value
-  allocation, no copy, no CRC. Typical caches hold a lot of these, so
-  small-value workloads get noticeably faster.
-- **LZ4 replaces FastLZ** — compresses faster and, more importantly,
-  decompresses several times faster, so enabling `yac.compress_threshold`
-  no longer costs read throughput.
-- **Leaner hot paths** — `update()` commits slot fields one by one instead of
-  copying the whole slot, and the slot spinlock backs off with CPU pause/yield
-  instructions to burn less CPU under contention.
-
-Behavior changes worth knowing:
-
-- `get()` gained an optional default argument: `get($key, $default)`
-  returns the default when the key is missing, so a miss can be told
-  apart from a stored `false` — see [Missing keys](#missing-keys).
-  Without it, `get()` keeps the historical behavior and returns `false`
-  on a miss.
-- Slots now track `atime` and per-entry hit counters (eviction picks the
-  least recently accessed entry), `flush()` no longer resets `start_time`,
-  and `dump()` gained `atime`/`hits`/`embedded`/`c_len` fields and an
-  `offset` parameter.
-
 ## When to use Yac
 
 Yac is a **lockless, shared memory cache**. It lives in the same process space as PHP (no network round-trip) and avoids coarse-grained locks — which means:
@@ -53,7 +28,7 @@ off. Numbers are aggregate ops/s across all workers:
 | Memcached | 97,644         | 275.2x        |
 
 Measures throughput, not consistency — see [When to use Yac](#when-to-use-yac).
-Environment and reproduction: [Benchmark details](#benchmark-details).
+Environment and reproduction: [bench/README.md](bench/README.md).
 
 ## Requirement
 
@@ -524,45 +499,6 @@ foreach ($yac->dump() as $entry) {
 - **Compression**: values exceeding `yac.compress_threshold` (or `YAC_STORAGE_MAX_ENTRY_LEN`) are compressed before storage — with **LZ4** since 2.4.0 (FastLZ in earlier releases). If compression would make a value *larger* (e.g. random or already-compressed data), `set()` fails with a warning instead of storing it.
 - **CRC32 acceleration**: If compiled on a CPU with SSE4.2 support, Yac uses the hardware `crc32` instruction for faster integrity checks. This is detected automatically at compile time (`./configure`).
 - **Shared memory**: Yac tries `mmap(MAP_ANON)` first, then `mmap(/dev/zero)`, then falls back to SysV IPC `shmget`. The chosen backend is determined at compile time.
-
-## Benchmark details
-
-**Workload.** Sixteen worker processes share one cache — mmap shared memory
-inherited across `fork()` for Yac/APCu (the same mechanism FPM workers use),
-per-process TCP connections for Memcached. Each worker runs an interleaved
-read/write loop for 5 seconds at a 100:1 read:write ratio; the cache is warmed
-up first so reads are hits. Numbers are aggregate ops/s across all 16 workers,
-measuring real contention behavior rather than single-process speed.
-
-The key space is split evenly across two value classes: **6-byte** values
-(small enough for Yac 2.4.0 to embed directly in the slot) and **128-byte**
-values. All values are random-looking text built from a shared pool of random
-words, and **compression is disabled** (`yac.compress_threshold` unset,
-Memcached's client-side `OPT_COMPRESSION` off) so every backend stores values
-as-is and the comparison measures raw cache mechanics.
-
-**Environment.** MacBook Pro (macOS 26.5, Apple M5 Pro, 15-core CPU), PHP 8.5,
-APCu 5.1.28, php-memcached 3.4.0, Memcached on 127.0.0.1:11211.
-`yac.keys_memory_size=32M`, `yac.values_memory_size=128M`, 20,000 shared keys.
-Results are stable across repeated runs.
-
-**Reproduction.**
-
-```bash
-make                                   # build modules/yac.so
-bench/run_mp.sh --procs=16 --seconds=5 --ratio=100
-```
-
-Also tunable: `--keys`, `--mixed=6,128`, `--backend=yac|apcu|memcached|all`.
-Unavailable backends (extension not loaded, Memcached not running) are skipped
-automatically.
-
-**Disclaimer.** These numbers were measured on one specific machine with one
-specific workload and are provided for rough orientation only. They are not a
-guarantee of performance: results vary with hardware, OS, PHP version and
-extensions, memory sizing, and your application's actual read/write ratio, key
-distribution and value sizes. Benchmark on your own hardware and workload
-before making capacity or architecture decisions.
 
 ## License
 
