@@ -18,17 +18,36 @@ yac.keys_memory_size=4M
 yac.values_memory_size=32M
 --FILE--
 <?php
-/* MurmurHash2, identical to yac_inline_hash_func1 (32-bit semantics) */
+/* MurmurHash2, identical to yac_inline_hash_func1. 32-bit safe: on builds
+ * where zend_long is 32 bits a full-width multiply overflows into a double
+ * (losing bits and raising "implicit float-to-int conversion" deprecations),
+ * so the multiply is decomposed into 16-bit partial products (each < 2^53,
+ * exact in doubles) and folded back into a signed 32-bit int. The shifts in
+ * murmur are logical (unsigned), which PHP only gives for free on
+ * non-negative ints, hence the lsr32() wrapper. */
+function imul32(int $a, int $b): int {
+    $al = $a & 0xFFFF; $ah = ($a >> 16) & 0xFFFF;
+    $bl = $b & 0xFFFF; $bh = ($b >> 16) & 0xFFFF;
+    $r = fmod($al * $bl + fmod($al * $bh + $ah * $bl, 65536.0) * 65536.0,
+              4294967296.0);
+    return $r >= 2147483648.0 ? (int)($r - 4294967296.0) : (int)$r;
+}
+
+function lsr32(int $v, int $n): int {
+    return $v >= 0 ? $v >> $n : (($v >> $n) & ((1 << (32 - $n)) - 1));
+}
+
 function murmur2(string $s): int {
+    $m = 0x5bd1e995;
     $len = strlen($s);
     $h = $len;
     $i = 0;
     while ($len >= 4) {
         $k = ord($s[$i]) | (ord($s[$i + 1]) << 8) | (ord($s[$i + 2]) << 16) | (ord($s[$i + 3]) << 24);
-        $k = (($k * 0x5bd1e995) & 0xffffffff);
-        $k ^= ($k >> 24);
-        $k = (($k * 0x5bd1e995) & 0xffffffff);
-        $h = (($h * 0x5bd1e995) & 0xffffffff);
+        $k = imul32($k, $m);
+        $k ^= lsr32($k, 24);
+        $k = imul32($k, $m);
+        $h = imul32($h, $m);
         $h ^= $k;
         $i += 4;
         $len -= 4;
@@ -36,12 +55,12 @@ function murmur2(string $s): int {
     switch ($len) {
         case 3: $h ^= ord($s[$i + 2]) << 16;
         case 2: $h ^= ord($s[$i + 1]) << 8;
-        case 1: $h ^= ord($s[$i]); $h = (($h * 0x5bd1e995) & 0xffffffff);
+        case 1: $h ^= ord($s[$i]); $h = imul32($h, $m);
     }
-    $h ^= ($h >> 13);
-    $h = (($h * 0x5bd1e995) & 0xffffffff);
-    $h ^= ($h >> 15);
-    return $h & 0xffffffff;
+    $h ^= lsr32($h, 13);
+    $h = imul32($h, $m);
+    $h ^= lsr32($h, 15);
+    return $h;
 }
 
 $yac = new Yac();
