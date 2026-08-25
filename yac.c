@@ -1131,6 +1131,7 @@ PHP_MINFO_FUNCTION(yac)
 #if YAC_ENABLE_JSON
 	smart_str_appends(&names, ", json");
 #endif
+	smart_str_0(&names);
 	php_info_print_table_row(2, "Serializer", ZSTR_VAL(names.s));
 	smart_str_free(&names);
 
