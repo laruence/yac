@@ -43,6 +43,9 @@ jobs:
           php-version: ${{ matrix.php-version }}
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
+          # x86 PHP CLI is capped at 128M; the default -j8 runner runs the
+          # whole suite out of memory on 32-bit builds
+          test-workers: ${{ matrix.arch == 'x86' && '1' || '4' }}
 
   release:
     runs-on: ubuntu-latest
