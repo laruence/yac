@@ -14,8 +14,8 @@ this test arranges by picking a key whose hash lands in slot 0.
 --INI--
 yac.enable=1
 yac.enable_cli=1
-yac.keys_memory_size=4M
-yac.values_memory_size=32M
+yac.keys_memory_size=1M
+yac.values_memory_size=4M
 --FILE--
 <?php
 /* MurmurHash2, identical to yac_inline_hash_func1 (32-bit semantics) */
@@ -51,7 +51,7 @@ $mask = $yac->info()["slots_size"] - 1;
 for ($i = 0; ; $i++) {
     $keeper = "keeper_$i";
     if ((murmur2($keeper) & $mask) === 0) break;
-    if ($i > 500000) die("keeper search failed");
+    if ($i > 50000) die("keeper search failed");
 }
 var_dump($yac->set($keeper, 1));
 
