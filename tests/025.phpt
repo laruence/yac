@@ -26,11 +26,11 @@ $cas2 = -1;
 $yac->get($key, $cas2);
 var_dump($cas2);             // -1 — still unchanged
 
-/* 3. get() for non-existent key - false return, second param unchanged */
+/* 3. get() for non-existent key - NULL return, second param unchanged */
 $yac->delete($key);
 $cas3 = -1;
 $ret = $yac->get($key, $cas3);
-var_dump($ret);              // false (key not found)
+var_dump($ret);              // NULL (key not found)
 var_dump($cas3);             // -1
 
 /* 4. array get with second param — value unchanged */
@@ -47,7 +47,7 @@ var_dump($cas_arr);          // -1
 string(7) "initial"
 int(-1)
 int(-1)
-bool(false)
+NULL
 int(-1)
 bool(true)
 string(2) "va"

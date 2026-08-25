@@ -22,7 +22,7 @@ var_dump($yac->get("c"));
 $batch2 = ["c" => "vc_new", "d" => "vd"];
 var_dump($yac->add($batch2)); /* false — "c" already exists */
 var_dump($yac->get("c"));     /* still "vc" */
-var_dump($yac->get("d"));     /* false — NOT added */
+var_dump($yac->get("d"));     /* NULL — NOT added */
 
 /* 3. batch add with TTL */
 $batch3 = ["e" => "ve", "f" => "vf"];
@@ -52,7 +52,7 @@ string(2) "vb"
 string(2) "vc"
 bool(false)
 string(2) "vc"
-bool(false)
+NULL
 bool(true)
 string(2) "ve"
 string(2) "vf"

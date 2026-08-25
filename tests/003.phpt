@@ -39,11 +39,11 @@ Warning: Yac::set(): Key 'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk' exc
 bool(false)
 
 Warning: Yac::get(): Key 'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk' exceed max key length '48' bytes in %s003.php on line %d
-bool(false)
+NULL
 
 Warning: Yac::set(): Key 'dummykkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk' exceed max key length '48' bytes in %s003.php on line %d
 bool(false)
 
 Warning: Yac::get(): Key 'dummykkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk' exceed max key length '48' bytes in %s003.php on line %d
-bool(false)
+NULL
 

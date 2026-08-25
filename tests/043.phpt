@@ -68,8 +68,8 @@ var_dump($yac->get(""));
 ?>
 --EXPECT--
 bool(true)
-bool(false)
+NULL
 bool(true)
 string(5) "empty"
 bool(true)
-bool(false)
+NULL

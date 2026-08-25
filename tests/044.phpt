@@ -110,7 +110,7 @@ bool(false)
 bool(false)
 int(123456789)
 bool(true)
-bool(false)
+NULL
 bool(true)
 string(1) "1"
-bool(false)
+NULL

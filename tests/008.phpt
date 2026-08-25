@@ -17,23 +17,23 @@ $value = true;
 
 $yac->set($key, $value);
 var_dump($yac->get($key));  //true
-var_dump($yac2->get($key)); //false
+var_dump($yac2->get($key)); //NULL
 var_dump($yac2->get("dummy_" . $key)); //true
 
 $yac2->delete($key);  //fail
 var_dump($yac->get($key));  //true
 
 $yac->delete($key); //okey
-var_dump($yac->get($key));  //false
+var_dump($yac->get($key));  //NULL
 
 $yac->set($key, $value);
 $yac2->delete("dummy_" . $key);  //okey
-var_dump($yac->get($key));  //false
+var_dump($yac->get($key));  //NULL
 ?>
 --EXPECTF--
 bool(true)
-bool(false)
+NULL
 bool(true)
 bool(true)
-bool(false)
-bool(false)
+NULL
+NULL

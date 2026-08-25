@@ -38,5 +38,5 @@ bool(false)
 bool(true)
 bool(true)
 bool(false)
-bool(false)
-bool(false)
+NULL
+NULL

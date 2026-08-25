@@ -22,7 +22,7 @@ for ($cycle = 0; $cycle < 100; $cycle++) {
 
         /* Read it back */
         $val = $yac->get($key);
-        if ($val !== false && $val !== "cycle_$cycle") {
+        if ($val !== null && $val !== "cycle_$cycle") {
             /* Dirty read: got a value from a different cycle */
             $errors++;
         }
@@ -32,7 +32,7 @@ for ($cycle = 0; $cycle < 100; $cycle++) {
 
         /* Read after delete */
         $after = $yac->get($key);
-        if ($after !== false) {
+        if ($after !== null) {
             /* Stale read after delete */
             $errors++;
         }

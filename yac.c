@@ -589,9 +589,6 @@ static zval* yac_get_multi_impl(yac_object *yac, zval *keys, zval *cas, zval *rv
 			case IS_STRING:
 				if ((v = yac_get_impl(yac, Z_STR_P(value), &lcas, &tmp))) {
 					zend_symtable_update(Z_ARRVAL_P(rv), Z_STR_P(value), v);
-				} else {
-					ZVAL_FALSE(&tmp);
-					zend_symtable_update(Z_ARRVAL_P(rv), Z_STR_P(value), &tmp);
 				}
 				continue;
 			default:
@@ -599,9 +596,6 @@ static zval* yac_get_multi_impl(yac_object *yac, zval *keys, zval *cas, zval *rv
 					zend_string *key = zval_get_string(value);
 					if ((v = yac_get_impl(yac, key, &lcas, &tmp))) {
 						zend_symtable_update(Z_ARRVAL_P(rv), key, v);
-					} else {
-						ZVAL_FALSE(&tmp);
-						zend_symtable_update(Z_ARRVAL_P(rv), key, &tmp);
 					}
 					zend_string_release(key);
 				}
@@ -804,7 +798,7 @@ PHP_METHOD(yac, get) {
 	}
 
 	if (ret == NULL) {
-		RETURN_FALSE;
+		RETURN_NULL();
 	}
 }
 /* }}} */

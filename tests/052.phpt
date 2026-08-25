@@ -142,7 +142,7 @@ foreach ($fkeys as $n => $fk) var_dump($yac->get($fk) === "filler_$n");
 --EXPECT--
 bool(true)
 bool(false)
-bool(false)
+NULL
 bool(true)
 bool(true)
 bool(true)

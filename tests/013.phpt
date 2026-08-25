@@ -15,4 +15,4 @@ sleep(2);
 var_dump($yac->get('test'));
 ?>
 --EXPECTF--
-bool(false)
+NULL

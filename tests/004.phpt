@@ -64,20 +64,20 @@ var_dump($yac->get("dl"));
 --EXPECTF--
 bool(true)
 string(5) "dummy"
-bool(false)
+NULL
 bool(true)
 string(5) "dummy"
 bool(true)
 string(5) "dummy"
-bool(false)
+NULL
 bool(true)
-bool(false)
+NULL
 bool(true)
-bool(false)
+NULL
 bool(true)
 string(5) "added"
 bool(true)
-bool(false)
+NULL
 string(2) "v2"
-bool(false)
+NULL
 string(3) "new"

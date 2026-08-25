@@ -35,11 +35,9 @@ string(5) "dummy"
 bool(true)
 string(5) "dummy"
 bool(true)
-array(2) {
+array(1) {
   [1]=>
   int(2)
-  [2]=>
-  bool(false)
 }
 
 %s error:%sObject of class stdClass could not be converted to string in %s005.php%A
