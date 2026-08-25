@@ -30,11 +30,11 @@ off. Numbers are aggregate ops/s across all workers:
 Measures throughput, not consistency — see [When to use Yac](#when-to-use-yac).
 Environment and reproduction: [bench/README.md](bench/README.md).
 
-## Requirement
+## Install
+
+### Requirement
 
 - PHP 7+
-
-## Install
 
 ### Install via PECL
 
