@@ -805,7 +805,7 @@ PHP_METHOD(yac, get) {
 		/* miss: return the caller-provided default when given, otherwise
 		 * false (the historical behavior) */
 		if (def) {
-			RETURN_COPY_VALUE(def);
+			RETURN_ZVAL(def, 1, 0);
 		}
 		RETURN_FALSE;
 	}
