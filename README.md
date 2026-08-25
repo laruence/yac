@@ -6,6 +6,52 @@ Yac is a shared and lockless memory user data cache for PHP.
 
 It can be used to replace APC or local memcached.
 
+## What's new in 2.4.0
+
+- **Embedded small values** — `NULL`, booleans, integers, strings up to 7
+  bytes and empty arrays are stored directly inside the slot: no value
+  allocation, no copy, no CRC. Typical caches hold a lot of these, so
+  small-value workloads get noticeably faster.
+- **LZ4 replaces FastLZ** — compresses faster and, more importantly,
+  decompresses several times faster, so enabling `yac.compress_threshold`
+  no longer costs read throughput.
+- **Leaner hot paths** — `update()` commits slot fields one by one instead of
+  copying the whole slot, and the slot spinlock backs off with CPU pause/yield
+  instructions to burn less CPU under contention.
+
+Behavior changes worth knowing:
+
+- `get()` returns `NULL` on a miss instead of `false`, so a miss is
+  distinguishable from a stored `false` — see [Missing keys](#missing-keys).
+- Slots now track `atime` and per-entry hit counters (eviction picks the
+  least recently accessed entry), `flush()` no longer resets `start_time`,
+  and `dump()` gained `atime`/`hits`/`embedded`/`c_len` fields and an
+  `offset` parameter.
+
+## When to use Yac
+
+Yac is a **lockless, shared memory cache**. It lives in the same process space as PHP (no network round-trip) and avoids coarse-grained locks — which means:
+
+- **Best for**: read-heavy workloads with large, relatively stable key sets — configuration, routing tables, precomputed data, HTML fragments — things you read far more often than you write. There is no global lock; arbitration is per-slot, so many worker processes can share one cache and throughput **scales with the worker count**, as long as writes are spread across keys (see [Benchmarks](#benchmarks)).
+- **Watch out for**: many processes writing the **same** key at once. That is the one case per-slot arbitration cannot parallelize away: under heavy same-key contention a `set()` can fail (it returns `false` — retry if the value matters), and readers see relaxed rather than strict read-your-writes consistency. If you need strong write consistency or atomic multi-key operations, use Redis or Memcached.
+
+It trades perfect consistency for raw speed. `get()` is essentially a hash lookup in shared memory — microsecond-level latency.
+
+## Benchmarks
+
+16 worker processes sharing one cache, mixed reads/writes at a 100:1 ratio.
+Half the keys hold 6-byte values, half hold 128-byte values; compression is
+off. Numbers are aggregate ops/s across all workers:
+
+| Backend   | Total ops/s    | Yac advantage |
+|-----------|----------------|---------------|
+| **Yac**   | **26,873,538** | —             |
+| APCu      | 1,185,523      | 22.7x         |
+| Memcached | 97,644         | 275.2x        |
+
+Measures throughput, not consistency — see [When to use Yac](#when-to-use-yac).
+Environment and reproduction: [Benchmark details](#benchmark-details).
+
 ## Requirement
 
 - PHP 7+
@@ -57,29 +103,6 @@ yac.enable_cli = 1
 ```
 
 Otherwise `new Yac()` will throw an exception.
-
-## When to use Yac
-
-Yac is a **lockless, shared memory cache**. It lives in the same process space as PHP (no network round-trip) and avoids coarse-grained locks — which means:
-
-- **Best for**: read-heavy workloads with large, relatively stable key sets — configuration, routing tables, precomputed data, HTML fragments — things you read far more often than you write. There is no global lock; arbitration is per-slot, so many worker processes can share one cache and throughput **scales with the worker count**, as long as writes are spread across keys (see [Benchmarks](#benchmarks)).
-- **Watch out for**: many processes writing the **same** key at once. That is the one case per-slot arbitration cannot parallelize away: under heavy same-key contention a `set()` can fail (it returns `false` — retry if the value matters), and readers see relaxed rather than strict read-your-writes consistency. If you need strong write consistency or atomic multi-key operations, use Redis or Memcached.
-
-It trades perfect consistency for raw speed. `get()` is essentially a hash lookup in shared memory — microsecond-level latency.
-
-## Benchmarks
-
-16 worker processes sharing one cache, mixed reads/writes at a 100:1 ratio
-(aggregate ops/s across all workers):
-
-| Backend   | Total ops/s    | Yac advantage |
-|-----------|----------------|---------------|
-| **Yac**   | **27,329,142** | —             |
-| APCu      | 1,096,357      | 24.9x         |
-| Memcached | 106,862        | 255.7x        |
-
-Measures throughput, not consistency — see [When to use Yac](#when-to-use-yac).
-Environment and reproduction: [Benchmark details](#benchmark-details).
 
 ## Note
 
@@ -438,14 +461,15 @@ Dump cache entries for debugging. Returns an array of entries, each containing:
 - `crc` — CRC32 checksum of the value payload; `0` for embedded entries
 - `ttl` — expiration timestamp (unix time); `0` means never expires
 - `k_len` — key length
-- `v_len` — value length (bytes)
+- `v_len` — value length in bytes; for compressed entries this is the length of the **original** (uncompressed) value
+- `c_len` — length of the compressed payload actually stored in shared memory, in bytes; present **only** for compressed entries (since Yac 2.4.0)
 - `size` — allocated size of the value block in shared memory (bytes); `0` for embedded entries
 - `atime` — last access time, updated on successful `get()`; the entry with the oldest `atime` among the candidate slots is evicted first (since Yac 2.4.0)
 - `hits` — per-entry hit counter, bumped on every successful `get()`; reset when the entry is overwritten, deleted or expires (since Yac 2.4.0)
 - `embedded` — whether the value is stored directly inside the slot (see below) (since Yac 2.4.0)
 - `key` — the cache key
 
-> **Note**: Before 2.4.0, `dump()` did not report `atime`, `hits` or `embedded` — these fields do not exist in older versions.
+> **Note**: Before 2.4.0, `dump()` did not report `atime`, `hits`, `embedded` or `c_len` — these fields do not exist in older versions — and `v_len` was the stored (compressed) length rather than the original value length.
 
 Small values are **embedded** in the slot itself instead of allocating a value
 block: `NULL`, booleans, small integers, strings up to 7 bytes and empty
@@ -471,9 +495,22 @@ foreach ($entries as $entry) {
 }
 ```
 
+`c_len` makes it easy to see how much compression saves per entry:
+
+```php
+<?php
+foreach ($yac->dump() as $entry) {
+    if (isset($entry["c_len"])) {
+        printf("%s: %d -> %d bytes (%.0f%% saved)\n",
+            $entry["key"], $entry["v_len"], $entry["c_len"],
+            100 - $entry["c_len"] / $entry["v_len"] * 100);
+    }
+}
+```
+
 ## Implementation Notes
 
-- **Compression**: Yac uses FastLZ for compression. Values exceeding `yac.compress_threshold` (or `YAC_STORAGE_MAX_ENTRY_LEN`) are compressed before storage.
+- **Compression**: values exceeding `yac.compress_threshold` (or `YAC_STORAGE_MAX_ENTRY_LEN`) are compressed before storage — with **LZ4** since 2.4.0 (FastLZ in earlier releases). If compression would make a value *larger* (e.g. random or already-compressed data), `set()` fails with a warning instead of storing it.
 - **CRC32 acceleration**: If compiled on a CPU with SSE4.2 support, Yac uses the hardware `crc32` instruction for faster integrity checks. This is detected automatically at compile time (`./configure`).
 - **Shared memory**: Yac tries `mmap(MAP_ANON)` first, then `mmap(/dev/zero)`, then falls back to SysV IPC `shmget`. The chosen backend is determined at compile time.
 
@@ -486,10 +523,17 @@ read/write loop for 5 seconds at a 100:1 read:write ratio; the cache is warmed
 up first so reads are hits. Numbers are aggregate ops/s across all 16 workers,
 measuring real contention behavior rather than single-process speed.
 
-**Environment.** MacBook Pro (macOS 26.5, Apple M5 Pro, 15-core CPU), PHP 8.5, 
-APCu 5.1.28, php-memcached 3.4.0, localMemcached on 127.0.0.1:11211. 
-`yac.keys_memory_size=32M`,`yac.values_memory_size=128M`, 20,000 shared keys, 
-64-byte values. Results are stable across repeated runs.
+The key space is split evenly across two value classes: **6-byte** values
+(small enough for Yac 2.4.0 to embed directly in the slot) and **128-byte**
+values. All values are random-looking text built from a shared pool of random
+words, and **compression is disabled** (`yac.compress_threshold` unset,
+Memcached's client-side `OPT_COMPRESSION` off) so every backend stores values
+as-is and the comparison measures raw cache mechanics.
+
+**Environment.** MacBook Pro (macOS 26.5, Apple M5 Pro, 15-core CPU), PHP 8.5,
+APCu 5.1.28, php-memcached 3.4.0, Memcached on 127.0.0.1:11211.
+`yac.keys_memory_size=32M`, `yac.values_memory_size=128M`, 20,000 shared keys.
+Results are stable across repeated runs.
 
 **Reproduction.**
 
@@ -498,7 +542,7 @@ make                                   # build modules/yac.so
 bench/run_mp.sh --procs=16 --seconds=5 --ratio=100
 ```
 
-Also tunable: `--keys`, `--vallen`, `--backend=yac|apcu|memcached|all`.
+Also tunable: `--keys`, `--mixed=6,128`, `--backend=yac|apcu|memcached|all`.
 Unavailable backends (extension not loaded, Memcached not running) are skipped
 automatically.
 
