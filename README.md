@@ -428,7 +428,7 @@ average.
 ### Yac::dump
 
 ```php
-Yac::dump([int $limit = 100]): array
+Yac::dump([int $limit = 100, [int $offset = 0]]): array
 ```
 
 Dump cache entries for debugging. Returns an array of entries, each containing:
@@ -454,6 +454,11 @@ and `size` are reported as `0`, while `atime` and `hits` are kept in the slot
 and remain meaningful.
 
 `$limit` controls the maximum number of entries returned (default 100). Passing `-1` dumps **all** entries — intended for debugging only: the whole result is materialized as a PHP array and can consume a lot of memory on a busy cache.
+
+`$offset` (since Yac 2.4.0) skips the first `$offset` occupied entries, so
+`dump($limit, $offset)` returns entries `$offset + 1` through `$offset +
+$limit`. If fewer than `$offset` entries exist (including an empty cache),
+an empty array is returned.
 
 > **Note**: Since `delete()` only marks entries expired (see [Yac::delete](#yacdelete)) and `dump()` is a raw scan of all occupied slots, **deleted or expired entries may still show up in the output**. To filter them out, check the `ttl` field: `ttl == 0` means never expires; a non-zero `ttl` that is less than the current time indicates an expired or deleted entry.
 

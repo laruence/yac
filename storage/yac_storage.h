@@ -190,7 +190,7 @@ void yac_storage_flush(void);
 const char * yac_storage_shared_memory_name(void);
 yac_storage_info * yac_storage_get_info(void);
 void yac_storage_free_info(yac_storage_info *info);
-yac_item_list * yac_storage_dump(unsigned int limit);
+yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset);
 void yac_storage_free_list(yac_item_list *list);
 
 #endif	/* YAC_STORAGE_H */

@@ -866,19 +866,19 @@ PHP_METHOD(yac, info) {
 }
 /* }}} */
 
-/** {{{ proto public Yac::dump(int $limit)
+/** {{{ proto public Yac::dump(int $limit, int $offset)
 */
 PHP_METHOD(yac, dump) {
-	long limit = 100;
+	zend_long limit = 100, offset = 0;
 	yac_item_list *list, *l;
 
 	array_init(return_value);
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|l", &limit) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|ll", &limit, &offset) == FAILURE) {
 		return;
 	}
 
-	list = l = yac_storage_dump(limit);
+	list = l = yac_storage_dump(limit, offset);
 	for (; l; l = l->next) {
 		zval item;
 		array_init(&item);
