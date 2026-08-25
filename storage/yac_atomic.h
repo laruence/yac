@@ -3,16 +3,15 @@
   | Yet Another Cache                                                    |
   +----------------------------------------------------------------------+
   | Copyright (c) 2013-2013 The PHP Group                                |
-  +----------------------------------------------------------------------+
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
   | available through the world-wide-web at the following url:           |
   | http://www.php.net/license/3_01.txt                                  |
   | If you did not receive a copy of the PHP license and are unable to   |
-  | obtain it through the world-wide-web, please send a note to          |
-  | license@php.net so we can mail you a copy immediately.               |
+  | obtain it through the world-wide-web at the following url:           |
+  | license@php.net.                                                     |
   +----------------------------------------------------------------------+
-  | Author: Xinchen Hui <laruence@php.net>                               |
+  | Authors: Xinchen Hui <laruence@php.net>                              |
   |         John Neo <nhf0424@gmail.com>                                 |
   +----------------------------------------------------------------------+
 */
@@ -22,6 +21,10 @@
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
+
+#if defined(_WIN32)
+# include <intrin.h>					/* _mm_pause() / __yield() */
 #endif
 
 #if HAVE_BUILTIN_ATOMIC
@@ -45,7 +48,26 @@ static inline int __yac_cas(unsigned int *lock, unsigned int old, unsigned int s
 /* FREE must be 0: yac_slot_unlock() uses __sync_lock_release(), which stores 0. */
 #define	YAC_SLOT_FREE    0x0
 #define	YAC_SLOT_LOCKED  0x1
-#define	YAC_CAS_MAX_SPIN 100
+#define	YAC_CAS_MAX_SPIN 30
+
+/* backoff hint for the spin loop: cuts power and the pipeline penalty
+ * of spinning on x86, and yields the SMT sibling's issue slots;
+ * a no-op on architectures without a hint instruction */
+static inline void yac_cpu_relax(void) {
+#if defined(_WIN32)
+# if defined(_M_X64) || defined(_M_IX86)
+	_mm_pause();
+# elif defined(_M_ARM64)
+	__yield();
+# endif
+#elif defined(__GNUC__) || defined(__clang__)
+# if defined(__x86_64__) || defined(__amd64__) || defined(__i386__)
+	__asm__ volatile ("pause" ::: "memory");
+# elif defined(__aarch64__)
+	__asm__ volatile ("yield" ::: "memory");
+# endif
+#endif
+}
 
 static inline int yac_slot_lock(unsigned int *me) {
 	int retry = 0;
@@ -53,6 +75,7 @@ static inline int yac_slot_lock(unsigned int *me) {
 		if (++retry == YAC_CAS_MAX_SPIN)  {
 			return 0;
 		}
+		yac_cpu_relax();
 	}
 	return 1;
 }
