@@ -156,21 +156,39 @@ typedef struct {
 	unsigned int recycles;
 } yac_storage_info;
 
+/* hot-path counters: bumped on every request; each is pinned to its own
+ * 64-byte cache line so concurrent increments from multiple workers do
+ * not bounce the line between cores. cold counters (write path only,
+ * low frequency) stay plain unsigned int and share a line */
+#if defined(_MSC_VER)
+# define YAC_ALIGNED_TO_CACHELINE __declspec(align(64))
+#else
+# define YAC_ALIGNED_TO_CACHELINE __attribute__((aligned(64)))
+#endif
+
+typedef YAC_ALIGNED_TO_CACHELINE unsigned long yac_hot_counter_t;
+
 typedef struct {
-	yac_kv_key  *slots;
-	unsigned int slots_mask;
+	yac_hot_counter_t hits;
+	yac_hot_counter_t miss;
+	yac_hot_counter_t kicks;
+	/* cold counters: bumped on the write path only */
 	unsigned int slots_num;
-	unsigned int slots_size;
 	unsigned int fails;
 	unsigned int recycles;
+} yac_storage_stats;
+
+typedef struct {
+	/* read-only after startup */
+	yac_kv_key  *slots;
+	unsigned int slots_mask;
+	unsigned int slots_size;
 	unsigned int segments_num;
 	unsigned int segments_num_mask;
-	unsigned long miss;
-	unsigned long kicks;
-	unsigned long hits;
 	unsigned long start_time;
 	yac_shared_segment **segments;
 	yac_shared_segment first_seg;
+	yac_storage_stats stats;
 } yac_storage_globals;
 
 extern yac_storage_globals *yac_storage;

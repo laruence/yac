@@ -126,7 +126,7 @@ do_alloc:
 			}
 		}
 		segment->pos = 0;
-		++YAC_SG(recycles);
+		YAC_ATOMIC_INC(YAC_SG(stats.recycles));
 		goto do_alloc;
 	}
 }
