@@ -871,7 +871,7 @@ PHP_METHOD(yac, info) {
 	add_assoc_long(return_value, "recycles", inf->recycles);
 	add_assoc_long(return_value, "start_time", inf->start_time);
 	add_assoc_long(return_value, "slots_size", inf->slots_size);
-	add_assoc_long(return_value, "slots_used", inf->slots_num);
+	add_assoc_long(return_value, "slots_used", inf->occupied);
 
 	yac_storage_free_info(inf);
 	return;
@@ -1158,7 +1158,7 @@ PHP_MINFO_FUNCTION(yac)
 		php_info_print_table_row(2, "Number of Segments (segment_num)", buf);
 		snprintf(buf, sizeof(buf), "%d", inf->slots_size);
 		php_info_print_table_row(2, "Total Slots Number(slots_size)", buf);
-		snprintf(buf, sizeof(buf), "%d", inf->slots_num);
+		snprintf(buf, sizeof(buf), "%d", inf->occupied);
 		php_info_print_table_row(2, "Total Used Slots(slots_num)", buf);
 		php_info_print_table_end();
 

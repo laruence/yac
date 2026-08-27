@@ -150,7 +150,7 @@ typedef struct {
 	unsigned long start_time;
 	unsigned int segments_num;
 	unsigned int segment_size;
-	unsigned int slots_num;
+	unsigned int occupied;
 	unsigned int slots_size;
 	unsigned int fails;
 	unsigned int recycles;
@@ -172,8 +172,13 @@ typedef struct {
 	yac_hot_counter_t hits;
 	yac_hot_counter_t miss;
 	yac_hot_counter_t kicks;
-	/* cold counters: bumped on the write path only */
-	unsigned int slots_num;
+	/* cold counters: bumped on the write path only.
+	 * occupied pairs with globals.slots_size (exposed together by info()
+	 * as slots_used/slots_size); it lives here because it is written on
+	 * every insert during warm-up and must not dirty the read-only
+	 * globals line. slots stay occupied even after delete() (which only
+	 * expires the entry) until an eviction replaces them */
+	unsigned int occupied;
 	unsigned int fails;
 	unsigned int recycles;
 } yac_storage_stats;

@@ -78,7 +78,7 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, char **msg) /* 
 
 	YAC_SG(slots_size) 	= real_size;
 	YAC_SG(slots_mask) 	= real_size - 1;
-	YAC_SG(stats.slots_num) = 0;
+	YAC_SG(stats.occupied) = 0;
 	YAC_SG(stats.fails)     = 0;
 	YAC_SG(stats.hits)      = 0;
 	YAC_SG(stats.miss)      = 0;
@@ -595,7 +595,7 @@ int yac_storage_update(const char *key, unsigned int len, char *data, unsigned i
 		return 0; /* add() must not overwrite a live entry */
 	}
 	if (k.val == NULL) {
-		++YAC_SG(stats.slots_num); /* this write occupies a new slot */
+		++YAC_SG(stats.occupied); /* this write occupies a new slot */
 	}
 
 	/* 4. fill the new value into k */
@@ -630,7 +630,7 @@ int yac_storage_update(const char *key, unsigned int len, char *data, unsigned i
 /* }}} */
 
 void yac_storage_flush(void) /* {{{ */ {
-	YAC_SG(stats.slots_num) = 0;
+	YAC_SG(stats.occupied) = 0;
 
 	memset((char *)YAC_SG(slots), 0, sizeof(yac_kv_key) * YAC_SG(slots_size));
 }
@@ -650,7 +650,7 @@ yac_storage_info * yac_storage_get_info(void) /* {{{ */ {
 	info->recycles = YAC_SG(stats.recycles);
 	info->start_time = YAC_SG(start_time);
 	info->slots_size = YAC_SG(slots_size);
-	info->slots_num = YAC_SG(stats.slots_num);
+	info->occupied = YAC_SG(stats.occupied);
 
 	return info;
 }
@@ -666,10 +666,10 @@ yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset) /* {{{
 	yac_item_list *item, *list = NULL;
 	unsigned int i = 0, n = 0, skipped = 0;
 
-	if (YAC_SG(stats.slots_num) == 0) {
+	if (YAC_SG(stats.occupied) == 0) {
 		return NULL;
 	}
-	for (; i < YAC_SG(slots_size) && n < YAC_SG(stats.slots_num) && n < limit; i++) {
+	for (; i < YAC_SG(slots_size) && n < YAC_SG(stats.occupied) && n < limit; i++) {
 		k = YAC_SG(slots)[i];
 		if (k.val == NULL) {
 			continue;
