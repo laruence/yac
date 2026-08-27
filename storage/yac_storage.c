@@ -411,7 +411,7 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 				*size = 0; /* the value word carries no metadata */
 				*flag = 0;
 				++p->u1.hits;
-				YAC_ATOMIC_INC(YAC_SG(stats.hits));
+				++YAC_SG(stats.hits);
 				return 1;
 			} else {
 				yac_kv_val v = *(k.val);
@@ -428,7 +428,7 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 					*size = YAC_KEY_VLEN(k);
 					*flag = k.u1.flag;
 					++k.val->hits;
-					YAC_ATOMIC_INC(YAC_SG(stats.hits));
+					++YAC_SG(stats.hits);
 					return 1;
 				}
 				USER_FREE(s);
@@ -440,7 +440,7 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 		h += seed & YAC_SG(slots_mask);
 	}
 
-	YAC_ATOMIC_INC(YAC_SG(stats.miss));
+	++YAC_SG(stats.miss);
 
 	return 0;
 }
@@ -517,12 +517,12 @@ static inline int yac_storage_fill_value(yac_kv_key *k, unsigned int len, char *
 			yac_kv_val *val;
 
 			if (!real_size) {
-				YAC_ATOMIC_INC(YAC_SG(stats.fails));
+				++YAC_SG(stats.fails);
 				return 0;
 			}
 			val = yac_allocator_raw_alloc(real_size, (int)hash);
 			if (val == NULL) {
-				YAC_ATOMIC_INC(YAC_SG(stats.fails));
+				++YAC_SG(stats.fails);
 				return 0;
 			}
 			k->val = val;
@@ -584,7 +584,7 @@ int yac_storage_update(const char *key, unsigned int len, char *data, unsigned i
 		}
 		k = *p;
 		READP(p);
-		YAC_ATOMIC_INC(YAC_SG(stats.kicks));
+		++YAC_SG(stats.kicks);
 	}
 
 	/* 3. k is the slot being overwritten. Only blocks can go stale;
@@ -595,7 +595,7 @@ int yac_storage_update(const char *key, unsigned int len, char *data, unsigned i
 		return 0; /* add() must not overwrite a live entry */
 	}
 	if (k.val == NULL) {
-		YAC_ATOMIC_INC(YAC_SG(stats.slots_num)); /* this write occupies a new slot */
+		++YAC_SG(stats.slots_num); /* this write occupies a new slot */
 	}
 
 	/* 4. fill the new value into k */

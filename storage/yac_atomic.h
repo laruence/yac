@@ -45,24 +45,6 @@ static inline int __yac_cas(unsigned int *lock, unsigned int old, unsigned int s
 #error No atomic CAS support: per-slot locking is mandatory for a shared-memory cache
 #endif
 
-/* atomic increment for the shared-memory statistics counters */
-#if HAVE_BUILTIN_ATOMIC
-#define	YAC_ATOMIC_INC(v) __sync_fetch_and_add(&(v), 1)
-#elif ( __amd64__ || __amd64 || __x86_64__ || __i386__ || __i386 )
-static inline void __yac_atomic_inc(volatile unsigned long *v) {
-#if defined(__x86_64__) || defined(__amd64__)
-	__asm__ volatile ( "lock;" "addq $1, %0" : "+m" (*v) :: "memory");
-#else
-	__asm__ volatile ( "lock;" "addl $1, %0" : "+m" (*v) :: "memory");
-#endif
-}
-#define	YAC_ATOMIC_INC(v) __yac_atomic_inc(&(v))
-#elif ZEND_WIN32
-#define	YAC_ATOMIC_INC(v) InterlockedIncrement((LONG volatile *)&(v))
-#else
-#error No atomic increment support
-#endif
-
 /* FREE must be 0: yac_slot_unlock() uses __sync_lock_release(), which stores 0. */
 #define	YAC_SLOT_FREE    0x0
 #define	YAC_SLOT_LOCKED  0x1
