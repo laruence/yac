@@ -119,6 +119,15 @@ typedef struct {
 #define YAC_EMBED_STR_LEN(p)        ((unsigned int)((((uintptr_t)(p)) >> 3) & 0x7))
 #define YAC_EMBED_STR_DATA(p)       (((uintptr_t)(p)) >> 6)
 
+#define YAC_HASH_HOME(hash, mask)    ((hash) & (mask))
+/* odd, never zero: coprime with the power-of-two slot count, so a probe
+ * walk visits distinct slots */
+#define YAC_HASH_STRIDE(hash, mask)  (((((hash) >> 32) ^ ((hash) >> 16) ^ (hash)) & (mask)) | 1)
+/* slot.h is an unsigned long (32-bit on 32-bit builds): store and
+ * compare the low bits explicitly; the key memcmp stays authoritative */
+#define YAC_HASH_STORE(hash)         ((unsigned long)(hash))
+#define YAC_HASH_MATCH(k, hash)      ((unsigned long)(hash) == (k).h)
+
 typedef struct _yac_item_list {
 	unsigned int index;
 	unsigned long h;

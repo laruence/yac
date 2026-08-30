@@ -144,15 +144,6 @@ static inline uint64_t yac_hash(const char *data, unsigned int len) {
 }
 /* }}} */
 
-#define YAC_HASH_HOME(hash, mask)    ((hash) & (mask))
-/* odd, never zero: coprime with the power-of-two slot count, so a probe
- * walk visits distinct slots */
-#define YAC_HASH_STRIDE(hash, mask)  (((((hash) >> 32) ^ ((hash) >> 16) ^ (hash)) & (mask)) | 1)
-/* slot.h is an unsigned long (32-bit on 32-bit builds): store and
- * compare the low bits explicitly; the key memcmp stays authoritative */
-#define YAC_HASH_STORE(hash)         ((unsigned long)(hash))
-#define YAC_HASH_MATCH(k, hash)      ((unsigned long)(hash) == (k).h)
-
 /* {{{  COPYRIGHT (C) 1986 Gary S. Brown.  You may use this program, or
  *  code or tables extracted from it, as desired without restriction.
  *
