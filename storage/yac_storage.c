@@ -432,10 +432,9 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 					return 1;
 				}
 				USER_FREE(s);
-				/* guarders rejected the block: it was recycled or corrupted
-				 * behind our back. tombstone it so pick_victim prefers it on
-				 * the next eviction; re-lock and confirm val is unchanged, a
-				 * concurrent writer may have replaced the entry meanwhile */
+				/* guarders rejected the block: recycled or corrupted
+				 * behind our back. tombstone it; re-check val under the
+				 * lock — a concurrent writer may have replaced the entry */
 				if (WRITEP(p)) {
 					if (p->val == k.val) {
 						p->ttl = 1;
@@ -494,7 +493,7 @@ static inline uint32_t yac_storage_pick_victim(yac_kv_key **paths, unsigned long
 	 * and the closer it sits to the home slot the shorter every future
 	 * lookup of the new key */
 	yac_kv_key c;
-	unsigned long atime, oldest = -1;
+	unsigned long atime, oldest;
 	uint32_t victim = 0, j;
 
 	for (j = 0; j < 4; j++) {
@@ -504,6 +503,13 @@ static inline uint32_t yac_storage_pick_victim(yac_kv_key **paths, unsigned long
 		if (c.ttl && c.ttl <= tv) {
 			return j;
 		}
+	}
+
+	/* nothing expired: evict the least recently used; ties keep the
+	 * earliest probe */
+	oldest = (unsigned long)-1;
+	for (j = 0; j < 4; j++) {
+		c = *paths[j];
 		atime = YAC_KV_ATIME(c);
 		if (atime < oldest) {
 			oldest = atime;

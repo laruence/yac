@@ -69,6 +69,20 @@ static inline void yac_cpu_relax(void) {
 #endif
 }
 
+static inline void yac_prefetch(const void *p) {
+#if defined(__GNUC__) || defined(__clang__)
+	/* locality 3 (keep in all levels): the block header is read within a
+	 * few instructions, so it must land in L1 to be useful */
+	__builtin_prefetch(p, 0, 3);
+#elif defined(_WIN32) && (defined(_M_X64) || defined(_M_IX86) || defined(_M_ARM64))
+# if defined(_M_ARM64)
+	__prefetch(p);
+# else
+	_mm_prefetch((const char *)p, _MM_HINT_T0);
+# endif
+#endif
+}
+
 static inline int yac_slot_lock(unsigned int *me) {
 	int retry = 0;
 	while (!YAC_CAS(me, YAC_SLOT_FREE, YAC_SLOT_LOCKED)) {
