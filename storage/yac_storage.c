@@ -96,107 +96,62 @@ void yac_storage_shutdown(void) /* {{{ */ {
 }
 /* }}} */
 
-/* {{{ MurmurHash2 (Austin Appleby) */
-static inline uint64_t yac_inline_hash_func1(const char *data, unsigned int len) {
-    unsigned int h, k;
-
-    h = 0 ^ len;
-
-    while (len >= 4) {
-        k  = data[0];
-        k |= data[1] << 8;
-        k |= data[2] << 16;
-        k |= data[3] << 24;
-
-        k *= 0x5bd1e995;
-        k ^= k >> 24;
-        k *= 0x5bd1e995;
-
-        h *= 0x5bd1e995;
-        h ^= k;
-
-        data += 4;
-        len -= 4;
-    }
-
-    switch (len) {
-    case 3:
-        h ^= data[2] << 16;
-    case 2:
-        h ^= data[1] << 8;
-    case 1:
-        h ^= data[0];
-        h *= 0x5bd1e995;
-    }
-
-    h ^= h >> 13;
-    h *= 0x5bd1e995;
-    h ^= h >> 15;
-
-    return h;
-}
-/* }}} */
-
-/* {{{ DJBX33A (Daniel J. Bernstein, Times 33 with Addition)
+/* {{{ MurmurHash64A (Austin Appleby, public domain).
  *
- * This is Daniel J. Bernstein's popular `times 33' hash function as
- * posted by him years ago on comp->lang.c. It basically uses a function
- * like ``hash(i) = hash(i-1) * 33 + str[i]''. This is one of the best
- * known hash functions for strings. Because it is both computed very
- * fast and distributes very well.
- *
- * The magic of number 33, i.e. why it works better than many other
- * constants, prime or not, has never been adequately explained by
- * anyone. So I try an explanation: if one experimentally tests all
- * multipliers between 1 and 256 (as RSE did now) one detects that even
- * numbers are not useable at all. The remaining 128 odd numbers
- * (except for the number 1) work more or less all equally well. They
- * all distribute in an acceptable way and this way fill a hash table
- * with an average percent of approx. 86%.
- *
- * If one compares the Chi^2 values of the variants, the number 33 not
- * even has the best value. But the number 33 and a few other equally
- * good numbers like 17, 31, 63, 127 and 129 have nevertheless a great
- * advantage to the remaining numbers in the large set of possible
- * multipliers: their multiply operation can be replaced by a faster
- * operation based on just one shift plus either a single addition
- * or subtraction operation. And because a hash function has to both
- * distribute good _and_ has to be very fast to compute, those few
- * numbers should be preferred and seems to be the reason why Daniel J.
- * Bernstein also preferred it.
- *
- *
- *                  -- Ralf S. Engelschall <rse@engelschall.com>
- */
+ * one pass over the key; the 64-bit result is split for the probe
+ * scheme: the low bits pick the home slot (YAC_HASH_HOME), a fold of the
+ * upper half gives the probe stride (YAC_HASH_STRIDE) — odd, so coprime
+ * with the power-of-two slot count and never zero, hence the probe walk
+ * always advances and cannot cycle within a single slot. keys are bounded
+ * by YAC_STORAGE_MAX_KEY_LEN (48 bytes): at most six 8-byte rounds. the
+ * empty key hashes to 0, which is safe because find() rejects empty
+ * slots (val == NULL) before comparing hashes */
+static inline uint64_t yac_hash(const char *data, unsigned int len) {
+	const uint64_t m = 0xc6a4a7935bd1e995ULL;
+	uint64_t h = (uint64_t)len * m;
 
-static inline uint64_t yac_inline_hash_func2(const char *key, uint32_t len) {
-	register uint64_t hash = 5381;
+	while (len >= 8) {
+		uint64_t k;
 
-	/* variant with the hash unrolled eight times */
-	for (; len >= 8; len -= 8) {
-		hash = ((hash << 5) + hash) + *key++;
-		hash = ((hash << 5) + hash) + *key++;
-		hash = ((hash << 5) + hash) + *key++;
-		hash = ((hash << 5) + hash) + *key++;
-		hash = ((hash << 5) + hash) + *key++;
-		hash = ((hash << 5) + hash) + *key++;
-		hash = ((hash << 5) + hash) + *key++;
-		hash = ((hash << 5) + hash) + *key++;
+		memcpy(&k, data, 8); /* keys may be unaligned */
+		k *= m;
+		k ^= k >> 47;
+		k *= m;
+
+		h ^= k;
+		h *= m;
+
+		data += 8;
+		len -= 8;
 	}
+
 	switch (len) {
-		case 7: hash = ((hash << 5) + hash) + *key++; /* fallthrough... */
-		case 6: hash = ((hash << 5) + hash) + *key++; /* fallthrough... */
-		case 5: hash = ((hash << 5) + hash) + *key++; /* fallthrough... */
-		case 4: hash = ((hash << 5) + hash) + *key++; /* fallthrough... */
-		case 3: hash = ((hash << 5) + hash) + *key++; /* fallthrough... */
-		case 2: hash = ((hash << 5) + hash) + *key++; /* fallthrough... */
-		case 1: hash = ((hash << 5) + hash) + *key++; break;
-		case 0: break;
-		default: break;
+	case 7: h ^= (uint64_t)(unsigned char)data[6] << 48;
+	case 6: h ^= (uint64_t)(unsigned char)data[5] << 40;
+	case 5: h ^= (uint64_t)(unsigned char)data[4] << 32;
+	case 4: h ^= (uint64_t)(unsigned char)data[3] << 24;
+	case 3: h ^= (uint64_t)(unsigned char)data[2] << 16;
+	case 2: h ^= (uint64_t)(unsigned char)data[1] << 8;
+	case 1: h ^= (uint64_t)(unsigned char)data[0];
+		h *= m;
 	}
-	return hash;
+
+	h ^= h >> 47;
+	h *= m;
+	h ^= h >> 47;
+
+	return h;
 }
 /* }}} */
+
+#define YAC_HASH_HOME(hash, mask)    ((hash) & (mask))
+/* odd, never zero: coprime with the power-of-two slot count, so a probe
+ * walk visits distinct slots */
+#define YAC_HASH_STRIDE(hash, mask)  (((((hash) >> 32) ^ ((hash) >> 16) ^ (hash)) & (mask)) | 1)
+/* slot.h is an unsigned long (32-bit on 32-bit builds): store and
+ * compare the low bits explicitly; the key memcmp stays authoritative */
+#define YAC_HASH_STORE(hash)         ((unsigned long)(hash))
+#define YAC_HASH_MATCH(k, hash)      ((unsigned long)(hash) == (k).h)
 
 /* {{{  COPYRIGHT (C) 1986 Gary S. Brown.  You may use this program, or
  *  code or tables extracted from it, as desired without restriction.
@@ -379,14 +334,15 @@ static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
 /* }}} */
 
 int yac_storage_find(const char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas, unsigned long tv) /* {{{ */ {
-	uint64_t h, hash, seed;
+	uint64_t h, hash, stride;
 	uint32_t i;
 	yac_kv_key k, *p;
 
-	hash = yac_inline_hash_func1(key, len);
-	h = hash;
+	hash = yac_hash(key, len);
+	h = YAC_HASH_HOME(hash, YAC_SG(slots_mask));
+	stride = YAC_HASH_STRIDE(hash, YAC_SG(slots_mask));
 	for (i = 0; i < 4; i++) {
-		p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
+		p = &(YAC_SG(slots)[h]);
 		if (!WRITEP(p)) {
 			break;
 		}
@@ -397,7 +353,7 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 			 * so the key cannot exist beyond this point */
 			break;
 		}
-		if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp(k.key, key, len)) {
+		if (YAC_HASH_MATCH(k, hash) && YAC_KEY_KLEN(k) == len && !memcmp(k.key, key, len)) {
 			if (k.ttl && k.ttl <= tv) {
 				break; /* expired */
 			}
@@ -443,10 +399,7 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 				}
 			}
 		}
-		if (i == 0) {
-			seed = yac_inline_hash_func2(key, len); /* first probe missed */
-		}
-		h += seed & YAC_SG(slots_mask);
+		h = (h + stride) & YAC_SG(slots_mask);
 	}
 
 	++YAC_SG(stats.miss);
@@ -456,14 +409,15 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 /* }}} */
 
 int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long tv) /* {{{ */ {
-	uint64_t h, hash, seed;
+	uint64_t h, hash, stride;
 	uint32_t i;
 	yac_kv_key k, *p;
 
-	hash = yac_inline_hash_func1(key, len);
-	h = hash;
+	hash = yac_hash(key, len);
+	h = YAC_HASH_HOME(hash, YAC_SG(slots_mask));
+	stride = YAC_HASH_STRIDE(hash, YAC_SG(slots_mask));
 	for (i = 0; i < 4; i++) {
-		p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
+		p = &(YAC_SG(slots)[h]);
 		if (!WRITEP(p)) {
 			return 0;
 		}
@@ -472,14 +426,11 @@ int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long
 		if (k.val == NULL) {
 			return 0; /* the key was never stored */
 		}
-		if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
+		if (YAC_HASH_MATCH(k, hash) && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
 			p->ttl = ttl ? ttl + tv : 1;
 			return 1;
 		}
-		if (i == 0) {
-			seed = yac_inline_hash_func2(key, len); /* first probe missed */
-		}
-		h += seed & YAC_SG(slots_mask);
+		h = (h + stride) & YAC_SG(slots_mask);
 	}
 
 	return 0;
@@ -563,19 +514,20 @@ static inline int yac_storage_fill_value(yac_kv_key *k, unsigned int len, char *
 /* }}} */
 
 int yac_storage_update(const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add, unsigned long tv) /* {{{ */ {
-	uint64_t h, hash, seed;
+	uint64_t h, hash, stride;
 	uint32_t i;
 	yac_kv_key k, *p, *paths[4];
 	int found = 0, is_valid;
 
-	hash = yac_inline_hash_func1(key, len);
+	hash = yac_hash(key, len);
+	stride = YAC_HASH_STRIDE(hash, YAC_SG(slots_mask));
 
 	/* 1. walk the key's probe path (up to 4 slots) looking for the key
 	 * itself or an empty slot; if all 4 are taken, remember the whole
 	 * path and evict from it */
-	h = hash;
+	h = YAC_HASH_HOME(hash, YAC_SG(slots_mask));
 	for (i = 0; i < 4; i++) {
-		paths[i] = p = &(YAC_SG(slots)[h & YAC_SG(slots_mask)]);
+		paths[i] = p = &(YAC_SG(slots)[h]);
 		if (!WRITEP(p)) {
 			return 0;
 		}
@@ -584,14 +536,11 @@ int yac_storage_update(const char *key, unsigned int len, char *data, unsigned i
 		if (k.val == NULL) {
 			break; /* an insert takes the first empty slot on the path */
 		}
-		if (k.h == hash && YAC_KEY_KLEN(k) == len && !memcmp(k.key, key, len)) {
+		if (YAC_HASH_MATCH(k, hash) && YAC_KEY_KLEN(k) == len && !memcmp(k.key, key, len)) {
 			found = 1;
 			break; /* k holds the entry being updated */
 		}
-		if (i == 0) {
-			seed = yac_inline_hash_func2(key, len);
-		}
-		h += seed & YAC_SG(slots_mask);
+		h = (h + stride) & YAC_SG(slots_mask);
 	}
 
 	/* 2. path full: overwrite the victim chosen by pick_victim */
@@ -627,7 +576,7 @@ int yac_storage_update(const char *key, unsigned int len, char *data, unsigned i
 	 * whole-slot copy would re-publish the stale union bytes grabbed in
 	 * step 1 over lock-free statistics updates or a concurrent
 	 * writer's freshly written crc/size */
-	k.h = hash;
+	k.h = YAC_HASH_STORE(hash);
 	k.ttl = ttl ? tv + ttl : 0;
 	memcpy(k.key, key, len);
 	YAC_KEY_SET_LEN(k, len, size);

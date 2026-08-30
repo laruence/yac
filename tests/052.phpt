@@ -2,13 +2,17 @@
 Yac::delete misses when the whole probe chain is occupied
 --DESCRIPTION--
 Both find() and delete() probe at most 4 slots (home slot plus 3 steps of
-the secondary hash). When all four slots are occupied by other keys,
+the stride hash). When all four slots are occupied by other keys,
 delete() must scan the full chain and return false without touching the
-colliding entries. The test reconstructs yac's hash functions in PHP,
-discovers the slot count from dump() indices, then searches for a key
-whose four probe slots are all fillable.
+colliding entries. The test reconstructs yac's hash in PHP (MurmurHash64A
+with 16-bit-limb multiplication, since PHP promotes overflowing int
+products to floats), discovers the slot count from info(), then searches
+for a key whose four probe slots are all fillable.
 --SKIPIF--
-<?php if (!extension_loaded("yac")) print "skip"; ?>
+<?php
+if (!extension_loaded("yac")) print "skip";
+if (PHP_INT_SIZE < 8) print "skip"; /* the replica assumes 64-bit ints */
+?>
 --INI--
 yac.enable=1
 yac.enable_cli=1
@@ -16,103 +20,92 @@ yac.keys_memory_size=4M
 yac.values_memory_size=32M
 --FILE--
 <?php
-/* 32-bit-safe helpers: on builds where zend_long is 32 bits, full-width
- * int multiplications would overflow into doubles and lose bits, so the
- * multiply is decomposed into 16-bit partial products (each < 2^53, exact
- * in doubles) and the result is folded back into a signed 32-bit int.
- * The shifts in murmur are logical (unsigned), which PHP only gives for
- * free on non-negative ints, hence the lsr32() wrapper. */
-function imul32(int $a, int $b): int {
-    $al = $a & 0xFFFF; $ah = ($a >> 16) & 0xFFFF;
-    $bl = $b & 0xFFFF; $bh = ($b >> 16) & 0xFFFF;
-    $r = fmod($al * $bl + fmod($al * $bh + $ah * $bl, 65536.0) * 65536.0,
-              4294967296.0);
-    return $r >= 2147483648.0 ? (int)($r - 4294967296.0) : (int)$r;
+/* PHP replica of yac_hash (MurmurHash64A) and its home/stride split.
+ * 64-bit multiplies are done as 16-bit-limb schoolbook products (each
+ * intermediate below 2^34, exact in a PHP int). */
+function mul64(int $alo, int $ahi, int $blo, int $bhi): array {
+    $a0 = $alo & 0xFFFF; $a1 = ($alo >> 16) & 0xFFFF;
+    $a2 = $ahi & 0xFFFF; $a3 = ($ahi >> 16) & 0xFFFF;
+    $b0 = $blo & 0xFFFF; $b1 = ($blo >> 16) & 0xFFFF;
+    $b2 = $bhi & 0xFFFF; $b3 = ($bhi >> 16) & 0xFFFF;
+    $p0 = $a0 * $b0;
+    $p1 = $a0 * $b1 + $a1 * $b0;
+    $p2 = $a0 * $b2 + $a1 * $b1 + $a2 * $b0;
+    $p3 = $a0 * $b3 + $a1 * $b2 + $a2 * $b1 + $a3 * $b0;
+    $d1 = ($p0 >> 16) + $p1;
+    $d2 = ($d1 >> 16) + $p2;
+    $d3 = ($d2 >> 16) + $p3;
+    return [(($p0 & 0xFFFF) | (($d1 & 0xFFFF) << 16)),
+            (($d2 & 0xFFFF) | (($d3 & 0xFFFF) << 16))];
 }
 
-function lsr32(int $v, int $n): int {
-    return $v >= 0 ? $v >> $n : (($v >> $n) & ((1 << (32 - $n)) - 1));
+function xor64(array $a, array $b): array { return [$a[0] ^ $b[0], $a[1] ^ $b[1]]; }
+
+function shr64(array $a, int $n): array {
+    if ($n >= 32) return [$a[1] >> ($n - 32), 0];
+    return [(($a[0] >> $n) | (($a[1] << (32 - $n)) & 0xFFFFFFFF)), $a[1] >> $n];
 }
 
-/* replica of yac_inline_hash_func1 (MurmurHash2, 32-bit) */
-function murmur(string $data): int {
-    $m = 0x5bd1e995;
-    $len = strlen($data);
-    $h = $len;
+function yac_hash(string $s): array {
+    $h = mul64(strlen($s), 0, 0x5bd1e995, 0xc6a4a793); /* h = len * m */
+    $len = strlen($s);
     $i = 0;
-    while ($len - $i >= 4) {
-        $k = ord($data[$i]) | (ord($data[$i+1]) << 8)
-           | (ord($data[$i+2]) << 16) | (ord($data[$i+3]) << 24);
-        $k = imul32($k, $m);
-        $k ^= lsr32($k, 24);
-        $k = imul32($k, $m);
-        $h = imul32($h, $m);
-        $h ^= $k;
-        $i += 4;
+    while ($len - $i >= 8) {
+        $klo = ord($s[$i]) | (ord($s[$i+1]) << 8) | (ord($s[$i+2]) << 16) | (ord($s[$i+3]) << 24);
+        $khi = ord($s[$i+4]) | (ord($s[$i+5]) << 8) | (ord($s[$i+6]) << 16) | (ord($s[$i+7]) << 24);
+        $k = mul64($klo, $khi, 0x5bd1e995, 0xc6a4a793);
+        $k = xor64($k, shr64($k, 47));
+        $k = mul64($k[0], $k[1], 0x5bd1e995, 0xc6a4a793);
+        $h = xor64($h, $k);
+        $h = mul64($h[0], $h[1], 0x5bd1e995, 0xc6a4a793);
+        $i += 8;
     }
     $rem = $len - $i;
-    if ($rem >= 3) $h ^= ord($data[$i+2]) << 16;
-    if ($rem >= 2) $h ^= ord($data[$i+1]) << 8;
-    if ($rem >= 1) { $h ^= ord($data[$i]); $h = imul32($h, $m); }
-    $h ^= lsr32($h, 13);
-    $h = imul32($h, $m);
-    $h ^= lsr32($h, 15);
-    return $h;
+    for ($j = $rem - 1; $j >= 0; $j--) { /* tail: xor bytes high to low (case fallthrough) */
+        $v = ord($s[$i + $j]);
+        $sh = $j * 8;
+        if ($sh < 32) $h = [$h[0] ^ ($v << $sh), $h[1]];
+        else          $h = [$h[0], $h[1] ^ ($v << ($sh - 32))];
+    }
+    if ($rem > 0) $h = mul64($h[0], $h[1], 0x5bd1e995, 0xc6a4a793);
+    $h = xor64($h, shr64($h, 47));
+    $h = mul64($h[0], $h[1], 0x5bd1e995, 0xc6a4a793);
+    return xor64($h, shr64($h, 47));
 }
 
-/* yac_inline_hash_func2 (DJBX33A) reduced mod $mod each step; only the low
-   bits are ever used by the storage layer (seed & slots_mask), and $mod is
-   a power of two, so the reduction is exact. Accumulate in doubles:
-   $h < $mod <= 2^26 keeps $h * 33 + c < 2^53, which is exact on every
-   build, unlike a zend_long accumulation on 32-bit platforms */
-function djb2mod(string $key, int $mod): int {
-    $h = 5381 % $mod;
-    $n = strlen($key);
-    for ($i = 0; $i < $n; $i++) {
-        $h = fmod($h * 33.0 + ord($key[$i]), $mod);
+/* the 4-slot probe path the storage layer walks for this key */
+function probe_path(string $key, int $mask): array {
+    $h = yac_hash($key);
+    $x2 = (($h[0] >> 16) | (($h[1] << 16) & 0xFFFFFFFF)); /* hash >> 16 */
+    $stride = ((($h[1] ^ $x2 ^ $h[0]) & $mask)) | 1;
+    $path = array();
+    $pos = $h[0] & $mask;
+    for ($j = 0; $j < 4; $j++) {
+        $path[] = $pos;
+        $pos = ($pos + $stride) & $mask;
     }
-    return (int)$h;
+    return $path;
 }
 
 $yac = new Yac();
-
-/* discover the slot count: store a few keys and find the power-of-two
-   size consistent with every observed dump() index */
-$probe = array("probe_one", "probe_two", "probe_three", "probe_four");
-foreach ($probe as $k) $yac->set($k, 1);
-$idx = array();
-foreach ($yac->dump() as $item) {
-    if (in_array($item["key"], $probe, true)) $idx[$item["key"]] = $item["index"];
-}
-$S = 0;
-for ($p = 10; $p <= 26; $p++) {
-    $cand = 1 << $p;
-    $ok = true;
-    foreach ($idx as $k => $i) {
-        if ((murmur($k) & ($cand - 1)) !== $i) { $ok = false; break; }
-    }
-    if ($ok) { $S = $cand; break; }
-}
-if (!$S) die("could not discover slot count");
+$S = $yac->info()["slots_size"];
 $mask = $S - 1;
-$yac->flush();
 
-/* build a slot -> filler-key map */
+/* build a slot -> filler-key map: one key per slot, inserted in no
+   particular order, so each filler really lands on its own home slot */
 $byslot = array();
 for ($i = 0; $i < 100000; $i++) {
     $k = sprintf("fill%06d", $i);
-    $slot = murmur($k) & $mask;
+    $slot = probe_path($k, $mask)[0];
     if (!isset($byslot[$slot])) $byslot[$slot] = $k;
 }
 
-/* find an absent key whose home slot and three secondary probes are all
+/* find an absent key whose home slot and three stride probes are all
    occupied by fillers */
 $miss = null; $fkeys = array();
 for ($i = 0; $i < 100000; $i++) {
     $k = "miss" . $i;
-    $b = murmur($k) & $mask;
-    $d = djb2mod($k, $S);
-    $need = array($b, ($b + $d) & $mask, ($b + 2 * $d) & $mask, ($b + 3 * $d) & $mask);
+    $need = probe_path($k, $mask);
     $f = array();
     foreach ($need as $slot) {
         if (!isset($byslot[$slot])) continue 2;
