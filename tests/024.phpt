@@ -1,5 +1,13 @@
 --TEST--
 Check for yac key reused
+--DESCRIPTION--
+Eviction tie-break regression. The keys memory is only 1K (~32 slots), so
+inserting 18 keys forces evictions. Every set lands within the same second,
+leaving the candidates' atimes tied, so pick_victim's tie-break decides who
+goes: on a tie the entry at the earliest probe position is evicted, because
+the evicted slot is inherited by the incoming key and the closer it sits to
+its home slot the cheaper every future lookup becomes. dump()[0]'s key is
+pinned by that rule and asserted here.
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--
@@ -31,4 +39,4 @@ $info = $yac->dump();
 print($info[0]['key']);
 ?>
 --EXPECTF--
-%doooooooooooooooooooo
+%dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx

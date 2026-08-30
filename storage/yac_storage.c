@@ -432,6 +432,16 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 					return 1;
 				}
 				USER_FREE(s);
+				/* guarders rejected the block: it was recycled or corrupted
+				 * behind our back. tombstone it so pick_victim prefers it on
+				 * the next eviction; re-lock and confirm val is unchanged, a
+				 * concurrent writer may have replaced the entry meanwhile */
+				if (WRITEP(p)) {
+					if (p->val == k.val) {
+						p->ttl = 1;
+					}
+					READP(p);
+				}
 			}
 		}
 		if (i == 0) {
@@ -479,18 +489,19 @@ int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long
 
 static inline uint32_t yac_storage_pick_victim(yac_kv_key **paths, unsigned long tv) /* {{{ */ {
 	/* pick the eviction victim from a full 4-slot probe path: prefer an
-	 * expired or stale slot, otherwise the least recently used one; ties
-	 * go to the farthest probe, keeping survivors near their home slot */
-	yac_kv_key c = *paths[3];
-	unsigned long atime, oldest = YAC_KV_ATIME(c);
-	uint32_t victim = 3, j;
+	 * expired slot, otherwise the least recently used one; on ties the
+	 * earliest probe wins — the evicted slot is inherited by the new key,
+	 * and the closer it sits to the home slot the shorter every future
+	 * lookup of the new key */
+	yac_kv_key c;
+	unsigned long atime, oldest = -1;
+	uint32_t victim = 0, j;
 
-	for (j = 0; j < 3; j++) {
+	for (j = 0; j < 4; j++) {
 		c = *paths[j];
-		/* c.val->len is packed the same way as c.len (vlen << 8
-		 * | klen), so a mismatch means the block was recycled and
-		 * rewritten for another entry */
-		if ((c.ttl && c.ttl <= tv) || (!YAC_IS_EMBED(c.val) && c.len != c.val->len)) {
+		/* expired entries are preferred: natural ttl, or ttl = 1 tombstones
+		 * left by delete()/find() — recycling such a slot loses nothing */
+		if (c.ttl && c.ttl <= tv) {
 			return j;
 		}
 		atime = YAC_KV_ATIME(c);
@@ -499,6 +510,7 @@ static inline uint32_t yac_storage_pick_victim(yac_kv_key **paths, unsigned long
 			victim = j;
 		}
 	}
+
 	return victim;
 }
 /* }}} */
