@@ -208,7 +208,7 @@ static inline yac_object *php_yac_fetch_object(zend_object *obj) /* {{{ */ {
 static const char *yac_assemble_key(yac_object *yac, zend_string *name, size_t *len) /* {{{ */ {
 	const char *key;
 
-	if ((ZSTR_LEN(name) + yac->prefix_len) > YAC_STORAGE_MAX_KEY_LEN) {
+	if (UNEXPECTED((ZSTR_LEN(name) + yac->prefix_len) > YAC_STORAGE_MAX_KEY_LEN)) {
 		php_error_docref(NULL, E_WARNING,
 				"Key '%.*s%s' exceed max key length '%d' bytes",
 				yac->prefix_len, yac->prefix, ZSTR_VAL(name), YAC_STORAGE_MAX_KEY_LEN);
@@ -227,6 +227,7 @@ static const char *yac_assemble_key(yac_object *yac, zend_string *name, size_t *
 	return key;
 }
 /* }}} */
+
 
 static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl, int add) /* {{{ */ {
 	int ret = 0, flag = Z_TYPE_P(value);
@@ -274,19 +275,19 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 					char *compressed;
 
 					/* if longer than this, then we can not stored the length in flag */
-					if (Z_STRLEN_P(value) > YAC_ENTRY_MAX_ORIG_LEN) {
+					if (UNEXPECTED(Z_STRLEN_P(value) > YAC_ENTRY_MAX_ORIG_LEN)) {
 						php_error_docref(NULL, E_WARNING, "Value is too long(%ld bytes) to be stored", Z_STRLEN_P(value));
 						return ret;
 					}
 
 					compressed = emalloc(LZ4_compressBound(Z_STRLEN_P(value)));
 					compressed_len = LZ4_compress_default(Z_STRVAL_P(value), compressed, Z_STRLEN_P(value), LZ4_compressBound(Z_STRLEN_P(value)));
-					if (!compressed_len) {
+					if (UNEXPECTED(!compressed_len)) {
 						php_error_docref(NULL, E_WARNING, "Compression failed");
 						efree(compressed);
 						return ret;
 					}
-					if (compressed_len > Z_STRLEN_P(value)) {
+					if (UNEXPECTED(compressed_len > Z_STRLEN_P(value))) {
 						php_error_docref(NULL, E_WARNING,
 								"Compression makes the value larger(%ld -> %d bytes), skipped",
 								(long)Z_STRLEN_P(value), compressed_len);
@@ -294,7 +295,7 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 						return ret;
 					}
 
-					if (compressed_len > YAC_STORAGE_MAX_ENTRY_LEN) {
+					if (UNEXPECTED(compressed_len > YAC_STORAGE_MAX_ENTRY_LEN)) {
 						php_error_docref(NULL, E_WARNING, "Value is too long(%ld bytes) to be stored", Z_STRLEN_P(value));
 						efree(compressed);
 						return ret;
@@ -326,7 +327,7 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 						int compressed_len;
 						char *compressed;
 
-						if (buf.s->len > YAC_ENTRY_MAX_ORIG_LEN) {
+						if (UNEXPECTED(buf.s->len > YAC_ENTRY_MAX_ORIG_LEN)) {
 							php_error_docref(NULL, E_WARNING, "Value is too big to be stored");
 							smart_str_free(&buf);
 							return ret;
@@ -334,13 +335,13 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 
 						compressed = emalloc(LZ4_compressBound(buf.s->len));
 						compressed_len = LZ4_compress_default(ZSTR_VAL(buf.s), compressed, ZSTR_LEN(buf.s), LZ4_compressBound(buf.s->len));
-						if (!compressed_len) {
+						if (UNEXPECTED(!compressed_len)) {
 							php_error_docref(NULL, E_WARNING, "Compression failed");
 							smart_str_free(&buf);
 							efree(compressed);
 							return ret;
 						}
-						if (compressed_len > buf.s->len) {
+						if (UNEXPECTED(compressed_len > buf.s->len)) {
 							php_error_docref(NULL, E_WARNING,
 									"Compression makes the value larger(%ld -> %d bytes), skipped",
 									(long)buf.s->len, compressed_len);
@@ -349,7 +350,7 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 							return ret;
 						}
 
-						if (compressed_len > YAC_STORAGE_MAX_ENTRY_LEN) {
+						if (UNEXPECTED(compressed_len > YAC_STORAGE_MAX_ENTRY_LEN)) {
 							php_error_docref(NULL, E_WARNING, "Value is too big to be stored");
 							smart_str_free(&buf);
 							efree(compressed);
@@ -427,7 +428,7 @@ static inline void yac_add_update_internal(INTERNAL_FUNCTION_PARAMETERS, int add
 				return;
 			}
 			if (Z_TYPE_P(keys) == IS_ARRAY) {
-				if (Z_TYPE_P(value) == IS_LONG) {
+				if (EXPECTED(Z_TYPE_P(value) == IS_LONG)) {
 					ttl = Z_LVAL_P(value);
 					value = NULL;
 				} else {
@@ -530,7 +531,8 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 						zend_string *str = zend_string_alloc(orig_len, 0);
 						int length = LZ4_decompress_safe(data, ZSTR_VAL(str), size, orig_len);
 						efree(data);
-						if (length != (int)orig_len) {
+						if (UNEXPECTED(length != (int)orig_len)) {
+							yac_storage_delete(key, key_len, 0, tv);
 							/* damaged payload, degrade to a miss silently */
 							zend_string_free(str);
 							break;
@@ -553,7 +555,8 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 						size_t orig_len = ((uint32_t)flag >> YAC_ENTRY_ORIG_LEN_SHIT);
 						char *origin = emalloc(orig_len + 1);
 						int length = LZ4_decompress_safe(data, origin, size, orig_len);
-						if (length != (int)orig_len) {
+						if (UNEXPECTED(length != (int)orig_len)) {
+							yac_storage_delete(key, key_len, 0, tv);
 							/* damaged payload, degrade to a miss silently */
 							efree(data);
 							efree(origin);
