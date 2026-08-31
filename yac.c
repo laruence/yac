@@ -190,8 +190,8 @@ static PHP_INI_MH(OnChangeCompressThreshold) /* {{{ */ {
 PHP_INI_BEGIN()
     STD_PHP_INI_BOOLEAN("yac.enable", "1", PHP_INI_SYSTEM, OnUpdateBool, enable, zend_yac_globals, yac_globals)
     STD_PHP_INI_BOOLEAN("yac.debug", "0", PHP_INI_ALL, OnUpdateBool, debug, zend_yac_globals, yac_globals)
-    STD_PHP_INI_ENTRY("yac.keys_memory_size", "4M", PHP_INI_SYSTEM, OnChangeKeysMemoryLimit, k_msize, zend_yac_globals, yac_globals)
-    STD_PHP_INI_ENTRY("yac.values_memory_size", "64M", PHP_INI_SYSTEM, OnChangeValsMemoryLimit, v_msize, zend_yac_globals, yac_globals)
+    STD_PHP_INI_ENTRY("yac.keys_memory_size", "8M", PHP_INI_SYSTEM, OnChangeKeysMemoryLimit, k_msize, zend_yac_globals, yac_globals)
+    STD_PHP_INI_ENTRY("yac.values_memory_size", "32M", PHP_INI_SYSTEM, OnChangeValsMemoryLimit, v_msize, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.compress_threshold", "-1", PHP_INI_SYSTEM, OnChangeCompressThreshold, compress_threshold, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.enable_cli", "0", PHP_INI_SYSTEM, OnUpdateBool, enable_cli, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.serializer", "php", PHP_INI_SYSTEM, OnUpdateString, serializer, zend_yac_globals, yac_globals)
@@ -1000,15 +1000,7 @@ zend_function_entry yac_methods[] = {
  */
 PHP_GINIT_FUNCTION(yac)
 {
-	yac_globals->enable = 1;
-	yac_globals->k_msize = (8 * 1024 * 1024);
-	yac_globals->v_msize = (64 * 1024 * 1024);
-	yac_globals->debug = 0;
-	yac_globals->compress_threshold = -1;
-	yac_globals->enable_cli = 0;
-#ifdef PHP_WIN32
-	yac_globals->mmap_base = NULL;
-#endif
+	memset(yac_globals, 0, sizeof(*yac_globals));
 }
 /* }}} */
 
