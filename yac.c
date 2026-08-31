@@ -1001,7 +1001,7 @@ zend_function_entry yac_methods[] = {
 PHP_GINIT_FUNCTION(yac)
 {
 	yac_globals->enable = 1;
-	yac_globals->k_msize = (4 * 1024 * 1024);
+	yac_globals->k_msize = (8 * 1024 * 1024);
 	yac_globals->v_msize = (64 * 1024 * 1024);
 	yac_globals->debug = 0;
 	yac_globals->compress_threshold = -1;
