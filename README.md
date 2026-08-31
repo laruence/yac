@@ -103,7 +103,7 @@ yac.debug = 0  ; enable debug mode (PHP_INI_ALL).
 
 yac.keys_memory_size = 4M  ; 4M can hold ~32K key slots, 32M can hold ~256K key slots
 
-yac.values_memory_size = 64M
+yac.values_memory_size = 32M
 
 yac.compress_threshold = -1 ; -1 means no compression. A positive value N means
                             ; values larger than N bytes will be compressed before storage.
