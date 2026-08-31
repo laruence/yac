@@ -430,32 +430,36 @@ int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long
 
 static inline uint32_t yac_storage_pick_victim(yac_kv_key **paths, unsigned long tv) /* {{{ */ {
 	/* pick the eviction victim from a full 4-slot probe path: prefer an
-	 * expired slot, otherwise the least recently used one; on ties the
-	 * earliest probe wins — the evicted slot is inherited by the new key,
-	 * and the closer it sits to the home slot the shorter every future
-	 * lookup of the new key */
+	 * expired slot, otherwise the least recently used one; ties fall to
+	 * the least hit candidate, then the earliest probe — the evicted slot
+	 * is inherited by the new key, and the closer it sits to the home slot
+	 * the shorter every future lookup of the new key */
 	yac_kv_key c;
 	unsigned long atime, oldest;
-	uint32_t victim = 0, j;
+	uint32_t victim, i;
 
-	for (j = 0; j < 4; j++) {
-		c = *paths[j];
+	for (i = 0; i < 4; i++) {
+		c = *paths[i];
 		/* expired entries are preferred: natural ttl, or ttl = 1 tombstones
 		 * left by delete()/find() — recycling such a slot loses nothing */
 		if (c.ttl && c.ttl <= tv) {
-			return j;
+			return i;
 		}
 	}
 
-	/* nothing expired: evict the least recently used; ties keep the
-	 * earliest probe */
-	oldest = (unsigned long)-1;
-	for (j = 0; j < 4; j++) {
-		c = *paths[j];
+	/* nothing expired: evict the least recently used; ties fall to the
+	 * least hit candidate, then the earliest probe */
+	victim = 0;
+	c = *paths[victim];
+	oldest = YAC_KV_ATIME(c);
+	for (i = 1; i < 4; i++) {
+		c = *paths[i];
 		atime = YAC_KV_ATIME(c);
 		if (atime < oldest) {
 			oldest = atime;
-			victim = j;
+			victim = i;
+		} else if (atime == oldest && (YAC_KV_HITS(c) < YAC_KV_HITS(*paths[victim]))) {
+			victim = i;
 		}
 	}
 
