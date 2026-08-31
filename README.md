@@ -398,7 +398,8 @@ Yac maintains two independent pools:
   `slots_size` slots — it caps *how many* entries can exist at once. Each key
   occupies one slot; a lookup probes up to 4 candidate slots. When inserting a
   new key whose candidate slots are all occupied, the entry with the oldest
-  `atime` among them is evicted to make room — one **kick**.
+  `atime` among them is evicted to make room — ties fall to the least read
+  candidate — one **kick**.
 - **Values memory** (`yac.values_memory_size`) is split into `segment_num`
   segments of `segment_size` bytes each (4M or more), managed as a ring:
   writes advance a per-segment cursor and space is never freed per entry. When
@@ -450,8 +451,8 @@ Dump cache entries for debugging. Returns an array of entries, each containing:
 - `v_len` — value length in bytes; for compressed entries this is the length of the **original** (uncompressed) value
 - `c_len` — length of the compressed payload actually stored in shared memory, in bytes; present **only** for compressed entries (since Yac 2.4.0)
 - `size` — allocated size of the value block in shared memory (bytes); `0` for embedded entries
-- `atime` — last access time, updated on successful `get()`; the entry with the oldest `atime` among the candidate slots is evicted first (since Yac 2.4.0)
-- `hits` — per-entry hit counter, bumped on every successful `get()`; reset when the entry is overwritten, deleted or expires (since Yac 2.4.0)
+- `atime` — last access time, updated on successful `get()`; the entry with the oldest `atime` among the candidate slots is evicted first, and when several share the oldest `atime` the one with the fewest `hits` goes (since Yac 2.4.0)
+- `hits` — per-entry hit counter, bumped on every successful `get()`; reset when the entry is overwritten, deleted or expires; among entries with equally old `atime`, the least hit one is evicted first (since Yac 2.4.0)
 - `embedded` — whether the value is stored directly inside the slot (see below) (since Yac 2.4.0)
 - `key` — the cache key
 
