@@ -317,7 +317,11 @@ static inline unsigned int yac_crc32(char *data, unsigned int size) /* {{{ */ {
 		for (; i < body; i++, q++, p+= step) {
 			*q = *p;
 		}
-		memcpy(q, p, tail);
+		/* anchor the tail sample at the real end: the strided walk above
+		 * stops at head + body*step, and step floors the division, so up to
+		 * (body-1) trailing bytes would otherwise never be sampled at all —
+		 * a deterministic hole a recycle-overwrite can pass through */
+		memcpy(q, data + size - tail, tail);
 
 		return yac_crc(crc_contents, YAC_FULL_CRC_THRESHOLD);
 	}
@@ -508,6 +512,7 @@ int yac_storage_update(const char *key, unsigned int len, char *data, unsigned i
 
 	hash = yac_hash(key, len);
 	stride = YAC_HASH_STRIDE(hash, YAC_SG(slots_mask));
+
 
 	/* 1. walk the key's probe path (up to 4 slots) looking for the key
 	 * itself or an empty slot; both can be taken straight away */

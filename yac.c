@@ -530,7 +530,7 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 						zend_string *str = zend_string_alloc(orig_len, 0);
 						int length = LZ4_decompress_safe(data, ZSTR_VAL(str), size, orig_len);
 						efree(data);
-						if (length <= 0) {
+						if (length != (int)orig_len) {
 							/* damaged payload, degrade to a miss silently */
 							zend_string_free(str);
 							break;
@@ -553,7 +553,7 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 						size_t orig_len = ((uint32_t)flag >> YAC_ENTRY_ORIG_LEN_SHIT);
 						char *origin = emalloc(orig_len + 1);
 						int length = LZ4_decompress_safe(data, origin, size, orig_len);
-						if (length <= 0) {
+						if (length != (int)orig_len) {
 							/* damaged payload, degrade to a miss silently */
 							efree(data);
 							efree(origin);
