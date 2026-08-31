@@ -428,27 +428,16 @@ int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long
 }
 /* }}} */
 
-static inline uint32_t yac_storage_pick_victim(yac_kv_key **paths, unsigned long tv) /* {{{ */ {
-	/* pick the eviction victim from a full 4-slot probe path: prefer an
-	 * expired slot, otherwise the least recently used one; ties fall to
-	 * the least hit candidate, then the earliest probe — the evicted slot
-	 * is inherited by the new key, and the closer it sits to the home slot
-	 * the shorter every future lookup of the new key */
+static inline uint32_t yac_storage_pick_victim(yac_kv_key **paths) /* {{{ */ {
+	/* pick the eviction victim from a probe path whose 4 slots are all
+	 * live: the least recently used one; ties fall to the least hit
+	 * candidate, then the earliest probe — the evicted slot is inherited
+	 * by the new key, and the closer it sits to the home slot the shorter
+	 * every future lookup of the new key */
 	yac_kv_key c;
 	unsigned long atime, oldest;
 	uint32_t victim, i;
 
-	for (i = 0; i < 4; i++) {
-		c = *paths[i];
-		/* expired entries are preferred: natural ttl, or ttl = 1 tombstones
-		 * left by delete()/find() — recycling such a slot loses nothing */
-		if (c.ttl && c.ttl <= tv) {
-			return i;
-		}
-	}
-
-	/* nothing expired: evict the least recently used; ties fall to the
-	 * least hit candidate, then the earliest probe */
 	victim = 0;
 	c = *paths[victim];
 	oldest = YAC_KV_ATIME(c);
@@ -467,16 +456,20 @@ static inline uint32_t yac_storage_pick_victim(yac_kv_key **paths, unsigned long
 }
 /* }}} */
 
-static inline int yac_storage_fill_value(yac_kv_key *k, unsigned int len, char *data, unsigned int size, unsigned int flag, int is_valid, uint64_t hash, unsigned long tv) /* {{{ */ {
+static inline int yac_storage_fill_value(yac_kv_key *k, unsigned int len, char *data, unsigned int size, unsigned int flag, uint64_t hash, unsigned long tv) /* {{{ */ {
 	/* make k ready to carry the new value: block values go into a reused or
 	 * freshly allocated block, embedded values live in the tagged word
 	 * itself; every field but h/ttl/key/len is filled for the caller to
 	 * commit. returns 0 when no value block could be allocated */
 	if (!YAC_IS_EMBED(data)) {
 		/* reuse the old block if intact and big enough, otherwise
-		 * allocate a fresh one (grown by YAC_STORAGE_FACTOR) */
-		if (!(k->val && !YAC_IS_EMBED(k->val) && is_valid
-				&& k->u2.size >= sizeof(yac_kv_val) + size - 1)) {
+		 * allocate a fresh one (grown by YAC_STORAGE_FACTOR). the crc
+		 * check guards against a block the value pool has already
+		 * wrapped around and overwritten — reusing such a block would
+		 * clobber its new owner's data */
+		int intact = k->val && !YAC_IS_EMBED(k->val) &&
+			k->u2.crc == yac_crc32(k->val->data, YAC_KEY_VLEN(*k));
+		if (!(intact && k->u2.size >= sizeof(yac_kv_val) + size - 1)) {
 			unsigned long real_size = yac_allocator_real_size(sizeof(yac_kv_val) + (size * YAC_STORAGE_FACTOR) - 1);
 			yac_kv_val *val;
 
@@ -509,17 +502,15 @@ static inline int yac_storage_fill_value(yac_kv_key *k, unsigned int len, char *
 /* }}} */
 
 int yac_storage_update(const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add, unsigned long tv) /* {{{ */ {
-	uint64_t h, hash, stride;
 	uint32_t i;
+	uint64_t h, hash, stride;
 	yac_kv_key k, *p, *paths[4];
-	int found = 0, is_valid;
 
 	hash = yac_hash(key, len);
 	stride = YAC_HASH_STRIDE(hash, YAC_SG(slots_mask));
 
 	/* 1. walk the key's probe path (up to 4 slots) looking for the key
-	 * itself or an empty slot; if all 4 are taken, remember the whole
-	 * path and evict from it */
+	 * itself or an empty slot; both can be taken straight away */
 	h = YAC_HASH_HOME(hash, YAC_SG(slots_mask));
 	for (i = 0; i < 4; i++) {
 		paths[i] = p = &(YAC_SG(slots)[h]);
@@ -529,48 +520,56 @@ int yac_storage_update(const char *key, unsigned int len, char *data, unsigned i
 		k = *p;
 		READP(p);
 		if (k.val == NULL) {
-			break; /* an insert takes the first empty slot on the path */
+			++YAC_SG(stats.occupied); /* this write occupies a new slot */
+			goto do_update; /* an insert takes the first empty slot on the path */
 		}
 		if (YAC_HASH_MATCH(k, hash) && YAC_KEY_KLEN(k) == len && !memcmp(k.key, key, len)) {
-			found = 1;
-			break; /* k holds the entry being updated */
+			if (add && (!k.ttl || k.ttl > tv)) {
+				return 0; /* add() must not overwrite a live entry */
+			}
+			goto do_update; /* k holds the entry being updated */
 		}
 		h = (h + stride) & YAC_SG(slots_mask);
 	}
 
-	/* 2. path full: overwrite the victim chosen by pick_victim */
-	if (i == 4) {
-		p = paths[yac_storage_pick_victim(paths, tv)];
-		if (!WRITEP(p)) {
-			return 0;
+	/* 2. no empty slot: an expired one is recycled for free — natural
+	 * TTL expiry or a delete() tombstone, nothing live is lost */
+	for (i = 0; i < 4; i++) {
+		k = *paths[i];
+		if (k.ttl && k.ttl <= tv) {
+			p = paths[i];
+			goto do_update;
 		}
-		k = *p;
-		READP(p);
-		++YAC_SG(stats.kicks);
 	}
 
-	/* 3. k is the slot being overwritten. Only blocks can go stale;
-	 * embedded and empty slots are always intact */
-	is_valid = (!k.val || YAC_IS_EMBED(k.val)) ? 1 :
-		(k.u2.crc == yac_crc32(k.val->data, YAC_KEY_VLEN(k)));
-	if (add && found && (!k.ttl || k.ttl > tv) && is_valid) {
-		return 0; /* add() must not overwrite a live entry */
+	/* 3. every slot on the path holds a live entry: displace the victim
+	 * chosen by pick_victim — a kick, the only kind of eviction the
+	 * counters track */
+	p = paths[yac_storage_pick_victim(paths)];
+	if (!WRITEP(p)) {
+		return 0;
 	}
-	if (k.val == NULL) {
-		++YAC_SG(stats.occupied); /* this write occupies a new slot */
-	}
+	k = *p;
+	READP(p);
+	++YAC_SG(stats.kicks);
 
-	/* 4. fill the new value into k */
-	if (!yac_storage_fill_value(&k, len, data, size, flag, is_valid, hash, tv)) {
+do_update:
+	/* 4. fill the new value into k; only blocks can go stale (recycled
+	 * or corrupted behind our back), embedded values and empty slots are
+	 * always intact */
+	if (!yac_storage_fill_value(&k, len, data, size, flag, hash, tv)) {
 		return 0;
 	}
 
-	/* 5. commit under the slot lock. update the fields individually
-	 * instead of copying the whole slot: the u1/u2 unions alias
-	 * (flag|hits, crc/size|atime) depending on the storage form, and a
-	 * whole-slot copy would re-publish the stale union bytes grabbed in
-	 * step 1 over lock-free statistics updates or a concurrent
-	 * writer's freshly written crc/size */
+	/* 5. commit under the slot lock. the slot may no longer be ours — a
+	 * concurrent writer can have evicted and replaced it between the
+	 * probe and this point, so the identity fields are published
+	 * unconditionally. update the fields individually instead of copying
+	 * the whole slot: the u1/u2 unions alias (flag|hits, crc/size|atime)
+	 * depending on the storage form, and a whole-slot copy would
+	 * re-publish the stale union bytes grabbed in step 1 over lock-free
+	 * statistics updates or a concurrent writer's freshly written
+	 * crc/size */
 	k.h = YAC_HASH_STORE(hash);
 	k.ttl = ttl ? tv + ttl : 0;
 	memcpy(k.key, key, len);
@@ -580,7 +579,7 @@ int yac_storage_update(const char *key, unsigned int len, char *data, unsigned i
 	}
 	p->h = k.h;
 	p->ttl = k.ttl;
-	memcpy(p->key, k.key, len);
+	memcpy(p->key, key, len);
 	p->len = k.len;
 	p->u1 = k.u1;
 	p->u2 = k.u2;

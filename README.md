@@ -384,7 +384,7 @@ Each field means:
 - `miss` — failed lookups (not found or expired)
 - `hits` — successful lookups
 - `fails` — failed writes (value too big to allocate, etc.)
-- `kicks` — entries evicted to make room for new ones
+- `kicks` — live entries evicted to make room for new ones (expired slots are recycled for free and do not count)
 - `recycles` — value segments wrapped around and reused
 - `start_time` — when the shared memory was created (last (re)start), not reset by `flush()` (since Yac 2.4.0)
 - `slots_size` — total number of slots
@@ -396,10 +396,11 @@ Yac maintains two independent pools:
 
 - **Keys memory** (`yac.keys_memory_size`) is a fixed-size hash table of
   `slots_size` slots — it caps *how many* entries can exist at once. Each key
-  occupies one slot; a lookup probes up to 4 candidate slots. When inserting a
-  new key whose candidate slots are all occupied, the entry with the oldest
-  `atime` among them is evicted to make room — ties fall to the least read
-  candidate — one **kick**.
+  occupies one slot; a lookup probes up to 4 candidate slots. Expired slots
+  (past their TTL, or the tombstones `delete()` leaves behind) are recycled
+  for free. Only when all 4 candidate slots of a new key hold live entries is
+  one of them evicted to make room — the entry with the oldest `atime` among
+  them, ties falling to the least read candidate — one **kick**.
 - **Values memory** (`yac.values_memory_size`) is split into `segment_num`
   segments of `segment_size` bytes each (4M or more), managed as a ring:
   writes advance a per-segment cursor and space is never freed per entry. When
