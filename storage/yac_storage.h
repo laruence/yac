@@ -169,28 +169,10 @@ typedef struct {
 	unsigned int recycles;
 } yac_storage_info;
 
-/* hot-path counters: bumped on every request; each is pinned to its own
- * 64-byte cache line so concurrent increments from multiple workers do
- * not bounce the line between cores. cold counters (write path only,
- * low frequency) stay plain unsigned int and share a line */
-#if defined(_MSC_VER)
-# define YAC_ALIGNED_TO_CACHELINE __declspec(align(64))
-#else
-# define YAC_ALIGNED_TO_CACHELINE __attribute__((aligned(64)))
-#endif
-
-typedef YAC_ALIGNED_TO_CACHELINE unsigned long yac_hot_counter_t;
-
 typedef struct {
-	yac_hot_counter_t hits;
-	yac_hot_counter_t miss;
-	yac_hot_counter_t kicks;
-	/* cold counters: bumped on the write path only.
-	 * occupied pairs with globals.slots_size (exposed together by info()
-	 * as slots_used/slots_size); it lives here because it is written on
-	 * every insert during warm-up and must not dirty the read-only
-	 * globals line. slots stay occupied even after delete() (which only
-	 * expires the entry) until an eviction replaces them */
+	unsigned int hits;
+	unsigned int miss;
+	unsigned int kicks;
 	unsigned int occupied;
 	unsigned int fails;
 	unsigned int recycles;
