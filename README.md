@@ -107,7 +107,7 @@ yac.values_memory_size = 64M
 
 yac.compress_threshold = 4K ; -1 disables compression. A positive value N means
                             ; values larger than N bytes will be compressed before storage.
-                            ; Values below 1024 are clamped to 1024 (YAC_MIN_COMPRESS_THRESHOLD),
+                            ; Values below 1024 are clamped to 1024,
                             ; values above the 1M stored-entry limit are clamped to it.
 
 yac.enable_cli = 0  ; whether to enable Yac in CLI mode, default 0
