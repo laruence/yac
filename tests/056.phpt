@@ -13,8 +13,8 @@ yac.values_memory_size=32M
  * without addref, so several misses shared one refcount and corrupted
  * the heap when the result array was released */
 class Probe {
-    public string $tag;
-    public function __construct(string $tag) { $this->tag = $tag; }
+    public $tag;
+    public function __construct($tag) { $this->tag = $tag; }
 }
 
 $yac = new Yac();
