@@ -49,6 +49,7 @@
     <file name="yac_storage.h" role="src" />
     <file name="yac_storage.c" role="src" />
     <file name="yac_atomic.h" role="src" />
+    <file name="yac_crc32.h" role="src" />
     <dir name="allocator">
      <file name="yac_allocator.h" role="src" />
      <file name="yac_allocator.c" role="src" />

@@ -29,7 +29,11 @@
 #define YAC_KEY_KLEN(k)				((k).len & YAC_KEY_KLEN_MASK)
 #define YAC_KEY_VLEN(k)				((k).len >> YAC_KEY_VLEN_BITS)
 #define YAC_KEY_SET_LEN(k, kl, vl)	((k).len = (vl << YAC_KEY_VLEN_BITS) | (kl & YAC_KEY_KLEN_MASK))
-#define YAC_FULL_CRC_THRESHOLD      256
+
+/* values are crc'ed in full; once they outgrow this the work is split
+ * over three interleaved hardware CRC chains */
+#define YAC_CRC_INTER_THRESHOLD     1024
+#define YAC_CRC_POLY				0x82F63B78u /* reflected CRC-32C */
 
 #define USER_ALLOC					emalloc
 #define USER_FREE					efree
