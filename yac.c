@@ -177,8 +177,12 @@ static PHP_INI_MH(OnChangeCompressThreshold) /* {{{ */ {
 #else
 		YAC_G(compress_threshold) = zend_ini_parse_quantity_warn(new_value, entry->name);
 #endif
-		if (YAC_G(compress_threshold) < YAC_MIN_COMPRESS_THRESHOLD) {
-			YAC_G(compress_threshold) = YAC_MIN_COMPRESS_THRESHOLD;
+		if (YAC_G(compress_threshold) != (zend_ulong)-1) { /* -1 disables compression */
+			if (YAC_G(compress_threshold) < YAC_MIN_COMPRESS_THRESHOLD) {
+				YAC_G(compress_threshold) = YAC_MIN_COMPRESS_THRESHOLD;
+			} else if (YAC_G(compress_threshold) > YAC_STORAGE_MAX_ENTRY_LEN) {
+				YAC_G(compress_threshold) = YAC_STORAGE_MAX_ENTRY_LEN;
+			}
 		}
 	}
 	return SUCCESS;
@@ -190,9 +194,9 @@ static PHP_INI_MH(OnChangeCompressThreshold) /* {{{ */ {
 PHP_INI_BEGIN()
     STD_PHP_INI_BOOLEAN("yac.enable", "1", PHP_INI_SYSTEM, OnUpdateBool, enable, zend_yac_globals, yac_globals)
     STD_PHP_INI_BOOLEAN("yac.debug", "0", PHP_INI_ALL, OnUpdateBool, debug, zend_yac_globals, yac_globals)
-    STD_PHP_INI_ENTRY("yac.keys_memory_size", "4M", PHP_INI_SYSTEM, OnChangeKeysMemoryLimit, k_msize, zend_yac_globals, yac_globals)
-    STD_PHP_INI_ENTRY("yac.values_memory_size", "32M", PHP_INI_SYSTEM, OnChangeValsMemoryLimit, v_msize, zend_yac_globals, yac_globals)
-    STD_PHP_INI_ENTRY("yac.compress_threshold", "1024", PHP_INI_SYSTEM, OnChangeCompressThreshold, compress_threshold, zend_yac_globals, yac_globals)
+    STD_PHP_INI_ENTRY("yac.keys_memory_size", "8M", PHP_INI_SYSTEM, OnChangeKeysMemoryLimit, k_msize, zend_yac_globals, yac_globals)
+    STD_PHP_INI_ENTRY("yac.values_memory_size", "64M", PHP_INI_SYSTEM, OnChangeValsMemoryLimit, v_msize, zend_yac_globals, yac_globals)
+    STD_PHP_INI_ENTRY("yac.compress_threshold", "4K", PHP_INI_SYSTEM, OnChangeCompressThreshold, compress_threshold, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.enable_cli", "0", PHP_INI_SYSTEM, OnUpdateBool, enable_cli, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.serializer", "php", PHP_INI_SYSTEM, OnUpdateString, serializer, zend_yac_globals, yac_globals)
 PHP_INI_END()
