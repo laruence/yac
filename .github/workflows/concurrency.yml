@@ -1,0 +1,36 @@
+# Concurrency hammer: 16 forked workers pound the shared pools for ~15
+# seconds and every single read is validated. Complements the phpt suite
+# in linux.yml: same small pools CI uses there, but driven by wall-clock
+# instead of fixed test expectations, so it also bites on scheduling
+# races the deterministic tests can't reach.
+name: concurrency
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  hammer:
+    name: "Concurrency hammer (Linux PHP 8.5)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.5"
+      - name: Build
+        run: |
+          phpize
+          ./configure
+          make
+      - name: Hammer
+        run: |
+          YAC_HAMMER_WORKERS=16 YAC_HAMMER_SECONDS=15 php -n \
+            -d extension=modules/yac.so -d yac.enable_cli=1 \
+            -d yac.keys_memory_size=1M -d yac.values_memory_size=4M \
+            -d yac.compress_threshold=-1 tests/concurrency.php
