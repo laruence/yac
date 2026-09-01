@@ -36,6 +36,12 @@ static uint32_t crc32(const char *data, unsigned int size);
 #if HAVE_SSE_CRC32 /* {{{ */
 static uint32_t crc32c_sse42(const char *buf, unsigned int size) {
 	uint32_t crc = 0 ^ 0xFFFFFFFF;
+
+	/* byte-wise until 8-aligned, so the word loads below stay aligned */
+	while (size && ((uintptr_t)buf & 7)) {
+		crc = _mm_crc32_u8(crc, (unsigned char)*buf++);
+		size--;
+	}
 #if __x86_64__
 	while (size >= sizeof(uint64_t)) {
 		crc = _mm_crc32_u64(crc, *(uint64_t*)buf);
@@ -54,7 +60,7 @@ static uint32_t crc32c_sse42(const char *buf, unsigned int size) {
 		size -= sizeof(uint16_t);
 	}
 	if (size) {
-		crc = _mm_crc32_u8(crc, *buf);
+		crc = _mm_crc32_u8(crc, (unsigned char)*buf);
 	}
 
 	return crc ^ 0xFFFFFFFF;
@@ -65,6 +71,12 @@ static uint32_t crc32c_sse42(const char *buf, unsigned int size) {
 #if HAVE_ARM_CRC32 /* {{{ */
 static uint32_t crc32c_arm(const char *buf, unsigned int size) {
 	uint32_t crc = 0 ^ 0xFFFFFFFF;
+
+	/* byte-wise until 8-aligned, so the word loads below stay aligned */
+	while (size && ((uintptr_t)buf & 7)) {
+		crc = __crc32cb(crc, (unsigned char)*buf++);
+		size--;
+	}
 	while (size >= sizeof(uint64_t)) {
 		crc = __crc32cd(crc, *(uint64_t*)buf);
 		buf += sizeof(uint64_t);
@@ -81,7 +93,7 @@ static uint32_t crc32c_arm(const char *buf, unsigned int size) {
 		size -= sizeof(uint16_t);
 	}
 	if (size) {
-		crc = __crc32cb(crc, *buf);
+		crc = __crc32cb(crc, (unsigned char)*buf);
 	}
 
 	return crc ^ 0xFFFFFFFF;
@@ -93,85 +105,109 @@ static uint32_t crc32c_arm(const char *buf, unsigned int size) {
 /* CRC-32C of a concatenation reassembled from part CRCs:
  *   crc(A || B) = crc(A) advanced by 8*|B| bits  XOR  crc(B)
  * advancing by 8*|B| bits is multiplication by x^(8*|B|) in GF(2) mod P,
- * one multiply per set bit of |B|, so a reassembly costs only tens of ns.
- * x2n[i] holds x^(8*2^i) mod P in reflected form; x^8 and x^16 need no
- * reduction, x^32 mod P is the reflected polynomial itself, and the rest
- * are repeated squarings (bit reversal is a ring isomorphism, so the
- * reflected domain stays closed under them) */
-static uint32_t x2n[32];
+ * i.e. appending |B| zero bytes to the state. the T^(2^i) operators
+ * ("append 2^i zero bytes") are tabulated byte-wise, so applying T^m
+ * walks the set bits of m at four loads per bit — the reassembly cost is
+ * flat and tiny regardless of the block length's popcount. blocks never
+ * exceed YAC_STORAGE_MAX_ENTRY_LEN/3 bytes, so twenty levels of doubling
+ * cover every possible m */
+#define YAC_CRC_XPOW_MAXLEV 20
+static uint32_t yac_crc_xpow_tab[YAC_CRC_XPOW_MAXLEV][4][256];
 
-static uint32_t yac_gf2_mult(uint32_t a, uint32_t b) {
-	uint32_t p = 0;
+/* append one zero byte to a CRC state: eight reflected single-bit steps */
+static uint32_t yac_crc_append_byte(uint32_t c) {
 	int i;
 
-	for (i = 0; i < 32; ++i) {
-		p ^= b & (uint32_t)(0 - ((a >> (31 - i)) & 1));
-		b = (b >> 1) ^ (YAC_CRC_POLY & (uint32_t)(0 - (b & 1)));
+	for (i = 0; i < 8; i++) {
+		c = (c >> 1) ^ (YAC_CRC_POLY & (uint32_t)(0 - (c & 1)));
 	}
-	return p;
+	return c;
+}
+
+/* apply the T^(2^lev) operator: four independent table lookups, one per
+ * state byte, folded together by xor */
+static inline uint32_t yac_crc_apply_xpow(uint32_t c, int lev) {
+	return yac_crc_xpow_tab[lev][0][c & 0xFF]
+	     ^ yac_crc_xpow_tab[lev][1][(c >> 8) & 0xFF]
+	     ^ yac_crc_xpow_tab[lev][2][(c >> 16) & 0xFF]
+	     ^ yac_crc_xpow_tab[lev][3][c >> 24];
 }
 
 static void yac_crc32c_init(void) {
-	int i;
+	int lev, j, v;
+	uint32_t x;
 
-	x2n[0] = 0x00800000;      /* x^8 */
-	x2n[1] = 0x00008000;      /* x^16 */
-	x2n[2] = YAC_CRC_POLY;    /* x^32 mod P */
-	for (i = 3; i < 32; ++i) {
-		x2n[i] = yac_gf2_mult(x2n[i - 1], x2n[i - 1]);
+	for (j = 0; j < 4; j++) {
+		for (v = 0; v < 256; v++) {
+			yac_crc_xpow_tab[0][j][v] = yac_crc_append_byte((uint32_t)v << (8 * j));
+		}
+	}
+	/* each higher level is the previous one applied twice: T^(2^i) ∘ T^(2^i) */
+	for (lev = 1; lev < YAC_CRC_XPOW_MAXLEV; lev++) {
+		for (j = 0; j < 4; j++) {
+			for (v = 0; v < 256; v++) {
+				x = yac_crc_apply_xpow((uint32_t)v << (8 * j), lev - 1);
+				yac_crc_xpow_tab[lev][j][v] = yac_crc_apply_xpow(x, lev - 1);
+			}
+		}
 	}
 }
 
 static uint32_t yac_crc32_combine(uint32_t crc1, uint32_t crc2, unsigned int len2) {
-	uint32_t p = crc1;
-	int i;
+	int lev = 0;
 
-	if (len2 == 0) {
-		return crc1;
-	}
-	for (i = 0; len2; ++i, len2 >>= 1) {
+	while (len2) {
 		if (len2 & 1) {
-			p = yac_gf2_mult(x2n[i], p);
+			crc1 = yac_crc_apply_xpow(crc1, lev);
 		}
+		len2 >>= 1;
+		lev++;
 	}
-	return p ^ crc2;
+	return crc1 ^ crc2;
 }
 
 /* split the buffer into three consecutive blocks and advance three
  * independent CRC chains in lockstep: every iteration issues three
  * mutually independent hardware CRC instructions, so the ~3-cycle
  * latency of one chain hides behind the other two.  the caller only
- * routes buffers >= YAC_CRC_INTERLEAVE_THRESHOLD here, because below
+ * routes buffers >= YAC_CRC_INTER_THRESHOLD here, because below
  * that the reassembly costs more than the interleaving saves */
 static uint32_t yac_crc32c_interleaved(const char *buf, unsigned int size) {
-	uint32_t c0, c1, c2;
-	const char *p0 = buf, *p1, *p2;
+	uint32_t h, c0, c1, c2;
+	const char *p0, *p1, *p2;
 	unsigned int block, rounds;
 
+	/* the block pointers all share buf's alignment class: peel an unaligned
+	 * head on a serial chain so the word loads below stay aligned. callers
+	 * only route buffers >= YAC_CRC_INTER_THRESHOLD here, so the peel cannot
+	 * run past the end */
+	h = 0xFFFFFFFFu;
+	while ((uintptr_t)buf & 7) {
+		h = YAC_CRC_BYTE(h, (unsigned char)*buf++);
+		size--;
+	}
+
 	block = (size / 3) & ~7u; /* word-aligned blocks */
+	p0 = buf;
 	p1 = buf + block;
 	p2 = buf + block * 2;
 	rounds = block >> 3;
 
 	c0 = c1 = c2 = 0xFFFFFFFFu;
 	while (rounds--) {
-		uint64_t w0, w1, w2;
-		memcpy(&w0, p0, sizeof(uint64_t));
-		memcpy(&w1, p1, sizeof(uint64_t));
-		memcpy(&w2, p2, sizeof(uint64_t));
-		c0 = YAC_CRC_WORD(c0, w0);
-		c1 = YAC_CRC_WORD(c1, w1);
-		c2 = YAC_CRC_WORD(c2, w2);
+		c0 = YAC_CRC_WORD(c0, *(uint64_t*)p0);
+		c1 = YAC_CRC_WORD(c1, *(uint64_t*)p1);
+		c2 = YAC_CRC_WORD(c2, *(uint64_t*)p2);
 		p0 += sizeof(uint64_t);
 		p1 += sizeof(uint64_t);
 		p2 += sizeof(uint64_t);
 	}
 
-	c0 = yac_crc32_combine(c0 ^ 0xFFFFFFFFu, c1 ^ 0xFFFFFFFFu, block);
+	c0 = yac_crc32_combine(h ^ 0xFFFFFFFFu, c0 ^ 0xFFFFFFFFu, block);
+	c0 = yac_crc32_combine(c0, c1 ^ 0xFFFFFFFFu, block);
 	c0 = yac_crc32_combine(c0, c2 ^ 0xFFFFFFFFu, block);
 	if (size > block * 3) {
-		/* at most 23 trailing bytes, plus the 0-7 alignment slack of
-		 * each block, covered serially */
+		/* at most 23 trailing bytes, covered serially */
 		c0 = yac_crc32_combine(c0, yac_crc(buf + block * 3, size - block * 3), size - block * 3);
 	}
 	return c0;
@@ -260,7 +296,14 @@ static inline uint64_t yac_hash(const char *data, unsigned int len) {
 	while (len >= 8) {
 		uint64_t k;
 
-		memcpy(&k, data, 8); /* keys may be unaligned */
+#if SIZEOF_SIZE_T == 8
+		/* 64-bit builds: keys are 8-aligned (zend_string val sits at struct
+		 * offset 24, yac_object prefix at offset 0), a direct load is safe */
+		k = *(uint64_t*)data;
+#else
+		/* 32-bit builds only guarantee 4-alignment */
+		memcpy(&k, data, 8);
+#endif
 		k *= m;
 		k ^= k >> 47;
 		k *= m;
@@ -385,12 +428,11 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 				return 1;
 			} else {
 				yac_kv_val v = *(k.val);
-				char *s = USER_ALLOC(YAC_KEY_VLEN(k) + 1);
+				char *s = USER_ALLOC(YAC_KEY_VLEN(k));
 
 				memcpy(s, (char *)k.val->data, YAC_KEY_VLEN(k));
 				/* guarders: reject a block recycled behind our back */
 				if (k.len == v.len && k.u2.crc == yac_crc32(s, YAC_KEY_VLEN(k))) {
-					s[YAC_KEY_VLEN(k)] = '\0';
 					if (k.val->atime != tv) {
 						k.val->atime = tv;
 					}

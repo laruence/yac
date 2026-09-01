@@ -557,7 +557,7 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 				{
 					if ((flag & YAC_ENTRY_COMPRESSED)) {
 						size_t orig_len = ((uint32_t)flag >> YAC_ENTRY_ORIG_LEN_SHIT);
-						char *origin = emalloc(orig_len + 1);
+						char *origin = emalloc(orig_len);
 						int length = LZ4_decompress_safe(data, origin, size, orig_len);
 						if (UNEXPECTED(length != (int)orig_len)) {
 							yac_storage_delete(key, key_len, 0, tv);

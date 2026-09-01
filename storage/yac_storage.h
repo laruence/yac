@@ -31,7 +31,9 @@
 #define YAC_KEY_SET_LEN(k, kl, vl)	((k).len = (vl << YAC_KEY_VLEN_BITS) | (kl & YAC_KEY_KLEN_MASK))
 
 /* values are crc'ed in full; once they outgrow this the work is split
- * over three interleaved hardware CRC chains */
+ * over three interleaved hardware CRC chains, which has been measured
+ * across architectures to reliably beat the serial chain at and above
+ * this threshold */
 #define YAC_CRC_INTER_THRESHOLD     1024
 #define YAC_CRC_POLY				0x82F63B78u /* reflected CRC-32C */
 

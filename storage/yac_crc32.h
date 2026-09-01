@@ -28,6 +28,7 @@
 /* the interleaved path needs a 64-bit hardware CRC word */
 # define YAC_HAVE_CRC_WORD 1
 # define YAC_CRC_WORD(crc, word) _mm_crc32_u64((crc), (word))
+# define YAC_CRC_BYTE(crc, byte) _mm_crc32_u8((crc), (byte))
 # endif
 #endif
 
@@ -35,6 +36,7 @@
 #define YAC_HAVE_CRC_WORD 1
 #include <arm_acle.h>
 #define YAC_CRC_WORD(crc, word) __crc32cd((crc), (word))
+#define YAC_CRC_BYTE(crc, byte) __crc32cb((crc), (byte))
 #endif
 
 #if YAC_HAVE_CRC_WORD
