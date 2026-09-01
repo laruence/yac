@@ -50,6 +50,16 @@ static inline int __yac_cas(unsigned int *lock, unsigned int old, unsigned int s
 #define	YAC_SLOT_LOCKED  0x1
 #define	YAC_CAS_MAX_SPIN 30
 
+/* atomic addition for the stats flush; falls back to a plain addition
+ * where nothing better is available (the counts are informational) */
+#if HAVE_BUILTIN_ATOMIC
+#define	YAC_ATOMIC_ADD(ptr, val) __sync_fetch_and_add((ptr), (val))
+#elif ZEND_WIN32
+#define	YAC_ATOMIC_ADD(ptr, val) InterlockedExchangeAdd((LONG volatile *)(ptr), (LONG)(val))
+#else
+#define	YAC_ATOMIC_ADD(ptr, val) (*(ptr) += (val))
+#endif
+
 /* backoff hint for the spin loop: cuts power and the pipeline penalty
  * of spinning on x86, and yields the SMT sibling's issue slots;
  * a no-op on architectures without a hint instruction */

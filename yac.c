@@ -1187,6 +1187,18 @@ static zend_module_dep yac_module_deps[] = {
 	{NULL, NULL, NULL, 0}
 };
 
+PHP_RINIT_FUNCTION(yac) /* {{{ */ {
+	yac_storage_stats_reset();
+	return SUCCESS;
+}
+/* }}} */
+
+PHP_RSHUTDOWN_FUNCTION(yac) /* {{{ */ {
+	yac_storage_stats_flush();
+	return SUCCESS;
+}
+/* }}} */
+
 /* {{{ yac_module_entry
  */
 zend_module_entry yac_module_entry = {
@@ -1197,8 +1209,8 @@ zend_module_entry yac_module_entry = {
 	NULL, /* yac_functions, */
 	PHP_MINIT(yac),
 	PHP_MSHUTDOWN(yac),
-	NULL,
-	NULL,
+	PHP_RINIT(yac),
+	PHP_RSHUTDOWN(yac),
 	PHP_MINFO(yac),
 	PHP_YAC_VERSION,
 	PHP_MODULE_GLOBALS(yac),

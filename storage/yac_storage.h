@@ -212,6 +212,9 @@ yac_storage_info * yac_storage_get_info(void);
 void yac_storage_free_info(yac_storage_info *info);
 yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset);
 void yac_storage_free_list(yac_item_list *list);
+/* fold this process's pending hits/miss counts into the shared stats */
+void yac_storage_stats_flush(void);
+void yac_storage_stats_reset(void);
 
 #endif	/* YAC_STORAGE_H */
 
