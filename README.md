@@ -101,13 +101,14 @@ yac.enable = 1
 yac.debug = 0  ; enable debug mode (PHP_INI_ALL).
                ; Currently reserved for future use.
 
-yac.keys_memory_size = 4M  ; 4M can hold ~32K key slots, 32M can hold ~256K key slots
+yac.keys_memory_size = 8M  ; 8M can hold ~64K key slots, scaling roughly linearly
 
-yac.values_memory_size = 32M
+yac.values_memory_size = 64M
 
-yac.compress_threshold = -1 ; -1 means no compression. A positive value N means
+yac.compress_threshold = 4K ; -1 disables compression. A positive value N means
                             ; values larger than N bytes will be compressed before storage.
-                            ; Values below 1024 are clamped to 1024 (YAC_MIN_COMPRESS_THRESHOLD).
+                            ; Values below 1024 are clamped to 1024 (YAC_MIN_COMPRESS_THRESHOLD),
+                            ; values above the 1M stored-entry limit are clamped to it.
 
 yac.enable_cli = 0  ; whether to enable Yac in CLI mode, default 0
 
@@ -357,18 +358,18 @@ Get cache info and statistics.
 var_dump($yac->info());
 /* will return an array like:
 array(13) {
-    ["memory_size"]        => int(541065216)
-    ["slots_memory_size"]  => int(4194304)
-    ["values_memory_size"] => int(536870912)
+    ["memory_size"]        => int(75497472)
+    ["slots_memory_size"]  => int(8388608)
+    ["values_memory_size"] => int(67108864)
     ["segment_size"]       => int(4194304)
-    ["segment_num"]        => int(128)
+    ["segment_num"]        => int(16)
     ["miss"]               => int(0)
     ["hits"]               => int(955)
     ["fails"]              => int(0)
     ["kicks"]              => int(0)
     ["recycles"]           => int(0)
     ["start_time"]         => int(1787379043)
-    ["slots_size"]         => int(32768)
+    ["slots_size"]         => int(65536)
     ["slots_used"]         => int(955)
 }
 */
@@ -422,19 +423,19 @@ average.
   so some probe groups collide more than others.
 - **Hit rate low and `kicks` high** — the slot table is too small for the key
   set; live entries get evicted before they are re-read. Increase
-  `yac.keys_memory_size` (4M holds ~32K slots, scaling roughly linearly).
+  `yac.keys_memory_size` (8M holds ~64K slots, scaling roughly linearly).
 - **Hit rate low and `recycles` frequent** — values are being overwritten
-  before they get re-read. Increase `yac.values_memory_size`, or enable
-  compression (`yac.compress_threshold`) to shrink stored values.
+  before they get re-read. Increase `yac.values_memory_size`; values above
+  `yac.compress_threshold` (4K by default) are compressed already, so lower
+  the threshold to shrink more of them.
 - **`recycles` frequent while the slot table still has room (`slots_used`
   below `slots_size`), regardless of hit rate** — the value ring is wrapping
   fast while keys memory is not the constraint: values memory is undersized
-  for the write volume. Increase `yac.values_memory_size`, or enable
-  compression (`yac.compress_threshold`).
+  for the write volume. Increase `yac.values_memory_size`.
 - **`fails` > 0** — writes that could not allocate space: most commonly a
   single value larger than one segment, or transient allocator contention
-  under heavy concurrent writes. Enable compression
-  (`yac.compress_threshold`) or shrink oversized values.
+  under heavy concurrent writes. Lower `yac.compress_threshold` so the value
+  gets compressed, or shrink oversized values.
 
 ### Yac::dump
 
