@@ -596,7 +596,10 @@ static zval* yac_get_multi_impl(yac_object *yac, zval *keys, zval *def, zval *rv
 				if ((v = yac_get_impl(yac, Z_STR_P(value), &lcas, &tmp))) {
 					zend_symtable_update(Z_ARRVAL_P(rv), Z_STR_P(value), v);
 				} else if (def) {
+					/* every miss slot owns its own refcount; copying here keeps
+					 * the caller's default untouched even when many keys miss */
 					zend_symtable_update(Z_ARRVAL_P(rv), Z_STR_P(value), def);
+					Z_TRY_ADDREF_P(def);
 				}
 				continue;
 			default:
@@ -606,6 +609,7 @@ static zval* yac_get_multi_impl(yac_object *yac, zval *keys, zval *def, zval *rv
 						zend_symtable_update(Z_ARRVAL_P(rv), key, v);
 					} else if (def) {
 						zend_symtable_update(Z_ARRVAL_P(rv), key, def);
+						Z_TRY_ADDREF_P(def);
 					}
 					zend_string_release(key);
 				}
