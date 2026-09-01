@@ -1,6 +1,6 @@
 # Yac - Yet Another Cache
 
-[![AppVeyor](https://ci.appveyor.com/api/projects/status/6bu09pw8ukyx61m2/branch/master?svg=true)](https://ci.appveyor.com/project/laruence/yac/branch/master) [![Linux](https://github.com/laruence/yac/actions/workflows/linux.yml/badge.svg?branch=master)](https://github.com/laruence/yac/actions/workflows/linux.yml) [![Windows](https://github.com/laruence/yac/actions/workflows/windows.yml/badge.svg?branch=master)](https://github.com/laruence/yac/actions/workflows/windows.yml)
+[![AppVeyor](https://ci.appveyor.com/api/projects/status/6bu09pw8ukyx61m2/branch/master?svg=true)](https://ci.appveyor.com/project/laruence/yac/branch/master) [![Linux](https://github.com/laruence/yac/actions/workflows/linux.yml/badge.svg?branch=master)](https://github.com/laruence/yac/actions/workflows/linux.yml) [![Windows](https://github.com/laruence/yac/actions/workflows/windows.yml/badge.svg?branch=master)](https://github.com/laruence/yac/actions/workflows/windows.yml) [![Hammer](https://github.com/laruence/yac/actions/workflows/hammer.yml/badge.svg?branch=master)](https://github.com/laruence/yac/actions/workflows/hammer.yml)
 
 Yac is a shared and lockless memory user data cache for PHP.
 
@@ -85,7 +85,7 @@ Otherwise `new Yac()` will throw an exception.
 ## Note
 
 1. Yac is a lockless cache, you should try to avoid or reduce the probability of multiple processes setting the same key simultaneously.
-2. Yac uses partial CRC for integrity checks. You'd better re-arrange your cache content and place the most important (mutable) bytes at the head or tail of the value. Values shorter than 256 bytes (`YAC_FULL_CRC_THRESHOLD`) use full CRC.
+2. Yac checks every stored value with a full CRC-32C, so a corrupted or overwritten entry is detected and reported as a miss rather than returned.
 
 ## Restrictions
 
@@ -499,7 +499,7 @@ foreach ($yac->dump() as $entry) {
 ## Implementation Notes
 
 - **Compression**: values exceeding `yac.compress_threshold` (or `YAC_STORAGE_MAX_ENTRY_LEN`) are compressed before storage — with **LZ4** since 2.4.0 (FastLZ in earlier releases). If compression would make a value *larger* (e.g. random or already-compressed data), `set()` fails with a warning instead of storing it.
-- **CRC32 acceleration**: If compiled on a CPU with SSE4.2 support, Yac uses the hardware `crc32` instruction for faster integrity checks. This is detected automatically at compile time (`./configure`).
+- **CRC32 acceleration**: integrity is checked with CRC-32C. Yac detects hardware CRC instruction support at **runtime** (SSE4.2 on x86_64, ARMv8 CRC on aarch64) and uses it when available, so a binary built on a newer CPU still runs on older ones; otherwise it falls back to a slicing-by-8 software CRC.
 - **Shared memory**: Yac tries `mmap(MAP_ANON)` first, then `mmap(/dev/zero)`, then falls back to SysV IPC `shmget`. The chosen backend is determined at compile time.
 
 ## License
