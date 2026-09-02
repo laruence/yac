@@ -24,11 +24,17 @@
 #endif
 
 #if defined(_WIN32)
-# include <intrin.h>					/* _mm_pause() / __yield() */
+#include <intrin.h>					/* _mm_pause() / __yield() */
 #endif
+
+/* FREE must be 0: yac_slot_unlock() uses __sync_lock_release(), which stores 0. */
+#define	YAC_SLOT_FREE    0x0
+#define	YAC_SLOT_LOCKED  0x1
+#define	YAC_CAS_MAX_SPIN 30
 
 #if HAVE_BUILTIN_ATOMIC
 #define	YAC_CAS(lock, old, set)  __sync_bool_compare_and_swap(lock, old, set)
+#define	YAC_ATOMIC_ADD(ptr, val) __sync_fetch_and_add((ptr), (val))
 #elif ( __amd64__ || __amd64 || __x86_64__ || __i386__ || __i386 )
 static inline int __yac_cas(unsigned int *lock, unsigned int old, unsigned int set) {
 	unsigned char res;
@@ -39,25 +45,12 @@ static inline int __yac_cas(unsigned int *lock, unsigned int old, unsigned int s
 	return res;
 }
 #define	YAC_CAS(lock, old, set)  __yac_cas(lock, old, set)
-#elif ZEND_WIN32
-#define	YAC_CAS(lock, old, set)  (InterlockedCompareExchange(lock, set, old) == old)
-#else
-#error No atomic CAS support: per-slot locking is mandatory for a shared-memory cache
-#endif
-
-/* FREE must be 0: yac_slot_unlock() uses __sync_lock_release(), which stores 0. */
-#define	YAC_SLOT_FREE    0x0
-#define	YAC_SLOT_LOCKED  0x1
-#define	YAC_CAS_MAX_SPIN 30
-
-/* atomic addition for the stats flush; falls back to a plain addition
- * where nothing better is available (the counts are informational) */
-#if HAVE_BUILTIN_ATOMIC
 #define	YAC_ATOMIC_ADD(ptr, val) __sync_fetch_and_add((ptr), (val))
 #elif ZEND_WIN32
+#define	YAC_CAS(lock, old, set)  (InterlockedCompareExchange(lock, set, old) == old)
 #define	YAC_ATOMIC_ADD(ptr, val) InterlockedExchangeAdd((LONG volatile *)(ptr), (LONG)(val))
 #else
-#define	YAC_ATOMIC_ADD(ptr, val) (*(ptr) += (val))
+#error No atomic CAS support: per-slot locking is mandatory for a shared-memory cache
 #endif
 
 /* backoff hint for the spin loop: cuts power and the pipeline penalty
