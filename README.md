@@ -2,7 +2,9 @@
 
 [![AppVeyor](https://ci.appveyor.com/api/projects/status/6bu09pw8ukyx61m2/branch/master?svg=true)](https://ci.appveyor.com/project/laruence/yac/branch/master) [![Linux](https://github.com/laruence/yac/actions/workflows/linux.yml/badge.svg?branch=master)](https://github.com/laruence/yac/actions/workflows/linux.yml) [![Windows](https://github.com/laruence/yac/actions/workflows/windows.yml/badge.svg?branch=master)](https://github.com/laruence/yac/actions/workflows/windows.yml) [![Hammer](https://github.com/laruence/yac/actions/workflows/hammer.yml/badge.svg?branch=master)](https://github.com/laruence/yac/actions/workflows/hammer.yml)
 
-Yac is a shared and lockless memory user data cache for PHP.
+Yac is a lock-free shared-memory user data cache for PHP, dramatically
+faster than APCu and local Memcached — 13x to 700x more ops/s under a
+realistic multi-worker load (see [Benchmarks](#benchmarks)).
 
 It can be used to replace APC or local memcached.
 
