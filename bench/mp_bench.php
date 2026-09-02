@@ -1,6 +1,6 @@
 <?php
 /**
- * mp_bench.php — Multi-process mixed read/write benchmark: Yac vs APCu vs Memcached.
+ * mp_bench.php — Multi-process benchmark: Yac vs APCu vs Memcached.
  *
  * Simulates a realistic PHP-FPM deployment. The parent process initializes the
  * backend (allocating its shared memory), then forks N worker processes that all
@@ -14,19 +14,20 @@
  * read-heavy workload typical of real caches. The cache is warmed up first so
  * reads are hits.
  *
- * The key space is split evenly across two value classes by default: 6-byte
- * values (small enough for Yac to embed in the slot) and 128-byte values.
- * Compression is intentionally left off so every backend stores values as-is.
+ * The value size class(es) come from --value-size (default 6 and 128 bytes).
+ * With one size, every key holds an identically-sized value. Compression is
+ * intentionally left off so every backend stores values as-is.
  *
  * Throughput is reported as AGGREGATE ops/s across all workers over wall time,
  * which measures real contention behavior — not the sum of isolated single-process
  * runs.
  *
- * Usage (prefer run_mp.sh, which loads yac.so and the CLI switches):
- *   ./run_mp.sh
- *   ./run_mp.sh --procs=16 --seconds=5 --ratio=100 --keys=20000
- *   --mixed=6,128                       value size classes in bytes (default)
- *   --backend=yac|apcu|memcached|all    run a single backend instead of all
+ * Usage (prefer run_mp.sh, which loads the extensions and the CLI switches):
+ *   ./run_mp.sh --pcntl --apcu=/path/to/apcu.so
+ *   ./run_mp.sh --pcntl --procs=16 --seconds=5 --ratio=100 --keys=20000
+ *   --value-size=256                    all values this many bytes (default 6,128)
+ * Which backends run depends on the loaded extensions: apcu/memcached only
+ * run when their .so was passed.
  */
 
 error_reporting(E_ALL);
@@ -36,27 +37,25 @@ $PROCS   = 16;      // number of concurrent worker processes
 $SECONDS = 5;       // how long each worker runs the mixed loop
 $RATIO   = 100;     // reads per write (100 => ~1 write per 100 reads)
 $KEYS    = 20000;   // shared key space; all workers hit the same keys (contention)
-$BACKEND = 'all';
 $MC_HOST = '127.0.0.1';
 $MC_PORT = 11211;
-$MIXED   = [6, 128];    // value size classes in bytes: half short, half long
+$MIXED   = [6, 128];    // value size class(es) in bytes; one size = fixed
 
 foreach (array_slice($argv, 1) as $a) {
-    if (preg_match('/^--(procs|seconds|ratio|keys|backend|host|port|mixed)=(.+)$/', $a, $m)) {
+    if (preg_match('/^--(procs|seconds|ratio|keys|host|port|value-size)=(.+)$/', $a, $m)) {
         switch ($m[1]) {
             case 'procs':   $PROCS   = max(1, (int)$m[2]); break;
             case 'seconds': $SECONDS = max(1, (int)$m[2]); break;
             case 'ratio':   $RATIO   = max(1, (int)$m[2]); break;
             case 'keys':    $KEYS    = (int)$m[2]; break;
-            case 'backend': $BACKEND = $m[2]; break;
             case 'host':    $MC_HOST = $m[2]; break;
             case 'port':    $MC_PORT = (int)$m[2]; break;
-            case 'mixed':   $MIXED   = array_map('intval', explode(',', $m[2])); break;
+            case 'value-size': $MIXED = array_map('intval', explode(',', $m[2])); break;
         }
     }
 }
 if ($KEYS <= 0 || $PROCS <= 0) { fwrite(STDERR, "--keys/--procs must be > 0\n"); exit(2); }
-if (count($MIXED) < 1) { fwrite(STDERR, "--mixed needs at least one size\n"); exit(2); }
+if (count($MIXED) < 1) { fwrite(STDERR, "--value-size needs at least one size\n"); exit(2); }
 if (!function_exists('pcntl_fork')) { fwrite(STDERR, "pcntl extension is required\n"); exit(2); }
 
 /* -----------------------------------------------------------------------
@@ -98,7 +97,7 @@ $idx = [];
 for ($i = 0; $i < $IDX_N; $i++) { $idx[] = mt_rand(0, $KEYS - 1); }
 
 printf(
-    "Multi-process mixed benchmark: procs=%d  duration=%ds  read:write=%d:1  keys=%d  mixed=%s bytes  compression=off\n",
+    "Multi-process benchmark: procs=%d  duration=%ds  read:write=%d:1  keys=%d  value-size=%s bytes  compression=off\n",
     $PROCS, $SECONDS, $RATIO, $KEYS, implode('/', $MIXED)
 );
 
@@ -239,7 +238,11 @@ function run_backend(string $name, int $procs, int $seconds, int $ratio,
 }
 
 /* --------------------------- run the backends --------------------------- */
-$want = $BACKEND === 'all' ? ['yac', 'apcu', 'memcached'] : [$BACKEND];
+/* Which backends run follows from the loaded extensions: apcu and
+ * memcached only run when their .so was passed on the command line.
+ * run_backend() skips anything unavailable (extension missing /
+ * apc.enable_cli off / server unreachable). */
+$want = ['yac', 'apcu', 'memcached'];
 $results = []; $skipped = [];
 foreach ($want as $name) {
     echo "\n>>> $name\n";
@@ -267,7 +270,7 @@ foreach ($results as $name => $r) {
 }
 
 if (isset($results['yac']) && count($results) > 1) {
-    echo "\nRelative to Yac (>1 means faster than Yac):\n";
+    echo "\nYac advantage over the others (>1 means Yac is faster):\n";
     foreach ($results as $name => $r) {
         if ($name === 'yac') { continue; }
         printf("  %-10s total %.2fx   reads %.2fx   writes %.2fx\n", $name,

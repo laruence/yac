@@ -17,17 +17,18 @@ It trades perfect consistency for raw speed. `get()` is essentially a hash looku
 
 ## Benchmarks
 
-16 worker processes sharing one cache, mixed reads/writes at a 100:1 ratio.
-Half the keys hold 6-byte values, half hold 128-byte values; compression is
-off. Numbers are aggregate ops/s across all workers:
+16 worker processes sharing one cache, mixed reads/writes at a 100:1
+ratio, compression off, 160M shared memory for both Yac and APCu.
+Numbers are aggregate ops/s across all workers, one value size per run:
 
-| Backend   | Total ops/s    | Yac advantage |
-|-----------|----------------|---------------|
-| **Yac**   | **26,873,538** | —             |
-| APCu      | 1,185,523      | 22.7x         |
-| Memcached | 97,644         | 275.2x        |
+| Value size | Yac          | APCu 5.1.28 | Memcached 3.4.0 | Yac / APCu | Yac / Memcached |
+|-----------:|-------------:|------------:|----------------:|-----------:|----------------:|
+| 6 B        | **77.1M**    | 1.10M       | 0.11M           | 69.8x      | 726.7x          |
+| 256 B      | **60.5M**    | 1.12M       | 0.11M           | 54.0x      | 574.3x          |
+| 2048 B     | **17.2M**    | 1.28M       | 0.10M           | 13.4x      | 169.6x          |
 
-Measures throughput, not consistency — see [When to use Yac](#when-to-use-yac).
+Yac built from the current `master`. Measures throughput, not
+consistency — see [When to use Yac](#when-to-use-yac).
 Environment and reproduction: [bench/README.md](bench/README.md).
 
 ## Install

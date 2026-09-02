@@ -20,42 +20,53 @@ behavior, not the sum of isolated single-process runs.
 
 ```bash
 make                                   # build modules/yac.so
-bench/run_mp.sh --procs=16 --seconds=5 --ratio=100
+bench/run_mp.sh --pcntl \
+    --apcu=$(php -r 'echo ini_get("extension_dir");')/apcu.so \
+    --memcached=$(php -r 'echo ini_get("extension_dir");')/memcached.so \
+    --procs=16 --seconds=5 --ratio=100 --value-size=6
 ```
 
-Tunable: `--procs`, `--seconds`, `--ratio`, `--keys`,
-`--mixed=6,128` (value size classes in bytes),
-`--backend=yac|apcu|memcached|all`, `--host`, `--port`.
+`run_mp.sh` starts php with `-n`, so **only** the extensions given on
+the command line are loaded — no system-ini copies can sneak in.
+`--pcntl` is required (the benchmark forks workers): use the bare flag
+when pcntl is built into PHP, `--pcntl=/path/to/pcntl.so` when it is a
+shared extension.
 
-Unavailable backends (extension not loaded, Memcached not running) are
-skipped automatically. `run_mp.sh` loads the locally built `yac.so` and
-enlarges key/value memory so the warmed key set fits without eviction;
-it also enables APCu in CLI and sizes its shared memory accordingly.
+Which backends run follows from which extensions get loaded: the apcu
+and memcached backends only run when their `.so` was passed (and the
+memcached server is reachable at `--mc-host`/`--mc-port`).
+`--value-size=N` makes every value exactly N bytes; the table below
+comes from three runs with 6, 256 and 2048. Other tunables: `--procs`,
+`--seconds`, `--ratio`, `--keys`.
+
+Shared memory is fixed at 160M for Yac (`keys_memory_size=32M` +
+`values_memory_size=128M`) and `apc.shm_size=160M` for APCu, so both
+backends get the same budget.
 
 ## Workload details
 
-The key space is split evenly across two value classes: **6-byte**
-values (small enough for Yac 2.4.0 to embed directly in the slot) and
-**128-byte** values. All values are random-looking text built from a
-shared pool of random words, and **compression is disabled**
-(`yac.compress_threshold` unset, Memcached's client-side
-`OPT_COMPRESSION` off) so every backend stores values as-is and the
-comparison measures raw cache mechanics.
+All values in one run come from a single size class. They are
+random-looking text built from a shared pool of random words, and
+**compression is off everywhere**: `yac.compress_threshold=-1`,
+`Memcached::OPT_COMPRESSION` off, and APCu never compresses — so every
+backend stores values as-is and the comparison measures raw cache
+mechanics.
 
 ## Environment
 
 MacBook Pro (macOS 26.5, Apple M5 Pro, 15-core CPU), PHP 8.5,
-APCu 5.1.28, php-memcached 3.4.0, Memcached on 127.0.0.1:11211.
-`yac.keys_memory_size=32M`, `yac.values_memory_size=128M`, 20,000
-shared keys. Results are stable across repeated runs.
+APCu 5.1.28, php-memcached 3.4.0, Memcached server 1.6.45 on
+127.0.0.1:11211. Yac built from the current `master`.
+`--keys=20000` shared keys. Results are stable across repeated runs.
 
-Reference numbers (16 workers, 5s, 100:1, mixed 6/128-byte values):
+Reference numbers (16 workers, 5s, 100:1 read:write, compression off,
+160M shared memory):
 
-| Backend   | Total ops/s    | Yac advantage |
-|-----------|----------------|---------------|
-| **Yac**   | **26,873,538** | —             |
-| APCu      | 1,185,523      | 22.7x         |
-| Memcached | 97,644         | 275.2x        |
+| Value size | Yac          | APCu       | Memcached  | Yac / APCu | Yac / Memcached |
+|-----------:|-------------:|-----------:|-----------:|-----------:|----------------:|
+| 6 B        | **77.1M**    | 1.10M      | 0.11M      | 69.8x      | 726.7x          |
+| 256 B      | **60.5M**    | 1.12M      | 0.11M      | 54.0x      | 574.3x          |
+| 2048 B     | **17.2M**    | 1.28M      | 0.10M      | 13.4x      | 169.6x          |
 
 ## Disclaimer
 
