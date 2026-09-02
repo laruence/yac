@@ -41,10 +41,20 @@ int yac_serializer_json_pack(zval *pzval, smart_str *buf, char **msg) /* {{{ */ 
 } /* }}} */
 
 zval* yac_serializer_json_unpack(char *content, size_t len, char **msg, zval *rv) /* {{{ */ {
+	char *copy;
+
 	YAC_UNSERIALIZE_SUPPRESS_BEGIN();
 
+	/* php_json_decode()'s scanner requires a NUL-terminated buffer; stored
+	 * payloads carry no terminator, so hand it a terminated copy — decoding
+	 * the unterminated original fails depending on whatever byte happens to
+	 * follow the buffer in memory */
+	copy = emalloc(len + 1);
+	memcpy(copy, content, len);
+	copy[len] = '\0';
 	ZVAL_NULL(rv);
-	php_json_decode(rv, content, len, 1, 512);
+	php_json_decode(rv, copy, len, PHP_JSON_OBJECT_AS_ARRAY, 512);
+	efree(copy);
 	/* php_json_decode leaves rv as null on failure; a stored array or
 	 * object can never legitimately decode to null */
 	if (UNEXPECTED(Z_TYPE_P(rv) == IS_NULL || EG(exception))) {
