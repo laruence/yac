@@ -12,10 +12,10 @@ It can be used to replace APC or local memcached.
 
 Yac is a **lockless, shared memory cache**. It lives in the same process space as PHP (no network round-trip) and avoids coarse-grained locks — which means:
 
-- **Best for**: read-heavy workloads with large, relatively stable key sets — configuration, routing tables, precomputed data, HTML fragments — things you read far more often than you write. There is no global lock; arbitration is per-slot, so many worker processes can share one cache and throughput **scales with the worker count**, as long as writes are spread across keys (see [Benchmarks](#benchmarks)).
-- **Watch out for**: many processes writing the **same** key at once. That is the one case per-slot arbitration cannot parallelize away: under heavy same-key contention a `set()` can fail (it returns `false` — retry if the value matters), and readers see relaxed rather than strict read-your-writes consistency. If you need strong write consistency or atomic multi-key operations, use Redis or Memcached.
+- **Best for**: single-node deployments chasing maximum read throughput — configuration, routing tables, precomputed data, HTML fragments, anything you read far more often than you write. The cache lives in shared memory inherited by every PHP worker on the machine: no network round-trip, no cache server to run, and throughput **scales with the worker count** (see [Benchmarks](#benchmarks)).
+- **Watch out for**: deployments that need to **share one cache across nodes** — multiple hosts behind a load balancer must see the same entries. Yac's shared memory is per-machine: workers on different hosts each hold their own copy and never see one another's writes. Use Redis or Memcached when the cache has to span machines.
 
-It trades perfect consistency for raw speed. `get()` is essentially a hash lookup in shared memory — microsecond-level latency.
+It is built for raw speed: `get()` is essentially a hash lookup in shared memory — microsecond-level latency.
 
 ## Benchmarks
 
@@ -30,7 +30,7 @@ Numbers are aggregate ops/s across all workers, one value size per run:
 | 2048 B     | **17.2M**    | 1.28M       | 0.10M           | 13.4x      | 169.6x          |
 
 Yac built from the current `master`. Measures throughput, not
-consistency — see [When to use Yac](#when-to-use-yac).
+consistency.
 Environment and reproduction: [bench/README.md](bench/README.md).
 
 ## Install
