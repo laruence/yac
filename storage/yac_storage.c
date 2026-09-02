@@ -36,23 +36,24 @@ yac_storage_globals *yac_storage;
  * compact layout that line also carries the read-only globals — which
  * cost roughly a third of aggregate throughput. the cold counters
  * (kicks/fails/occupied/recycles) keep their direct increments */
-static unsigned long yac_stats_hits_acc;
-static unsigned long yac_stats_miss_acc;
+static struct {
+	unsigned int hits;
+	unsigned int miss;
+} local_stats;
 
-void yac_storage_stats_flush(void) {
-	if (yac_stats_hits_acc) {
-		YAC_ATOMIC_ADD(&YAC_SG(stats.hits), (unsigned int)yac_stats_hits_acc);
-		yac_stats_hits_acc = 0;
-	}
-	if (yac_stats_miss_acc) {
-		YAC_ATOMIC_ADD(&YAC_SG(stats.miss), (unsigned int)yac_stats_miss_acc);
-		yac_stats_miss_acc = 0;
-	}
+void yac_storage_start_stats(void) {
+	memset(&local_stats, 0, sizeof(local_stats));
 }
 
-void yac_storage_stats_reset(void) {
-	yac_stats_hits_acc = 0;
-	yac_stats_miss_acc = 0;
+void yac_storage_flush_stats(void) {
+	if (local_stats.hits) {
+		YAC_ATOMIC_ADD(&YAC_SG(stats.hits), local_stats.hits);
+		local_stats.hits = 0;
+	}
+	if (local_stats.miss) {
+		YAC_ATOMIC_ADD(&YAC_SG(stats.miss), local_stats.miss);
+		local_stats.miss = 0;
+	}
 }
 
 static uint32_t (*yac_crc)(const char *data, unsigned int size);
@@ -450,7 +451,7 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 				*size = 0; /* the value word carries no metadata */
 				*flag = 0;
 				++p->u1.hits;
-				++yac_stats_hits_acc;
+				++local_stats.hits;
 				return 1;
 			} else {
 				yac_kv_val v = *(k.val);
@@ -466,7 +467,7 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 					*size = YAC_KEY_VLEN(k);
 					*flag = k.u1.flag;
 					++k.val->hits;
-					++yac_stats_hits_acc;
+					++local_stats.hits;
 					return 1;
 				}
 				USER_FREE(s);
@@ -484,7 +485,7 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 		h = (h + stride) & YAC_SG(slots_mask);
 	}
 
-	++yac_stats_miss_acc;
+	++local_stats.miss;
 
 	return 0;
 }
@@ -692,8 +693,9 @@ void yac_storage_flush(void) /* {{{ */ {
 yac_storage_info * yac_storage_get_info(void) /* {{{ */ {
 	yac_storage_info *info;
 
-	/* include this process's pending counts before reading */
-	yac_storage_stats_flush();
+	/* fold this process's pending counts so the shared numbers are
+	 * accurate; the request keeps accumulating afterwards */
+	yac_storage_flush_stats();
 	info = USER_ALLOC(sizeof(yac_storage_info));
 
 	info->k_msize = (unsigned long)YAC_SG(first_seg).size;

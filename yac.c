@@ -1188,13 +1188,13 @@ static zend_module_dep yac_module_deps[] = {
 };
 
 PHP_RINIT_FUNCTION(yac) /* {{{ */ {
-	yac_storage_stats_reset();
+	yac_storage_start_stats();
 	return SUCCESS;
 }
 /* }}} */
 
 PHP_RSHUTDOWN_FUNCTION(yac) /* {{{ */ {
-	yac_storage_stats_flush();
+	yac_storage_flush_stats();
 	return SUCCESS;
 }
 /* }}} */
