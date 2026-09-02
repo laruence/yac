@@ -1,6 +1,27 @@
-Yac 2.4.0 was released on 2026-08-26; these notes mirror the GitHub release.
+Yac 2.4.1 was released on 2026-09-02; these notes mirror the GitHub release.
+
+## What's New in 2.4.1
+
+### Performance
+
+- Every stored value is now integrity-checked with CRC-32C on read: values over 1KB are hashed over three interleaved hardware CRC chains on x86-64 and ARM64, everything else falls back to a sliced-by-8 software table
+- Eviction rework: expired entries are swept in a separate pass, victims are picked by remaining ttl with ties falling to the least hit candidate, and blocks found corrupt are tombstoned in find() — less wasted eviction work under memory pressure
+- A single MurmurHash64A now drives both the home slot and the probe stride (two hashes before)
+- hits/miss are accumulated per process and folded into shared memory once at request end, taking shared-counter contention off the hot path
+- Default memory sizes raised: keys 4M → 8M, values 32M → 64M; compression now on by default at 4K (was off)
+
+### Fixes
+
+- Fixed a refcount leak on the multi-get `$default` when filling missing keys
+- Entries that fail to decompress are now invalidated instead of being served or evicted again
+- Fixed crc sampling and made the decompression check more precise
+- Fixed spurious kicks
+- Fixed the JSON serializer decoding from an unterminated buffer, which could fail or read past the buffer
+- Fixed `info()` miss counts being folded into the hits counter
 
 ## What's New in 2.4.0
+
+Yac 2.4.0 was released on 2026-08-26.
 
 ### Performance
 

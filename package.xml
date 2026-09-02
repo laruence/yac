@@ -12,10 +12,10 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2026-08-25</date>
- <time>19:11:33</time>
+ <date>2026-09-02</date>
+ <time>13:25:00</time>
  <version>
-  <release>2.4.0</release>
+  <release>2.4.1</release>
   <api>2.4.0</api>
  </version>
  <stability>
@@ -24,16 +24,17 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - Embed small scalars directly in the hash slot, avoiding value allocations for tiny entries
-  - Switch compression from FastLZ to LZ4 (better ratio and speed)
-  - get() accepts an optional $default argument (returned on miss instead of NULL)
-  - dump() gains an $offset parameter and reports hits, atime, embedded and c_len per entry
-  - Per-entry hit counters and start_time exposed in info()/dump()
-  - Multi-get omits missing keys (filled with $default when given) instead of false placeholders
-  - Field-by-field slot commits and spinlock backoff (pause/yield) reduce contention overhead
-  - Fixed a startup hang when values_memory_size is below the 4M segment minimum
-  - Fixed Windows shared memory cleanup (view unmapped exactly once)
-  - Fixed valgrind-reported leaks and uninitialized reads (MINFO output, compression error paths)
+  - Integrity-check every value with CRC-32C on read: three interleaved hardware chains for values over 1KB on x86-64/ARM64, sliced-by-8 software table elsewhere
+  - Eviction rework: separate expired sweep, victims picked by remaining ttl (ties fall to least hit), corrupt blocks tombstoned on find
+  - A single MurmurHash64A drives home slot and probe stride (two hashes before)
+  - hits/miss accumulated per process and folded once at request end, off the shared-counter hot path
+  - Default memory raised: keys 4M to 8M, values 32M to 64M; compression on by default at 4K
+  - Fixed a refcount leak on the multi-get $default
+  - Entries failing to decompress are now invalidated instead of being evicted over and over
+  - Fixed crc sampling and the decompression check
+  - Fixed spurious kicks
+  - Fixed the JSON serializer decoding from an unterminated buffer
+  - Fixed info() folding miss counts into the hits counter
  </notes>
  <contents> 
   <dir name="/"> 
@@ -152,6 +153,32 @@
   <configureoption name="enable-msgpack" prompt="enable msgpack serializer support?" default="no"/>
  </extsrcrelease>
  <changelog>
+  <release>
+   <date>2026-09-02</date>
+   <version>
+    <release>2.4.1</release>
+    <api>2.4.0</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
+   <notes>
+    - Integrity-check every value with CRC-32C on read: three interleaved hardware chains for values over 1KB on x86-64/ARM64, sliced-by-8 software table elsewhere
+    - Eviction rework: separate expired sweep, victims picked by remaining ttl (ties fall to least hit), corrupt blocks tombstoned on find
+    - A single MurmurHash64A drives home slot and probe stride (two hashes before)
+    - hits/miss accumulated per process and folded once at request end, off the shared-counter hot path
+    - Default memory raised: keys 4M to 8M, values 32M to 64M; compression on by default at 4K
+    - Fixed a refcount leak on the multi-get $default
+    - Entries failing to decompress are now invalidated instead of being evicted over and over
+    - Fixed crc sampling and the decompression check
+    - Fixed spurious kicks
+    - Fixed the JSON serializer decoding from an unterminated buffer
+    - Fixed info() folding miss counts into the hits counter
+   </notes>
+  </release>
+
   <release>
    <date>2026-08-25</date>
    <version>
