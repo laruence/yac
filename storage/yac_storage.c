@@ -29,106 +29,149 @@
 
 yac_storage_globals *yac_storage;
 
-/* per-process stats accumulators: hits/miss land here on the hot path
- * instead of the shared stats line, and are folded back atomically at
- * request shutdown (or before stats are read). bumping the shared line
- * on every hit made it bounce between cores constantly — and in the
- * compact layout that line also carries the read-only globals — which
- * cost roughly a third of aggregate throughput. the cold counters
- * (kicks/fails/occupied/recycles) keep their direct increments */
-static struct {
-	unsigned int hits;
-	unsigned int miss;
-} local_stats;
-
-void yac_storage_start_stats(void) {
-	memset(&local_stats, 0, sizeof(local_stats));
-}
-
-void yac_storage_flush_stats(void) {
-	if (local_stats.hits) {
-		YAC_ATOMIC_ADD(&YAC_SG(stats.hits), local_stats.hits);
-		local_stats.hits = 0;
-	}
-	if (local_stats.miss) {
-		YAC_ATOMIC_ADD(&YAC_SG(stats.miss), local_stats.miss);
-		local_stats.miss = 0;
-	}
-}
-
 static uint32_t (*yac_crc)(const char *data, unsigned int size);
 static uint32_t (*yac_crc_interleaved)(const char *data, unsigned int size);
-static uint32_t crc32(const char *data, unsigned int size);
 
-#if HAVE_SSE_CRC32 /* {{{ */
-static uint32_t crc32c_sse42(const char *buf, unsigned int size) {
+/* snapshot counterparts: copy-while-checksum chains dispatched from the same
+ * CPU probing as the crc pair above, so every build keeps one consistent
+ * polynomial (see yac_snapshot) */
+static uint32_t (*yac_snapshot_serial)(char *dst, const char *data, unsigned int size);
+static uint32_t (*yac_snapshot_interleaved)(char *dst, const char *data, unsigned int size);
+
+/* {{{ Hardware-accelerated snapshot: use _mm_crc32_uX in sse4.2 */
+#if HAVE_SSE_CRC32
+/* each crc/snapshot pair is one core function taking a dst: NULL means
+ * checksum only (the store becomes a dead branch the optimizer removes),
+ * non-NULL copies while checksumming. the wrappers keep the two call
+ * signatures stable */
+static uint32_t crc32c_sse42_core(char *dst, const char *buf, unsigned int size) {
 	uint32_t crc = 0 ^ 0xFFFFFFFF;
 
 	/* byte-wise until 8-aligned, so the word loads below stay aligned */
 	while (size && ((uintptr_t)buf & 7)) {
+		if (dst) {
+			*dst++ = *buf;
+		}
 		crc = _mm_crc32_u8(crc, (unsigned char)*buf++);
 		size--;
 	}
 #if __x86_64__
 	while (size >= sizeof(uint64_t)) {
-		crc = _mm_crc32_u64(crc, *(uint64_t*)buf);
+		uint64_t w = *(uint64_t*)buf;
+		if (dst) {
+			memcpy(dst, &w, sizeof(uint64_t));
+			dst += sizeof(uint64_t);
+		}
+		crc = _mm_crc32_u64(crc, w);
 		buf += sizeof(uint64_t);
 		size -= sizeof(uint64_t);
 	}
 #endif
 	while (size >= sizeof(uint32_t)) {
-		crc = _mm_crc32_u32(crc, *(uint32_t*)buf);
+		uint32_t w = *(uint32_t*)buf;
+		if (dst) {
+			memcpy(dst, &w, sizeof(uint32_t));
+			dst += sizeof(uint32_t);
+		}
+		crc = _mm_crc32_u32(crc, w);
 		buf += sizeof(uint32_t);
 		size -= sizeof(uint32_t);
 	}
 	if (size >= sizeof(uint16_t)) {
-		crc = _mm_crc32_u16(crc, *(uint16_t*)buf);
+		uint16_t w = *(uint16_t*)buf;
+		if (dst) {
+			memcpy(dst, &w, sizeof(uint16_t));
+			dst += sizeof(uint16_t);
+		}
+		crc = _mm_crc32_u16(crc, w);
 		buf += sizeof(uint16_t);
 		size -= sizeof(uint16_t);
 	}
 	if (size) {
+		if (dst) {
+			*dst = *buf;
+		}
 		crc = _mm_crc32_u8(crc, (unsigned char)*buf);
 	}
 
 	return crc ^ 0xFFFFFFFF;
 }
+
+static uint32_t crc32c_sse42(const char *buf, unsigned int size) {
+	return crc32c_sse42_core(NULL, buf, size);
+}
+
+static uint32_t snapshot_sse42(char *dst, const char *buf, unsigned int size) {
+	return crc32c_sse42_core(dst, buf, size);
+}
 #endif
 /* }}} */
 
-#if HAVE_ARM_CRC32 /* {{{ */
-static uint32_t crc32c_arm(const char *buf, unsigned int size) {
+/* {{{ Hardware-accelerated crc/snapshot: use __crc32cX on arm */
+#if HAVE_ARM_CRC32
+static uint32_t crc32c_arm_core(char *dst, const char *buf, unsigned int size) {
 	uint32_t crc = 0 ^ 0xFFFFFFFF;
 
 	/* byte-wise until 8-aligned, so the word loads below stay aligned */
 	while (size && ((uintptr_t)buf & 7)) {
+		if (dst) {
+			*dst++ = *buf;
+		}
 		crc = __crc32cb(crc, (unsigned char)*buf++);
 		size--;
 	}
 	while (size >= sizeof(uint64_t)) {
-		crc = __crc32cd(crc, *(uint64_t*)buf);
+		uint64_t w = *(uint64_t*)buf;
+		if (dst) {
+			memcpy(dst, &w, sizeof(uint64_t));
+			dst += sizeof(uint64_t);
+		}
+		crc = __crc32cd(crc, w);
 		buf += sizeof(uint64_t);
 		size -= sizeof(uint64_t);
 	}
 	while (size >= sizeof(uint32_t)) {
-		crc = __crc32cw(crc, *(uint32_t*)buf);
+		uint32_t w = *(uint32_t*)buf;
+		if (dst) {
+			memcpy(dst, &w, sizeof(uint32_t));
+			dst += sizeof(uint32_t);
+		}
+		crc = __crc32cw(crc, w);
 		buf += sizeof(uint32_t);
 		size -= sizeof(uint32_t);
 	}
 	if (size >= sizeof(uint16_t)) {
-		crc = __crc32ch(crc, *(uint16_t*)buf);
+		uint16_t w = *(uint16_t*)buf;
+		if (dst) {
+			memcpy(dst, &w, sizeof(uint16_t));
+			dst += sizeof(uint16_t);
+		}
+		crc = __crc32ch(crc, w);
 		buf += sizeof(uint16_t);
 		size -= sizeof(uint16_t);
 	}
 	if (size) {
+		if (dst) {
+			*dst = *buf;
+		}
 		crc = __crc32cb(crc, (unsigned char)*buf);
 	}
 
 	return crc ^ 0xFFFFFFFF;
 }
+
+static uint32_t crc32c_arm(const char *buf, unsigned int size) {
+	return crc32c_arm_core(NULL, buf, size);
+}
+
+static uint32_t snapshot_arm(char *dst, const char *buf, unsigned int size) {
+	return crc32c_arm_core(dst, buf, size);
+}
 #endif
 /* }}} */
 
-#if YAC_HAVE_CRC_WORD /* {{{ */
+/* {{{ Hardware-accelerated interleaved snapshot */
+#if YAC_HAVE_CRC_WORD
 /* CRC-32C of a concatenation reassembled from part CRCs:
  *   crc(A || B) = crc(A) advanced by 8*|B| bits  XOR  crc(B)
  * advancing by 8*|B| bits is multiplication by x^(8*|B|) in GF(2) mod P,
@@ -193,24 +236,29 @@ static uint32_t yac_crc32_combine(uint32_t crc1, uint32_t crc2, unsigned int len
 	return crc1 ^ crc2;
 }
 
-/* split the buffer into three consecutive blocks and advance three
- * independent CRC chains in lockstep: every iteration issues three
- * mutually independent hardware CRC instructions, so the ~3-cycle
- * latency of one chain hides behind the other two.  the caller only
- * routes buffers >= YAC_CRC_INTER_THRESHOLD here, because below
- * that the reassembly costs more than the interleaving saves */
-static uint32_t yac_crc32c_interleaved(const char *buf, unsigned int size) {
+/* three-chain copy-while-checksum: one core, dst=NULL is pure checksum.
+ * layout math is identical in both modes — block is a multiple of 8 and
+ * the tail starts at buf + 3*block, so every word load (here and in the
+ * serial tail) stays 8-aligned and needs no peeling */
+static uint32_t interleaved_core(char *dst, const char *buf, unsigned int size) {
 	uint32_t h, c0, c1, c2;
 	const char *p0, *p1, *p2;
+	char *d0, *d1, *d2;
 	unsigned int block, rounds;
 
-	/* the block pointers all share buf's alignment class: peel an unaligned
-	 * head on a serial chain so the word loads below stay aligned. callers
-	 * only route buffers >= YAC_CRC_INTER_THRESHOLD here, so the peel cannot
-	 * run past the end */
+	/* the tail may be empty, so peel an unaligned head before the split:
+	 * block is a multiple of 8, so this keeps the tail's loads aligned too.
+	 * callers only route size >= YAC_CRC_INTER_THRESHOLD here, and peeling
+	 * needs at most 7 bytes, so the peel cannot run past the end */
 	h = 0xFFFFFFFFu;
 	while ((uintptr_t)buf & 7) {
-		h = YAC_CRC_BYTE(h, (unsigned char)*buf++);
+		unsigned char b = *buf;
+
+		if (dst) {
+			*dst++ = b;
+		}
+		h = YAC_CRC_BYTE(h, b);
+		buf++;
 		size--;
 	}
 
@@ -218,13 +266,30 @@ static uint32_t yac_crc32c_interleaved(const char *buf, unsigned int size) {
 	p0 = buf;
 	p1 = buf + block;
 	p2 = buf + block * 2;
+	if (dst) {
+		d0 = dst;
+		d1 = dst + block;
+		d2 = dst + block * 2;
+	} else {
+		d0 = d1 = d2 = NULL;
+	}
 	rounds = block >> 3;
 
 	c0 = c1 = c2 = 0xFFFFFFFFu;
 	while (rounds--) {
-		c0 = YAC_CRC_WORD(c0, *(uint64_t*)p0);
-		c1 = YAC_CRC_WORD(c1, *(uint64_t*)p1);
-		c2 = YAC_CRC_WORD(c2, *(uint64_t*)p2);
+		uint64_t w0 = *(uint64_t*)p0, w1 = *(uint64_t*)p1, w2 = *(uint64_t*)p2;
+
+		if (dst) {
+			memcpy(d0, &w0, sizeof(uint64_t));
+			memcpy(d1, &w1, sizeof(uint64_t));
+			memcpy(d2, &w2, sizeof(uint64_t));
+			d0 += sizeof(uint64_t);
+			d1 += sizeof(uint64_t);
+			d2 += sizeof(uint64_t);
+		}
+		c0 = YAC_CRC_WORD(c0, w0);
+		c1 = YAC_CRC_WORD(c1, w1);
+		c2 = YAC_CRC_WORD(c2, w2);
 		p0 += sizeof(uint64_t);
 		p1 += sizeof(uint64_t);
 		p2 += sizeof(uint64_t);
@@ -234,12 +299,118 @@ static uint32_t yac_crc32c_interleaved(const char *buf, unsigned int size) {
 	c0 = yac_crc32_combine(c0, c1 ^ 0xFFFFFFFFu, block);
 	c0 = yac_crc32_combine(c0, c2 ^ 0xFFFFFFFFu, block);
 	if (size > block * 3) {
-		/* at most 23 trailing bytes, covered serially */
-		c0 = yac_crc32_combine(c0, yac_crc(buf + block * 3, size - block * 3), size - block * 3);
+		/* at most 23 trailing bytes; the tail stays 8-aligned (block is a
+		 * multiple of 8), so run it through the serial core — copying or
+		 * pure depending on mode */
+		unsigned int tail = size - block * 3;
+		uint32_t ct;
+
+#if HAVE_SSE_CRC32
+		ct = crc32c_sse42_core(dst ? dst + block * 3 : NULL, buf + block * 3, tail);
+#else
+		ct = crc32c_arm_core(dst ? dst + block * 3 : NULL, buf + block * 3, tail);
+#endif
+		c0 = yac_crc32_combine(c0, ct, tail);
 	}
 	return c0;
 }
+
+static uint32_t yac_crc32c_interleaved(const char *buf, unsigned int size) {
+	return interleaved_core(NULL, buf, size);
+}
+
+static uint32_t snapshot_interleaved(char *dst, const char *buf, unsigned int size) {
+	return interleaved_core(dst, buf, size);
+}
 #endif
+/* }}} */
+
+/* {{{ Software slicing-by-8: one core for both pure CRC and the fused
+ * copy-while-checksum snapshot (a non-NULL dst). only reached on CPUs
+ * without hardware CRC-32C (see yac_storage_startup) */
+static uint32_t slice8_core(char *dst, const char *data, unsigned int size) {
+	const unsigned char *p = (const unsigned char *)data;
+	uint32_t crc = 0xFFFFFFFFu;
+
+#define YAC_SLICE_STORE(d, s) do { if (d) { *(d)++ = (s); } } while (0)
+
+	while (size && ((uintptr_t)p & 7)) {
+		unsigned char b = *p;
+
+		YAC_SLICE_STORE(dst, b);
+		crc = yac_crc32c_tab[0][(crc ^ b) & 0xFF] ^ (crc >> 8);
+		p++;
+		size--;
+	}
+	while (size >= 8) {
+		uint64_t w;
+
+		memcpy(&w, p, sizeof(uint64_t));
+		if (dst) {
+			memcpy(dst, &w, sizeof(uint64_t));
+			dst += sizeof(uint64_t);
+		}
+		crc ^= (uint32_t)w;
+		crc = yac_crc32c_tab[7][crc & 0xFF]
+			^ yac_crc32c_tab[6][(crc >> 8) & 0xFF]
+			^ yac_crc32c_tab[5][(crc >> 16) & 0xFF]
+			^ yac_crc32c_tab[4][(crc >> 24) & 0xFF]
+			^ yac_crc32c_tab[3][(w >> 32) & 0xFF]
+			^ yac_crc32c_tab[2][(w >> 40) & 0xFF]
+			^ yac_crc32c_tab[1][(w >> 48) & 0xFF]
+			^ yac_crc32c_tab[0][(w >> 56) & 0xFF];
+		p += 8;
+		size -= 8;
+	}
+	while (size--) {
+		unsigned char b = *p;
+
+		YAC_SLICE_STORE(dst, b);
+		crc = yac_crc32c_tab[0][(crc ^ b) & 0xFF] ^ (crc >> 8);
+		p++;
+	}
+#undef YAC_SLICE_STORE
+	return crc ^ 0xFFFFFFFF;
+}
+
+static uint32_t snapshot_slice8(char *dst, const char *data, unsigned int size) {
+	return slice8_core(dst, data, size);
+}
+/* }}} */
+
+/* {{{ Software fallback CRC-32C (Castagnoli, reflected, poly 0x82F63B78 —
+ * the same polynomial the hardware _mm_crc32/__crc32c instructions compute,
+ * so a software fallback on a given machine matches its hardware CRC bit for
+ * bit, and entries stay valid across the dispatch choice).
+ *
+ * Slicing-by-8: one loop iteration consumes 8 bytes — xor the next 4 input
+ * bytes into the running crc to clear it, then 8 table lookups fold all 8
+ * bytes in at once. Roughly 4-5x the throughput of a single-table byte loop
+ * for a 8 KiB table footprint. Only reached on CPUs without hardware CRC-32C
+ * (see yac_storage_startup). Tables generated offline and cross-checked
+ * against the hardware instructions over all lengths and alignments;
+ * "123456789" -> 0xe3069283 (RFC 3720 B.4).
+ */
+static uint32_t crc32(const char *buf, unsigned int size) {
+	return slice8_core(NULL, buf, size);
+}
+/* }}} */
+
+void yac_storage_start_stats(void) /* {{{ */ {
+	memset(&local_stats, 0, sizeof(local_stats));
+}
+/* }}} */
+
+void yac_storage_flush_stats(void) /* {{{ */ {
+	if (local_stats.hits) {
+		YAC_ATOMIC_ADD(&YAC_SG(stats.hits), local_stats.hits);
+		local_stats.hits = 0;
+	}
+	if (local_stats.miss) {
+		YAC_ATOMIC_ADD(&YAC_SG(stats.miss), local_stats.miss);
+		local_stats.miss = 0;
+	}
+}
 /* }}} */
 
 static inline unsigned int yac_storage_align_size(unsigned int size) /* {{{ */ {
@@ -266,19 +437,24 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, char **msg) /* 
 #if HAVE_SSE_CRC32
 	if (zend_cpu_supports_sse42()) {
 		yac_crc = crc32c_sse42;
+		yac_snapshot_serial = snapshot_sse42;
 # if YAC_HAVE_CRC_WORD
 		yac_crc32c_init();
 		yac_crc_interleaved = yac_crc32c_interleaved;
+		yac_snapshot_interleaved = snapshot_interleaved;
 # endif
 	} else
 #endif
 	{
 #if HAVE_ARM_CRC32
 		yac_crc = crc32c_arm;
+		yac_snapshot_serial = snapshot_arm;
 		yac_crc32c_init();
 		yac_crc_interleaved = yac_crc32c_interleaved;
+		yac_snapshot_interleaved = snapshot_interleaved;
 #else
 		yac_crc = crc32;
+		yac_snapshot_serial = snapshot_slice8;
 #endif
 	}
 	size = YAC_SG(first_seg).size - ((char *)YAC_SG(slots) - (char *)yac_storage);
@@ -361,48 +537,16 @@ static inline uint64_t yac_hash(const char *data, unsigned int len) {
 }
 /* }}} */
 
-/* {{{ Software fallback CRC-32C (Castagnoli, reflected, poly 0x82F63B78 —
- * the same polynomial the hardware _mm_crc32/__crc32c instructions compute,
- * so a software fallback on a given machine matches its hardware CRC bit for
- * bit, and entries stay valid across the dispatch choice).
- *
- * Slicing-by-8: one loop iteration consumes 8 bytes — xor the next 4 input
- * bytes into the running crc to clear it, then 8 table lookups fold all 8
- * bytes in at once. Roughly 4-5x the throughput of a single-table byte loop
- * for a 8 KiB table footprint. Only reached on CPUs without hardware CRC-32C
- * (see yac_storage_startup). Tables generated offline and cross-checked
- * against the hardware instructions over all lengths and alignments;
- * "123456789" -> 0xe3069283 (RFC 3720 B.4).
- */
-static uint32_t crc32(const char *buf, unsigned int size) {
-	const unsigned char *p = (const unsigned char *)buf;
-	uint32_t crc = 0xFFFFFFFFu;
-
-	/* byte-wise until 8-aligned so the fast loop can read full words */
-	while (size && ((uintptr_t)p & 7)) {
-		crc = yac_crc32c_tab[0][(crc ^ *p++) & 0xFF] ^ (crc >> 8);
-		size--;
+/* {{{ Copy src into dst while checksumming it, and return the CRC-32C of
+ * src. the find() hot path wants exactly this pair — previously it ran
+ * memcpy() and then re-scanned the copy for the checksum, reading the value
+ * twice; folding both into one pass keeps a single source read and a single
+ * destination write. the result must stay bit-identical to yac_crc32() */
+static inline unsigned int yac_snapshot(char *dst, const char *src, unsigned int size) {
+	if (yac_snapshot_interleaved == NULL || size < YAC_CRC_INTER_THRESHOLD) {
+		return yac_snapshot_serial(dst, src, size);
 	}
-	while (size >= 8) {
-		uint64_t w;
-
-		memcpy(&w, p, sizeof(uint64_t));
-		crc ^= (uint32_t)w;
-		crc = yac_crc32c_tab[7][crc & 0xFF]
-			^ yac_crc32c_tab[6][(crc >> 8) & 0xFF]
-			^ yac_crc32c_tab[5][(crc >> 16) & 0xFF]
-			^ yac_crc32c_tab[4][(crc >> 24) & 0xFF]
-			^ yac_crc32c_tab[3][(w >> 32) & 0xFF]
-			^ yac_crc32c_tab[2][(w >> 40) & 0xFF]
-			^ yac_crc32c_tab[1][(w >> 48) & 0xFF]
-			^ yac_crc32c_tab[0][(w >> 56) & 0xFF];
-		p += 8;
-		size -= 8;
-	}
-	while (size--) {
-		crc = yac_crc32c_tab[0][(crc ^ *p++) & 0xFF] ^ (crc >> 8);
-	}
-	return crc ^ 0xFFFFFFFF;
+	return yac_snapshot_interleaved(dst, src, size);
 }
 /* }}} */
 
@@ -454,12 +598,12 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 				++local_stats.hits;
 				return 1;
 			} else {
-				yac_kv_val v = *(k.val);
 				char *s = USER_ALLOC(YAC_KEY_VLEN(k));
 
-				memcpy(s, (char *)k.val->data, YAC_KEY_VLEN(k));
-				/* guarders: reject a block recycled behind our back */
-				if (k.len == v.len && k.u2.crc == yac_crc32(s, YAC_KEY_VLEN(k))) {
+				/* guarders: reject a block recycled behind our back.
+				 * yac_snapshot() copies the value out and checksums it in
+				 * a single pass over the source */
+				if (k.len == p->val->len && k.u2.crc == yac_snapshot(s, (char *)k.val->data, YAC_KEY_VLEN(k))) {
 					if (k.val->atime != tv) {
 						k.val->atime = tv;
 					}

@@ -180,6 +180,18 @@ typedef struct {
 	unsigned int recycles;
 } yac_storage_stats;
 
+/* per-process stats accumulators: hits/miss land here on the hot path
+ * instead of the shared stats line, and are folded back atomically at
+ * request shutdown (or before stats are read). bumping the shared line
+ * on every hit made it bounce between cores constantly — and in the
+ * compact layout that line also carries the read-only globals — which
+ * cost roughly a third of aggregate throughput. the cold counters
+ * (kicks/fails/occupied/recycles) keep their direct increments */
+static struct {
+	unsigned int hits;
+	unsigned int miss;
+} local_stats;
+
 typedef struct {
 	/* read-only after startup */
 	yac_kv_key  *slots;
