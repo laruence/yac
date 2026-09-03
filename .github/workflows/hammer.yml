@@ -1,5 +1,5 @@
 # Concurrency hammer: 16 forked workers pound the shared pools for
-# ~15 seconds and every single read is validated. Complements the phpt
+# ~30 seconds and every single read is validated. Complements the phpt
 # suite in linux.yml: same small pools CI uses there, but driven by
 # wall-clock instead of fixed test expectations, so it also bites on
 # scheduling races the deterministic tests can't reach. Runs on both
@@ -40,7 +40,7 @@ jobs:
           make
       - name: Hammer
         run: |
-          YAC_HAMMER_WORKERS=16 YAC_HAMMER_SECONDS=15 php -n \
+          YAC_HAMMER_WORKERS=16 YAC_HAMMER_SECONDS=30 php -n \
             -d extension=modules/yac.so -d yac.enable_cli=1 \
             -d yac.keys_memory_size=1M -d yac.values_memory_size=4M \
             -d yac.compress_threshold=-1 tests/concurrency.php

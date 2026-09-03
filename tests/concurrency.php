@@ -325,7 +325,16 @@ $pids = array();
 for ($w = 0; $w < $workers; $w++) {
 	$pid = pcntl_fork();
 	if ($pid === -1) {
-		fwrite(STDERR, "fork failed\n");
+		fwrite(STDERR, sprintf("fork failed at worker %d/%d — reaping the %d already started\n",
+			$w, $workers, count($pids)));
+		foreach ($pids as $pid) {
+			if (function_exists("posix_kill")) {
+				posix_kill($pid, SIGKILL);
+			}
+			/* without posix the wait below just lets each worker run out
+			 * its deadline on its own */
+			pcntl_waitpid($pid, $status);
+		}
 		exit(1);
 	}
 	if ($pid === 0) {
@@ -334,11 +343,36 @@ for ($w = 0; $w < $workers; $w++) {
 	$pids[$w] = $pid;
 }
 
+/* wait for each child and classify exactly how it died. a worker is
+ * healthy only if it exited normally with code 0; anything else is
+ * reported with its worker id and disposition so a rare failure is
+ * traceable instead of collapsing into "1/N workers saw wrong reads":
+ *   - normal exit, code >0 : the worker reported that many wrong reads
+ *     (it already printed the per-failure detail above)
+ *   - killed by a signal   : the worker died without reporting — a crash
+ *     (e.g. segfault), not a validation failure; the signal number (and
+ *     core-dump flag, where the platform exposes it) is what to chase
+ *     first */
 $failed_workers = 0;
 foreach ($pids as $w => $pid) {
 	pcntl_waitpid($pid, $status);
-	$code = pcntl_wifexited($status) ? pcntl_wexitstatus($status) : 255;
-	if ($code !== 0) {
+	if (pcntl_wifexited($status)) {
+		$code = pcntl_wexitstatus($status);
+		if ($code === 0) {
+			continue;
+		}
+		printf("FAIL: worker %d (pid %d) exited %d — %d wrong read(s) reported above\n",
+			$w, $pid, $code, min($code, 100));
+		$failed_workers++;
+	} elseif (pcntl_wifsignaled($status)) {
+		printf("FAIL: worker %d (pid %d) killed by signal %d%s — likely a crash, not a validation failure\n",
+			$w, $pid, pcntl_wtermsig($status),
+			function_exists("pcntl_wcoredump") && pcntl_wcoredump($status)
+				? " (core dumped)" : "");
+		$failed_workers++;
+	} else {
+		printf("FAIL: worker %d (pid %d) stopped unexpectedly (status=0x%x)\n",
+			$w, $pid, $status);
 		$failed_workers++;
 	}
 }
@@ -353,7 +387,8 @@ if ($after["kicks"] === $before["kicks"] && $after["recycles"] === $before["recy
 }
 
 if ($failed_workers > 0) {
-	printf("FAIL: %d/%d workers saw wrong reads\n", $failed_workers, $workers);
+	printf("FAIL: %d/%d workers failed — per-worker disposition in the FAIL: lines above\n",
+		$failed_workers, $workers);
 	exit(1);
 }
 printf("PASS: every read returned a legitimate value or a miss\n");
