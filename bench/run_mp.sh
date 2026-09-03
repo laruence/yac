@@ -28,8 +28,31 @@ PCNTL=0
 MC_ARGS=""
 PHP_ARGS=""
 
+usage() {
+    cat <<'EOF'
+Usage:
+  ./run_mp.sh --pcntl[=/path/to/pcntl.so] \
+              [--apcu=/path/to/apcu.so] \
+              [--memcached=/path/to/memcached.so] \
+              [--yac=/path/to/yac.so] \
+              [--mc-host=127.0.0.1] [--mc-port=11211] \
+              [--procs=16 --seconds=5 --ratio=100 --keys=20000] \
+              [--value-size=6]
+
+php is started with -n (no system ini), so nothing is loaded unless a
+.so path is passed here. --pcntl is required (mp_bench.php forks
+workers): pass --pcntl when it is built into PHP, or
+--pcntl=/path/to/pcntl.so otherwise.
+
+Which backends run is decided by which extensions get loaded: the apcu
+and memcached backends only run when their .so was passed. yac always
+runs (--yac overrides the default locally built ../modules/yac.so).
+EOF
+}
+
 for a in "$@"; do
     case "$a" in
+        -h|--help)     usage; exit 0 ;;
         --yac=*)       YAC_SO=${a#--yac=} ;;
         --apcu=*)      APCU_SO=${a#--apcu=} ;;
         --memcached=*) MEMC_SO=${a#--memcached=} ;;
@@ -41,21 +64,14 @@ for a in "$@"; do
     esac
 done
 
-if [ "$PCNTL" = 0 ] && [ -z "$PCNTL_SO" ]; then
-    echo "Usage error: --pcntl (or --pcntl=/path/to/pcntl.so) is required." >&2
-    exit 1
-fi
+php -n -r 'exit(function_exists("pcntl_fork") ? 0 : 1);' || {
+	echo "Usage error: --pcntl (or --pcntl=/path/to/pcntl.so) is required." >&2
+	exit 1
+}
 
 if [ ! -f "$YAC_SO" ]; then
     echo "Cannot find $YAC_SO. Run 'make' in the parent directory first." >&2
     exit 1
-fi
-
-if [ "$PCNTL" = 1 ]; then
-    php -n -r 'exit(function_exists("pcntl_fork") ? 0 : 1);' || {
-        echo "pcntl is required but not available in this PHP build." >&2
-        exit 1
-    }
 fi
 
 # yac     : load the built extension; enlarge key memory so 20k keys fit
@@ -64,6 +80,7 @@ fi
 # apc.*   : APCu is off in CLI by default; enable it and size shared memory
 #           so the warmed key set fits and hit rate stays at 100%.
 exec php -n \
+    -d memory_limit=2G \
     ${PCNTL_SO:+-d extension="$PCNTL_SO"} \
     -d extension="$YAC_SO" \
     ${APCU_SO:+-d extension="$APCU_SO"} \
