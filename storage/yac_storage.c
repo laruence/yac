@@ -598,12 +598,14 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 				++local_stats.hits;
 				return 1;
 			} else {
+				/* snapshot the header while live — p->val may turn into a
+				 * different block (or an embedded word) behind our back */
+				yac_kv_val v = *(k.val);
 				char *s = USER_ALLOC(YAC_KEY_VLEN(k));
 
 				/* guarders: reject a block recycled behind our back.
-				 * yac_snapshot() copies the value out and checksums it in
-				 * a single pass over the source */
-				if (k.len == p->val->len && k.u2.crc == yac_snapshot(s, (char *)k.val->data, YAC_KEY_VLEN(k))) {
+				 * yac_snapshot() copies and checksums in one pass */
+				if (k.len == v.len && k.u2.crc == yac_snapshot(s, (char *)k.val->data, YAC_KEY_VLEN(k))) {
 					if (k.val->atime != tv) {
 						k.val->atime = tv;
 					}
