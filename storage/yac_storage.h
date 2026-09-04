@@ -21,6 +21,10 @@
 #ifndef YAC_STORAGE_H
 #define YAC_STORAGE_H
 
+#ifndef MIN
+#define MIN(a, b) ((a) < (b)? (a) : (b))
+#endif
+
 #define YAC_STORAGE_MAX_ENTRY_LEN  	(1 << 20)
 #define YAC_STORAGE_MAX_KEY_LEN		(48)
 #define YAC_STORAGE_FACTOR 			(1.25)
@@ -36,9 +40,6 @@
  * this threshold */
 #define YAC_CRC_INTER_THRESHOLD     1024
 #define YAC_CRC_POLY				0x82F63B78u /* reflected CRC-32C */
-
-#define USER_ALLOC					emalloc
-#define USER_FREE					efree
 
 typedef struct {
 	unsigned int len;
@@ -207,9 +208,13 @@ typedef struct {
 
 extern yac_storage_globals *yac_storage;
 
+/* user side allocator */
+typedef void* (*yac_user_alloc_t)(unsigned int size, unsigned int flag, int single);
+typedef void (*yac_user_free_t)(void *address, unsigned int flag);
+
 #define YAC_SG(element) (yac_storage->element)
 
-int yac_storage_startup(unsigned long first_size, unsigned long size, char **err);
+int yac_storage_startup(unsigned long first_size, unsigned long size, yac_user_alloc_t alloc, yac_user_free_t free, char **err);
 void yac_storage_shutdown(void);
 /* data carries either a heap buffer (*data is an efree-able copy) or an
  * embedded value word (test with YAC_IS_EMBED); size is 0 for embeds */

@@ -56,6 +56,8 @@ extern zend_module_entry yac_module_entry;
 #define YAC_SERIALIZER_MSGPACK     2
 #define YAC_SERIALIZER_IGBINARY    3
 
+#define YAC_BUF_SIZE               1024
+
 ZEND_BEGIN_MODULE_GLOBALS(yac)
 	zend_bool enable;
 	zend_bool debug;
@@ -64,6 +66,10 @@ ZEND_BEGIN_MODULE_GLOBALS(yac)
 	zend_ulong compress_threshold;
 	zend_bool enable_cli;
 	char *serializer;
+	/* staging area for small non-string value snapshots: holds the copy
+	 * from shared memory just until it is consumed, then gets reused;
+	 * in YAC_G so ZTS threads each have their own */
+	char yac_staging_buf[YAC_BUF_SIZE];
 #ifdef PHP_WIN32
 	char *mmap_base;
 #endif

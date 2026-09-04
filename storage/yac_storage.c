@@ -20,7 +20,8 @@
 #include "config.h"
 #endif
 
-#include "php.h"
+#include <string.h>
+#include <time.h>
 
 #include "yac_atomic.h"
 #include "yac_crc32.h"
@@ -28,6 +29,9 @@
 #include "allocator/yac_allocator.h"
 
 yac_storage_globals *yac_storage;
+
+static yac_user_alloc_t user_alloc;
+static yac_user_free_t user_free;
 
 static uint32_t (*yac_crc)(const char *data, unsigned int size);
 static uint32_t (*yac_crc_interleaved)(const char *data, unsigned int size);
@@ -422,12 +426,17 @@ static inline unsigned int yac_storage_align_size(unsigned int size) /* {{{ */ {
 }
 /* }}} */
 
-int yac_storage_startup(unsigned long fsize, unsigned long size, char **msg) /* {{{ */ {
+int yac_storage_startup(unsigned long fsize, unsigned long size, yac_user_alloc_t alloc, yac_user_free_t free, char **msg) /* {{{ */ {
 	unsigned long real_size;
 
 	if (!yac_allocator_startup(fsize, size, msg)) {
 		return 0;
 	}
+
+	/* setup user memory alloc/free */
+	user_alloc = alloc;
+	user_free = free;
+
 	/* pick the CRC chain: hardware when this CPU actually has the
 	 * instructions (a binary built where the compiler supports them can
 	 * run on older CPUs that do not), software otherwise. the
@@ -604,7 +613,7 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 				/* snapshot the header while live — p->val may turn into a
 				 * different block (or an embedded word) behind our back */
 				yac_kv_val v = *(k.val);
-				char *s = USER_ALLOC(YAC_KEY_VLEN(k));
+				char *s = user_alloc(YAC_KEY_VLEN(k), k.u1.flag, 0);
 
 				/* guarders: reject a block recycled behind our back.
 				 * yac_snapshot() copies and checksums in one pass */
@@ -619,7 +628,7 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 					++local_stats.hits;
 					return 1;
 				}
-				USER_FREE(s);
+				user_free(s, k.u1.flag);
 				/* guarders rejected the block: recycled or corrupted
 				 * behind our back. tombstone it; re-check val under the
 				 * lock — a concurrent writer may have replaced the entry */
@@ -847,7 +856,7 @@ yac_storage_info * yac_storage_get_info(void) /* {{{ */ {
 	/* fold this process's pending counts so the shared numbers are
 	 * accurate; the request keeps accumulating afterwards */
 	yac_storage_flush_stats();
-	info = USER_ALLOC(sizeof(yac_storage_info));
+	info = user_alloc(sizeof(yac_storage_info), 0, 0);
 
 	info->k_msize = (unsigned long)YAC_SG(first_seg).size;
 	info->v_msize = (unsigned long)YAC_SG(segments)[0]->size * (unsigned long)YAC_SG(segments_num);
@@ -867,7 +876,7 @@ yac_storage_info * yac_storage_get_info(void) /* {{{ */ {
 /* }}} */
 
 void yac_storage_free_info(yac_storage_info *info) /* {{{ */ {
-	USER_FREE(info);
+	user_free(info, 0);
 }
 /* }}} */
 
@@ -886,7 +895,7 @@ yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset, unsign
 			++skipped; /* the first offset occupied slots are not reported */
 			continue;
 		}
-		item = USER_ALLOC(sizeof(yac_item_list));
+		item = user_alloc(sizeof(yac_item_list), 0, 1);
 		item->index = i;
 		item->h = k.h;
 		item->ttl = k.ttl;
@@ -925,7 +934,7 @@ void yac_storage_free_list(yac_item_list *list) /* {{{ */ {
 	while (list) {
 		l = list;
 		list = list->next;
-		USER_FREE(l);
+		user_free(l, 0);
 	}
 }
 /* }}} */

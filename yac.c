@@ -232,6 +232,39 @@ static const char *yac_assemble_key(yac_object *yac, zend_string *name, size_t *
 }
 /* }}} */
 
+/* user-side allocator handed to the storage layer for find() snapshots.
+ * strings allocate the final zend_string directly, so the snapshot is
+ * written into it and yac_get_impl can hand it to ZVAL_NEW_STR with no
+ * extra copy; other small values pass through a per-thread staging
+ * buffer and skip emalloc/efree on the hot path (interleaved callers
+ * like dump() hold many blocks at once and must get distinct memory).
+ * the staging buffer lives in YAC_G so ZTS threads do not share it */
+void *yac_alloc(unsigned int size, unsigned int flag, int interleaved) /* {{{ */ {
+	if (((flag & (YAC_ENTRY_TYPE_MASK|YAC_ENTRY_COMPRESSED)) == IS_STRING)) {
+		zend_string *res = zend_string_alloc(size, 0);
+		return ZSTR_VAL(res);
+	}
+	if (!interleaved && size <= YAC_BUF_SIZE) {
+		return YAC_G(yac_staging_buf);
+	}
+	return emalloc(size);
+}
+/* }}} */
+
+/* inverse of yac_alloc(); strings are released through the zend_string
+ * header they were allocated from, the staging buffer is never freed */
+void yac_free(void *addr, unsigned int flag) /* {{{ */ {
+	if ((flag & (YAC_ENTRY_TYPE_MASK|YAC_ENTRY_COMPRESSED)) == IS_STRING) {
+		efree((char*)addr - offsetof(zend_string, val));
+		return;
+	}
+	if (addr != (void *)YAC_G(yac_staging_buf)) {
+		efree(addr);
+	}
+	return;
+}
+/* }}} */
+
 static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl, int add) /* {{{ */ {
 	int ret = 0, flag = Z_TYPE_P(value);
 	char *msg;
@@ -482,47 +515,23 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 			return yac_embed_to_zval(data, rv);
 		}
 		switch ((flag & YAC_ENTRY_TYPE_MASK)) {
-			case IS_NULL:
-				if (size == sizeof(int)) {
-					ZVAL_NULL(rv);
-					efree(data);
-					return rv;
-				}
-				efree(data);
-				break;
-			case IS_TRUE:
-				if (size == sizeof(int)) {
-					ZVAL_TRUE(rv);
-					efree(data);
-					return rv;
-				}
-				efree(data);
-				break;
-			case IS_FALSE:
-				if (size == sizeof(int)) {
-					ZVAL_FALSE(rv);
-					efree(data);
-					return rv;
-				}
-				efree(data);
-				break;
 			case IS_LONG:
 				if (size == sizeof(zend_long)) {
 					zend_long lval;
 					memcpy(&lval, data, sizeof(zend_long));
 					ZVAL_LONG(rv, lval);
-					efree(data);
+					yac_free(data, flag);
 					return rv;
 				}
-				efree(data);
+				yac_free(data, flag);
 				break;
 			case IS_DOUBLE:
 				if (size == sizeof(double)) {
 					ZVAL_DOUBLE(rv, *(double*)data);
-					efree(data);
+					yac_free(data, flag);
 					return rv;
 				}
-				efree(data);
+				yac_free(data, flag);
 				break;
 			case IS_STRING:
 #ifdef IS_CONSTANT
@@ -533,9 +542,8 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 						size_t orig_len = ((uint32_t)flag >> YAC_ENTRY_ORIG_LEN_SHIT);
 						zend_string *str = zend_string_alloc(orig_len, 0);
 						int length = LZ4_decompress_safe(data, ZSTR_VAL(str), size, orig_len);
-						efree(data);
+						yac_free(data, flag);
 						if (UNEXPECTED(length != (int)orig_len)) {
-							yac_storage_delete(key, key_len, 0, tv);
 							/* damaged payload, degrade to a miss silently */
 							zend_string_free(str);
 							break;
@@ -543,8 +551,11 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 						ZSTR_VAL(str)[length] = '\0';
 						ZVAL_NEW_STR(rv, str);
 					} else {
-						ZVAL_STRINGL(rv, data, size);
-						efree(data);
+						/* the snapshot was written straight into this
+						 * zend_string by yac_alloc(); take ownership as
+						 * the return value instead of copying again */
+						ZVAL_NEW_STR(rv, (zend_string*)((char *)data - offsetof(zend_string, val)));
+						Z_STRVAL_P(rv)[Z_STRLEN_P(rv)] = '\0';
 					}
 					return rv;
 				}
@@ -559,23 +570,23 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 						char *origin = emalloc(orig_len);
 						int length = LZ4_decompress_safe(data, origin, size, orig_len);
 						if (UNEXPECTED(length != (int)orig_len)) {
-							yac_storage_delete(key, key_len, 0, tv);
 							/* damaged payload, degrade to a miss silently */
-							efree(data);
+							yac_free(data, 0);
 							efree(origin);
 							break;
 						}
-						efree(data);
+						yac_free(data, 0);
 						data = origin;
 						size = length;
 					}
 					rv = yac_unserializer(data, size, &msg, rv);
-					efree(data);
+					yac_free(data, 0);
 					return rv;
 				}
 			default:
+				ZEND_ASSERT(0);
 				/* a corrupt entry flag, degrade to a miss silently */
-				efree(data);
+				yac_free(data, flag);
 				break;
 		}
 	}
@@ -1046,7 +1057,7 @@ PHP_MINIT_FUNCTION(yac)
 					"yac.values_memory_size(%lu) is below the segment minimum(%d), a single segment will be used",
 					(unsigned long)YAC_G(v_msize), YAC_SMM_SEGMENT_MIN_SIZE);
 		}
-		if (!yac_storage_startup(YAC_G(k_msize), YAC_G(v_msize), &msg)) {
+		if (!yac_storage_startup(YAC_G(k_msize), YAC_G(v_msize), yac_alloc, yac_free, &msg)) {
 			php_error(E_ERROR, "Shared memory allocator startup failed at '%s': %s", msg, strerror(errno));
 			return FAILURE;
 		}
