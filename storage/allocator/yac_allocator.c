@@ -20,7 +20,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <sys/types.h>
+#if defined(_WIN32)
+#include <windows.h>
+#endif
 
 #include "storage/yac_storage.h"
 #include "storage/yac_atomic.h"
