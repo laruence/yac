@@ -20,8 +20,12 @@
 #include "config.h"
 #endif
 
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
+#if defined(_WIN32)
+#include <windows.h>
+#endif
 
 #include "yac_atomic.h"
 #include "yac_crc32.h"
