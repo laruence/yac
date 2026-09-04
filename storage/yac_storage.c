@@ -866,15 +866,13 @@ void yac_storage_free_info(yac_storage_info *info) /* {{{ */ {
 }
 /* }}} */
 
-yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset) /* {{{ */ {
+yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset, unsigned int *num) /* {{{ */ {
 	yac_kv_key k;
 	yac_item_list *item, *list = NULL;
-	unsigned int i = 0, n = 0, skipped = 0;
+	unsigned int size = YAC_SG(slots_size), occupied = YAC_SG(stats.occupied);
+	unsigned int i = 0, n = 0, skipped = 0, max = MIN(occupied, limit);
 
-	if (YAC_SG(stats.occupied) == 0) {
-		return NULL;
-	}
-	for (; i < YAC_SG(slots_size) && n < YAC_SG(stats.occupied) && n < limit; i++) {
+	for (; i < size && n < max; i++) {
 		k = YAC_SG(slots)[i];
 		if (k.val == NULL) {
 			continue;
@@ -910,6 +908,8 @@ yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset) /* {{{
 		list = item;
 		++n;
 	}
+
+	*num = n;
 
 	return list;
 }

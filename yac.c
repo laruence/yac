@@ -232,7 +232,6 @@ static const char *yac_assemble_key(yac_object *yac, zend_string *name, size_t *
 }
 /* }}} */
 
-
 static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl, int add) /* {{{ */ {
 	int ret = 0, flag = Z_TYPE_P(value);
 	char *msg;
@@ -892,40 +891,54 @@ PHP_METHOD(yac, info) {
 /** {{{ proto public Yac::dump(int $limit, int $offset)
 */
 PHP_METHOD(yac, dump) {
+	unsigned int num = 0;
 	zend_long limit = 100, offset = 0;
 	yac_item_list *list, *l;
-
-	array_init(return_value);
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|ll", &limit, &offset) == FAILURE) {
 		return;
 	}
 
-	list = l = yac_storage_dump(limit, offset);
-	for (; l; l = l->next) {
-		zval item;
-		array_init(&item);
-		add_assoc_long(&item, "index", l->index);
-		add_assoc_long(&item, "hash", l->h);
-		add_assoc_long(&item, "crc", l->crc);
-		add_assoc_long(&item, "ttl", l->ttl);
-		add_assoc_long(&item, "k_len", l->k_len);
-		if ((l->flag & YAC_ENTRY_COMPRESSED)) {
-			add_assoc_long(&item, "v_len", (((uint32_t)l->flag) >> YAC_ENTRY_ORIG_LEN_SHIT));
-			add_assoc_long(&item, "c_len", l->v_len);
-		} else {
-			add_assoc_long(&item, "v_len", l->v_len);
-		}
-		add_assoc_long(&item, "size", l->size);
-		add_assoc_long(&item, "atime", l->atime);
-		add_assoc_long(&item, "hits", l->hits);
-		add_assoc_bool(&item, "embedded", l->embedded);
-		add_assoc_stringl(&item, "key", (char*)l->key, l->k_len);
-		add_next_index_zval(return_value, &item);
+	if ((list = l = yac_storage_dump(limit, offset, &num))) {
+		array_init_size(return_value, num);
+		zend_hash_real_init_packed(Z_ARRVAL_P(return_value));
+		ZEND_HASH_FILL_PACKED(Z_ARRVAL_P(return_value)) {
+			for (; l; l = l->next) {
+				zval item;
+
+				array_init_size(&item, 11 /* 11 fields, pre-allocate */);
+
+				add_assoc_long(&item, "index", l->index);
+				add_assoc_long(&item, "hash", l->h);
+				add_assoc_long(&item, "crc", l->crc);
+				add_assoc_long(&item, "ttl", l->ttl);
+				add_assoc_long(&item, "k_len", l->k_len);
+				if ((l->flag & YAC_ENTRY_COMPRESSED)) {
+					add_assoc_long(&item, "v_len", (((uint32_t)l->flag) >> YAC_ENTRY_ORIG_LEN_SHIT));
+					add_assoc_long(&item, "c_len", l->v_len);
+				} else {
+					add_assoc_long(&item, "v_len", l->v_len);
+				}
+				add_assoc_long(&item, "size", l->size);
+				add_assoc_long(&item, "atime", l->atime);
+				add_assoc_long(&item, "hits", l->hits);
+				add_assoc_bool(&item, "embedded", l->embedded);
+				add_assoc_stringl(&item, "key", (char*)l->key, l->k_len);
+				ZEND_HASH_FILL_SET(&item);
+				ZEND_HASH_FILL_NEXT();
+			}
+		} ZEND_HASH_FILL_END();
+
+		yac_storage_free_list(list);
+		return;
 	}
 
-	yac_storage_free_list(list);
+#if PHP_VERSION_ID < 70400
+	array_init(return_value);
 	return;
+#else
+	RETURN_EMPTY_ARRAY();
+#endif
 }
 /* }}} */
 

@@ -222,7 +222,7 @@ void yac_storage_flush(void);
 const char * yac_storage_shared_memory_name(void);
 yac_storage_info * yac_storage_get_info(void);
 void yac_storage_free_info(yac_storage_info *info);
-yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset);
+yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset, unsigned int *num);
 void yac_storage_free_list(yac_item_list *list);
 /* fold this process's pending hits/miss counts into the shared stats */
 void yac_storage_start_stats(void);
