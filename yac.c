@@ -901,7 +901,7 @@ PHP_METHOD(yac, dump) {
 
 	if ((list = l = yac_storage_dump(limit, offset, &num))) {
 		array_init_size(return_value, num);
-		zend_hash_real_init_packed(Z_ARRVAL_P(return_value));
+		zend_hash_real_init(Z_ARRVAL_P(return_value), 1 /* packed */);
 		ZEND_HASH_FILL_PACKED(Z_ARRVAL_P(return_value)) {
 			for (; l; l = l->next) {
 				zval item;
@@ -924,8 +924,7 @@ PHP_METHOD(yac, dump) {
 				add_assoc_long(&item, "hits", l->hits);
 				add_assoc_bool(&item, "embedded", l->embedded);
 				add_assoc_stringl(&item, "key", (char*)l->key, l->k_len);
-				ZEND_HASH_FILL_SET(&item);
-				ZEND_HASH_FILL_NEXT();
+				ZEND_HASH_FILL_ADD(&item);
 			}
 		} ZEND_HASH_FILL_END();
 
