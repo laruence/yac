@@ -45,6 +45,9 @@
 #else
 #include "compressor/lz4/lz4.h"
 #endif
+#if HAVE_SSE_CRC32
+#include "Zend/zend_cpuinfo.h"
+#endif
 
 /* Embedded value helpers (zend-type aware; tag layout in yac_storage.h).
  * shift counts are sizeof-derived, so 32/64-bit both work; encoding
@@ -1044,6 +1047,7 @@ PHP_MINIT_FUNCTION(yac)
 {
 	char *msg;
 	zend_class_entry ce;
+	int hw_crc = 0;
 
 	REGISTER_INI_ENTRIES();
 
@@ -1057,7 +1061,10 @@ PHP_MINIT_FUNCTION(yac)
 					"yac.values_memory_size(%lu) is below the segment minimum(%d), a single segment will be used",
 					(unsigned long)YAC_G(v_msize), YAC_SMM_SEGMENT_MIN_SIZE);
 		}
-		if (!yac_storage_startup(YAC_G(k_msize), YAC_G(v_msize), yac_alloc, yac_free, &msg)) {
+#if HAVE_SSE_CRC32
+		hw_crc = zend_cpu_supports_sse42();
+#endif
+		if (!yac_storage_startup(YAC_G(k_msize), YAC_G(v_msize), yac_alloc, yac_free, hw_crc, &msg)) {
 			php_error(E_ERROR, "Shared memory allocator startup failed at '%s': %s", msg, strerror(errno));
 			return FAILURE;
 		}

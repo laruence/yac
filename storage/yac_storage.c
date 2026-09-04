@@ -430,7 +430,7 @@ static inline unsigned int yac_storage_align_size(unsigned int size) /* {{{ */ {
 }
 /* }}} */
 
-int yac_storage_startup(unsigned long fsize, unsigned long size, yac_user_alloc_t alloc, yac_user_free_t free, char **msg) /* {{{ */ {
+int yac_storage_startup(unsigned long fsize, unsigned long size, yac_user_alloc_t alloc, yac_user_free_t free, int hw_crc, char **msg) /* {{{ */ {
 	unsigned long real_size;
 
 	if (!yac_allocator_startup(fsize, size, msg)) {
@@ -443,12 +443,12 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, yac_user_alloc_
 
 	/* pick the CRC chain: hardware when this CPU actually has the
 	 * instructions (a binary built where the compiler supports them can
-	 * run on older CPUs that do not), software otherwise. the
-	 * interleaved large-value path uses the same hardware word ops, so
-	 * it must only be mounted when the hardware chain won — routing it
-	 * from compile-time macros would crash with SIGILL on such CPUs */
+	 * run on older CPUs that do not — the caller probes at runtime and
+	 * passes the result in hw_crc), software otherwise. the interleaved
+	 * large-value path uses the same hardware word ops, so it must only
+	 * be mounted when the hardware chain won */
 #if HAVE_SSE_CRC32
-	if (zend_cpu_supports_sse42()) {
+	if (hw_crc) {
 		yac_crc = crc32c_sse42;
 		yac_snapshot_serial = snapshot_sse42;
 # if YAC_HAVE_CRC_WORD

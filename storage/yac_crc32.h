@@ -22,7 +22,6 @@
 #define YAC_CRC32_H
 
 #if HAVE_SSE_CRC32
-#include "Zend/zend_cpuinfo.h"
 #include <nmmintrin.h>
 # if defined(__x86_64__)
 /* the interleaved path needs a 64-bit hardware CRC word */

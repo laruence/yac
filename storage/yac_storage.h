@@ -214,7 +214,10 @@ typedef void (*yac_user_free_t)(void *address, unsigned int flag);
 
 #define YAC_SG(element) (yac_storage->element)
 
-int yac_storage_startup(unsigned long first_size, unsigned long size, yac_user_alloc_t alloc, yac_user_free_t free, char **err);
+/* hw_crc: the caller's runtime probe result — non-zero when this CPU
+ * actually supports the hardware CRC instructions the build was
+ * compiled for (binary built with -msse4.2 can run on older CPUs) */
+int yac_storage_startup(unsigned long first_size, unsigned long size, yac_user_alloc_t alloc, yac_user_free_t free, int hw_crc, char **err);
 void yac_storage_shutdown(void);
 /* data carries either a heap buffer (*data is an efree-able copy) or an
  * embedded value word (test with YAC_IS_EMBED); size is 0 for embeds */

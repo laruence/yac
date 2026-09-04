@@ -17,10 +17,11 @@
 */
 
 #include <errno.h>
+#include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <sys/types.h>
 
-#include "php.h"
 #include "storage/yac_storage.h"
 #include "storage/yac_atomic.h"
 #include "yac_allocator.h"
