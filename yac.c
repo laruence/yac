@@ -45,9 +45,6 @@
 #else
 #include "compressor/lz4/lz4.h"
 #endif
-#if HAVE_SSE_CRC32
-#include "Zend/zend_cpuinfo.h"
-#endif
 
 /* Embedded value helpers (zend-type aware; tag layout in yac_storage.h).
  * shift counts are sizeof-derived, so 32/64-bit both work; encoding
