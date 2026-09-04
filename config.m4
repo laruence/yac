@@ -190,20 +190,17 @@ AS_VAR_IF([yac_cv_builtin_atomic], [yes],
     [AC_MSG_ERROR([no atomic CAS support: yac needs __sync builtins, x86 inline asm, or Win32 Interlocked*])])])
 
 dnl ---------------------------------------------------------------------
-dnl Hardware-accelerated CRC32C (yac_storage.c)
+dnl Hardware-accelerated CRC32C (storage/crc/yac_crc32.c)
+dnl Compile-time probes only: the code re-probes the CPU with cpuid/HWCAP
+dnl at runtime before mounting any hardware chain.
 dnl ---------------------------------------------------------------------
 
-dnl SSE4.2 path dispatches at runtime via zend_cpu_supports_sse42() (PHP >= 7.3)
-dnl Note: in phpize builds PHP_CONFIG is the bare command name, not a path
-yac_php_vernum=`$PHP_CONFIG --vernum 2>/dev/null`
-if test -n "$yac_php_vernum" && test "$yac_php_vernum" -ge 70300; then
-  YAC_CHECK_CRC32_ISA([SSE4.2 CRC32C], [yac_cv_crc32_sse], [-msse4.2], [[
+YAC_CHECK_CRC32_ISA([SSE4.2 CRC32C], [yac_cv_crc32_sse], [-msse4.2], [[
 #include <nmmintrin.h>
 #include <stdint.h>
 int main(void) {
   return (int)_mm_crc32_u32(0xffffffff, (uint32_t)0x01234567);
 }]], [HAVE_SSE_CRC32])
-fi
 
 YAC_CHECK_CRC32_ISA([ARMv8 CRC32C], [yac_cv_crc32_arm], [-march=armv8-a+crc], [[
 #include <arm_acle.h>
@@ -222,7 +219,7 @@ dnl ---------------------------------------------------------------------
 dnl Compressor: system LZ4 or the bundled copy
 dnl ---------------------------------------------------------------------
 
-YAC_FILES="yac.c storage/yac_storage.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c serializer/igbinary.c serializer/json.c"
+YAC_FILES="yac.c storage/yac_storage.c storage/crc/yac_crc32.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c serializer/igbinary.c serializer/json.c"
 if test "$PHP_SYSTEM_LZ4" != "no"; then
   AC_CHECK_HEADERS([lz4.h], [],
     [AC_MSG_ERROR([system LZ4 requested, but lz4.h was not found])])
@@ -241,6 +238,7 @@ PHP_SUBST(YAC_SHARED_LIBADD)
 PHP_NEW_EXTENSION(yac, $YAC_FILES, $ext_shared,, [$YAC_EXTRA_CFLAGS])
 PHP_ADD_BUILD_DIR([
   $ext_builddir/storage
+  $ext_builddir/storage/crc
   $ext_builddir/storage/allocator
   $ext_builddir/storage/allocator/allocators
   $ext_builddir/serializer

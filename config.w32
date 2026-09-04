@@ -16,18 +16,17 @@ if (PHP_YAC != "no") {
 		ADD_SOURCES(configure_module_dirname + "\\compressor\\lz4", "lz4.c", "yac");
 		ADD_SOURCES(configure_module_dirname + "\\serializer", "php.c", "yac");
 		ADD_SOURCES(configure_module_dirname + "\\storage", "yac_storage.c", "yac");
+		ADD_SOURCES(configure_module_dirname + "\\storage\\crc", "yac_crc32.c", "yac");
 		ADD_SOURCES(configure_module_dirname + "\\storage\\allocator", "yac_allocator.c", "yac");
 		ADD_SOURCES(configure_module_dirname + "\\storage\\allocator\\allocators", "createfilemapping.c", "yac");
 
 		AC_DEFINE('HAVE_YAC', 1, 'Have yac library');
 
-		// SSE4.2 CRC32C: MSVC needs no extra flag for the intrinsics, and
-		// yac_storage.c dispatches at runtime. zend_cpuinfo.h only exists as
-		// of PHP 7.3, so the header probe doubles as the version gate
-		// (mirrors config.m4).
-		if (CHECK_HEADER_ADD_INCLUDE("Zend/zend_cpuinfo.h", "CFLAGS_YAC")) {
-			AC_DEFINE("HAVE_SSE_CRC32", 1, "Have SSE4.2 CRC32C support");
-		}
+		// SSE4.2 CRC32C: MSVC needs no extra flag for the _mm_crc32
+		// intrinsics, and yac_crc32.c probes the CPU via __cpuid at
+		// runtime before mounting the hardware chain, so this is a
+		// compile-time-only capability (mirrors config.m4).
+		AC_DEFINE("HAVE_SSE_CRC32", 1, "Have SSE4.2 CRC32C support");
 
 		if (PHP_JSON != "no") {
 			if (CHECK_HEADER_ADD_INCLUDE("ext/json/php_json.h", "CFLAGS_YAC")) {

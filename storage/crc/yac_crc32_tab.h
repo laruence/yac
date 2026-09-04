@@ -18,30 +18,13 @@
 
 /* $Id$ */
 
-#ifndef YAC_CRC32_H
-#define YAC_CRC32_H
+#ifndef YAC_CRC32_TAB_H
+#define YAC_CRC32_TAB_H
 
-#if HAVE_SSE_CRC32
-#include <nmmintrin.h>
-# if defined(__x86_64__)
-/* the interleaved path needs a 64-bit hardware CRC word */
-# define YAC_HAVE_CRC_WORD 1
-# define YAC_CRC_WORD(crc, word) _mm_crc32_u64((crc), (word))
-# define YAC_CRC_BYTE(crc, byte) _mm_crc32_u8((crc), (byte))
-# endif
-#endif
-
-#if HAVE_ARM_CRC32
-#define YAC_HAVE_CRC_WORD 1
-#include <arm_acle.h>
-#define YAC_CRC_WORD(crc, word) __crc32cd((crc), (word))
-#define YAC_CRC_BYTE(crc, byte) __crc32cb((crc), (byte))
-#endif
-
-#if YAC_HAVE_CRC_WORD
-static void yac_crc32c_init(void);
-static uint32_t yac_crc32c_interleaved(const char *data, unsigned int size);
-#endif
+/* Slicing-by-8 tables for software CRC-32C (Castagnoli, reflected, poly
+ * 0x82F63B78): slice 0 is the standard byte-wise table, slices 1..7 cover
+ * the successive byte positions inside an 8-byte word. included only from
+ * crc/yac_crc32.c */
 
 static const uint32_t yac_crc32c_tab[8][256] = {
 	{ /* slice 0 */
@@ -406,7 +389,7 @@ static const uint32_t yac_crc32c_tab[8][256] = {
 	},
 };
 
-#endif	/* YAC_CRC32_H */
+#endif	/* YAC_CRC32_TAB_H */
 
 /*
  * Local variables:

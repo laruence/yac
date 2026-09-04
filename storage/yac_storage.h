@@ -34,12 +34,8 @@
 #define YAC_KEY_VLEN(k)				((k).len >> YAC_KEY_VLEN_BITS)
 #define YAC_KEY_SET_LEN(k, kl, vl)	((k).len = (vl << YAC_KEY_VLEN_BITS) | (kl & YAC_KEY_KLEN_MASK))
 
-/* values are crc'ed in full; once they outgrow this the work is split
- * over three interleaved hardware CRC chains, which has been measured
- * across architectures to reliably beat the serial chain at and above
- * this threshold */
-#define YAC_CRC_INTER_THRESHOLD     1024
-#define YAC_CRC_POLY				0x82F63B78u /* reflected CRC-32C */
+/* checksumming lives in crc/yac_crc32.{h,c}: yac_crc32() over values,
+ * yac_crc32_snapshot() for the copy-while-checksum find() path */
 
 typedef struct {
 	unsigned int len;
@@ -214,10 +210,9 @@ typedef void (*yac_user_free_t)(void *address, unsigned int flag);
 
 #define YAC_SG(element) (yac_storage->element)
 
-/* hw_crc: the caller's runtime probe result — non-zero when this CPU
- * actually supports the hardware CRC instructions the build was
- * compiled for (binary built with -msse4.2 can run on older CPUs) */
-int yac_storage_startup(unsigned long first_size, unsigned long size, yac_user_alloc_t alloc, yac_user_free_t free, int hw_crc, char **err);
+/* CRC chain selection happens inside yac_crc32_startup(): it probes the
+ * CPU at runtime (a binary built with -msse4.2 can run on older CPUs) */
+int yac_storage_startup(unsigned long first_size, unsigned long size, yac_user_alloc_t alloc, yac_user_free_t free, char **err);
 void yac_storage_shutdown(void);
 /* data carries either a heap buffer (*data is an efree-able copy) or an
  * embedded value word (test with YAC_IS_EMBED); size is 0 for embeds */
