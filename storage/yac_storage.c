@@ -581,6 +581,9 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 			 * so the key cannot exist beyond this point */
 			break;
 		}
+		/* the next probe slot's address is already known: pull it in
+		 * while this slot's CAS, load and compare are in flight */
+		yac_prefetch(&YAC_SG(slots)[(h + stride) & YAC_SG(slots_mask)]);
 		if (YAC_HASH_MATCH(k, hash) && YAC_KEY_KLEN(k) == len && !memcmp(k.key, key, len)) {
 			if (k.ttl && k.ttl <= tv) {
 				break; /* expired */
@@ -655,6 +658,7 @@ int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long
 		if (k.val == NULL) {
 			return 0; /* the key was never stored */
 		}
+		yac_prefetch(&YAC_SG(slots)[(h + stride) & YAC_SG(slots_mask)]);
 		if (YAC_HASH_MATCH(k, hash) && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
 			p->ttl = ttl ? ttl + tv : 1;
 			return 1;
@@ -762,6 +766,7 @@ int yac_storage_update(const char *key, unsigned int len, char *data, unsigned i
 			++YAC_SG(stats.occupied); /* this write occupies a new slot */
 			goto do_update; /* an insert takes the first empty slot on the path */
 		}
+		yac_prefetch(&YAC_SG(slots)[(h + stride) & YAC_SG(slots_mask)]);
 		if (YAC_HASH_MATCH(k, hash) && YAC_KEY_KLEN(k) == len && !memcmp(k.key, key, len)) {
 			if (add && (!k.ttl || k.ttl > tv)) {
 				return 0; /* add() must not overwrite a live entry */
