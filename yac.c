@@ -453,16 +453,22 @@ static inline void yac_add_update_internal(INTERNAL_FUNCTION_PARAMETERS, int add
 	zval *keys, *value = NULL;
 	int ret;
 
+	/* dispatch by argc instead of a single spec: set(array, ttl) and
+	 * set(key, value) are both 2-arg calls, and the dispatch keeps the
+	 * historical single-arg behavior, where coercive mode turns
+	 * set(int) into set((array)int) on PHP 7 while strict mode fails
+	 * it on PHP 8 */
 	switch (ZEND_NUM_ARGS()) {
 		case 1:
-			if (zend_parse_parameters(ZEND_NUM_ARGS(), "a", &keys) == FAILURE) {
-				return;
-			}
+			ZEND_PARSE_PARAMETERS_START(1, 1)
+				Z_PARAM_ARRAY(keys)
+			ZEND_PARSE_PARAMETERS_END();
 			break;
 		case 2:
-			if (zend_parse_parameters(ZEND_NUM_ARGS(), "zz", &keys, &value) == FAILURE) {
-				return;
-			}
+			ZEND_PARSE_PARAMETERS_START(2, 2)
+				Z_PARAM_ZVAL(keys)
+				Z_PARAM_ZVAL(value)
+			ZEND_PARSE_PARAMETERS_END();
 			if (Z_TYPE_P(keys) == IS_ARRAY) {
 				if (EXPECTED(Z_TYPE_P(value) == IS_LONG)) {
 					ttl = Z_LVAL_P(value);
@@ -474,9 +480,11 @@ static inline void yac_add_update_internal(INTERNAL_FUNCTION_PARAMETERS, int add
 			}
 			break;
 		case 3:
-			if (zend_parse_parameters(ZEND_NUM_ARGS(), "zzl", &keys, &value, &ttl) == FAILURE) {
-				return;
-			}
+			ZEND_PARSE_PARAMETERS_START(3, 3)
+				Z_PARAM_ZVAL(keys)
+				Z_PARAM_ZVAL(value)
+				Z_PARAM_LONG(ttl)
+			ZEND_PARSE_PARAMETERS_END();
 			break;
 		default:
 			zend_wrong_param_count();
@@ -811,9 +819,11 @@ PHP_METHOD(yac, get) {
 	uint32_t lcas = 0;
 	zval *ret, *keys, *def = NULL;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z|z", &keys, &def) == FAILURE) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 2)
+		Z_PARAM_ZVAL(keys)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_ZVAL(def)
+	ZEND_PARSE_PARAMETERS_END();
 
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
 		ret = yac_get_multi_impl(Z_YACOBJ_P(getThis()), keys, def, return_value);
@@ -843,9 +853,11 @@ PHP_METHOD(yac, delete) {
 	zval *keys;
 	int ret;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z|l", &keys, &time) == FAILURE) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 2)
+		Z_PARAM_ZVAL(keys)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_LONG(time)
+	ZEND_PARSE_PARAMETERS_END();
 
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
 		ret = yac_delete_multi_impl(Z_YACOBJ_P(getThis()), keys, time);
@@ -906,9 +918,11 @@ PHP_METHOD(yac, dump) {
 	zend_long limit = 100, offset = 0;
 	yac_item_list *list, *l;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|ll", &limit, &offset) == FAILURE) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(0, 2)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_LONG(limit)
+		Z_PARAM_LONG(offset)
+	ZEND_PARSE_PARAMETERS_END();
 
 	if ((list = l = yac_storage_dump(limit, offset, &num))) {
 		array_init_size(return_value, num);
