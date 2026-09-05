@@ -232,14 +232,13 @@ static const char *yac_assemble_key(yac_object *yac, zend_string *name, size_t *
 }
 /* }}} */
 
-/* user-side allocator handed to the storage layer for find() snapshots.
- * strings allocate the final zend_string directly, so the snapshot is
- * written into it and yac_get_impl can hand it to ZVAL_NEW_STR with no
- * extra copy; other small values pass through a per-thread staging
- * buffer and skip emalloc/efree on the hot path (interleaved callers
- * like dump() hold many blocks at once and must get distinct memory).
- * the staging buffer lives in YAC_G so ZTS threads do not share it */
 void *yac_alloc(unsigned int size, unsigned int flag, int interleaved) /* {{{ */ {
+	/* user-side allocator handed to the storage layer for find() snapshots.
+	 * strings allocate the final zend_string directly, so the snapshot is
+	 * written into it and yac_get_impl can hand it to ZVAL_NEW_STR with no
+	 * extra copy; other small values pass through a per-thread staging
+	 * buffer and skip emalloc/efree on the hot path (interleaved callers
+	 * like dump() hold many blocks at once and must get distinct memory).*/
 	if (((flag & (YAC_ENTRY_TYPE_MASK|YAC_ENTRY_COMPRESSED)) == IS_STRING)) {
 		zend_string *res = zend_string_alloc(size, 0);
 		return ZSTR_VAL(res);
@@ -251,9 +250,9 @@ void *yac_alloc(unsigned int size, unsigned int flag, int interleaved) /* {{{ */
 }
 /* }}} */
 
-/* inverse of yac_alloc(); strings are released through the zend_string
- * header they were allocated from, the staging buffer is never freed */
 void yac_free(void *addr, unsigned int flag) /* {{{ */ {
+	/* inverse of yac_alloc(); strings are released through the zend_string
+	 * header they were allocated from, the staging buffer is never freed */
 	if ((flag & (YAC_ENTRY_TYPE_MASK|YAC_ENTRY_COMPRESSED)) == IS_STRING) {
 		efree((char*)addr - offsetof(zend_string, val));
 		return;

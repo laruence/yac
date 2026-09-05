@@ -21,9 +21,7 @@
 #ifndef YAC_CRC32_TAB_H
 #define YAC_CRC32_TAB_H
 
-/* Slicing-by-8 tables for software CRC-32C (Castagnoli, reflected, poly
- * 0x82F63B78): slice 0 is the standard byte-wise table, slices 1..7 cover
- * the successive byte positions inside an 8-byte word. included only from
+/* slicing-by-8 tables for software CRC-32C; included only from
  * crc/yac_crc32.c */
 
 static const uint32_t yac_crc32c_tab[8][256] = {
