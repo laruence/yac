@@ -105,13 +105,10 @@ void yac_storage_shutdown(void) /* {{{ */ {
 
 /* {{{ MurmurHash64A (Austin Appleby, public domain).
  *
- * one pass over the key; the 64-bit result is split for the probe
- * scheme: the low bits pick the home slot (YAC_HASH_HOME), a fold of the
- * upper half gives the probe stride (YAC_HASH_STRIDE) — odd, so coprime
- * with the power-of-two slot count and never zero, hence the probe walk
- * always advances and cannot cycle within a single slot. keys are bounded
- * by YAC_STORAGE_MAX_KEY_LEN (48 bytes): at most six 8-byte rounds. the
- * empty key hashes to 0, which is safe because find() rejects empty
+ * the 64-bit result is split for probing: low bits pick the home slot
+ * (YAC_HASH_HOME), a fold of the upper half gives an odd, non-zero probe
+ * stride (YAC_HASH_STRIDE) coprime with the slot count, so the walk can't
+ * cycle. the empty key hashes to 0, safe because find() rejects empty
  * slots (val == NULL) before comparing hashes */
 static inline uint64_t yac_hash(const char *data, unsigned int len) {
 	const uint64_t m = 0xc6a4a7935bd1e995ULL;
@@ -268,11 +265,9 @@ int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long
 /* }}} */
 
 static inline uint32_t yac_storage_pick_victim(yac_kv_key **paths) /* {{{ */ {
-	/* pick the eviction victim from a probe path whose 4 slots are all
-	 * live: the least recently used one; ties fall to the least hit
-	 * candidate, then the earliest probe — the evicted slot is inherited
-	 * by the new key, and the closer it sits to the home slot the shorter
-	 * every future lookup of the new key */
+	/* evict the least recently used slot of a fully live probe path; ties
+	 * fall to the least hit, then the earliest probe — closer to home
+	 * means shorter future lookups */
 	yac_kv_key c;
 	unsigned long atime, oldest;
 	uint32_t victim, i;
@@ -296,19 +291,17 @@ static inline uint32_t yac_storage_pick_victim(yac_kv_key **paths) /* {{{ */ {
 /* }}} */
 
 static inline int yac_storage_fill_value(yac_kv_key *k, unsigned int len, char *data, unsigned int size, unsigned int flag, uint64_t hash, unsigned long tv) /* {{{ */ {
-	/* make k ready to carry the new value: block values go into a reused or
-	 * freshly allocated block, embedded values live in the tagged word
-	 * itself; every field but h/ttl/key/len is filled for the caller to
-	 * commit. returns 0 when no value block could be allocated */
+	/* fill k with the new value (a block or an embedded word); every
+	 * field but h/ttl/key/len is set for the caller to commit, 0 when
+	 * no value block could be allocated */
 	if (!YAC_IS_EMBED(data)) {
-		/* reuse the old block if intact and big enough, otherwise
-		 * allocate a fresh one (grown by YAC_STORAGE_FACTOR). the crc
-		 * check guards against a block the value pool has already
-		 * wrapped around and overwritten — reusing such a block would
-		 * clobber its new owner's data */
-		int intact = k->val && !YAC_IS_EMBED(k->val) &&
-			k->u2.crc == yac_crc32(k->val->data, YAC_KEY_VLEN(*k));
-		if (!(intact && k->u2.size >= sizeof(yac_kv_val) + size - 1)) {
+		/* reuse the old block if big enough and intact, otherwise
+		 * allocate a fresh one (grown by YAC_STORAGE_FACTOR); the crc
+		 * guards against reusing a block the value pool has already
+		 * wrapped around and overwritten */
+		int has_block = k->val && !YAC_IS_EMBED(k->val);
+		if (!(has_block && k->u2.size >= sizeof(yac_kv_val) + size - 1 &&
+				k->u2.crc == yac_crc32(k->val->data, YAC_KEY_VLEN(*k)))) {
 			unsigned long real_size = yac_allocator_real_size(sizeof(yac_kv_val) + (size * YAC_STORAGE_FACTOR) - 1);
 			yac_kv_val *val;
 
@@ -402,15 +395,10 @@ do_update:
 		return 0;
 	}
 
-	/* 5. commit under the slot lock. the slot may no longer be ours — a
-	 * concurrent writer can have evicted and replaced it between the
-	 * probe and this point, so the identity fields are published
-	 * unconditionally. update the fields individually instead of copying
-	 * the whole slot: the u1/u2 unions alias (flag|hits, crc/size|atime)
-	 * depending on the storage form, and a whole-slot copy would
-	 * re-publish the stale union bytes grabbed in step 1 over lock-free
-	 * statistics updates or a concurrent writer's freshly written
-	 * crc/size */
+	/* 5. commit under the slot lock. the slot may have been replaced by a
+	 * concurrent writer since step 1, so publish the identity fields
+	 * unconditionally; per-field writes (not a whole-slot copy) keep a
+	 * step-1 snapshot from clobbering the u1/u2 unions */
 	k.h = YAC_HASH_STORE(hash);
 	k.ttl = ttl ? tv + ttl : 0;
 	memcpy(k.key, key, len);

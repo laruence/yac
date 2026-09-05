@@ -452,11 +452,9 @@ static inline void yac_add_update_internal(INTERNAL_FUNCTION_PARAMETERS, int add
 	zval *keys, *value = NULL;
 	int ret;
 
-	/* dispatch by argc instead of a single spec: set(array, ttl) and
-	 * set(key, value) are both 2-arg calls, and the dispatch keeps the
-	 * historical single-arg behavior, where coercive mode turns
-	 * set(int) into set((array)int) on PHP 7 while strict mode fails
-	 * it on PHP 8 */
+	/* argc dispatch: set(array, ttl) and set(key, value) share arity 2,
+	 * and arity 1 keeps strict array parsing to preserve the historical
+	 * PHP 7 coercive-mode set(int) -> set((array)int) behavior */
 	switch (ZEND_NUM_ARGS()) {
 		case 1:
 			ZEND_PARSE_PARAMETERS_START(1, 1)

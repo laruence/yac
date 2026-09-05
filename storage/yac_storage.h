@@ -72,22 +72,18 @@ typedef struct {
 	unsigned char key[YAC_STORAGE_MAX_KEY_LEN];
 } yac_kv_key;
 
-/* by storage form, an entry keeps its read count and atime either in
- * the slot's u1/u2 unions (embedded, no value block) or in the block
- * itself. Code that already knows the form accesses the union/fields
- * directly; these macros are only for sites where the form is still
- * unknown and must be dispatched on */
+/* hits/atime live in the slot's u1/u2 unions for embedded entries and in
+ * the value block otherwise; these macros dispatch on the form for sites
+ * that don't know it yet */
 #define YAC_KV_HITS(k)  ((k).val == NULL ? 0 : \
 	(YAC_IS_EMBED((k).val) ? (k).u1.hits : (k).val->hits))
 #define YAC_KV_ATIME(k) (YAC_IS_EMBED((k).val) ? (k).u2.atime : (k).val->atime)
 
 /* Embedded scalar values.
  *
- * val normally points to a block from the bump allocator. Blocks are
- * 8-byte aligned (YAC_SMM_ALIGNMENT), so the low 3 bits of a real
- * pointer are always zero; a non-zero tag there marks an embedded value
- * carried in the word itself, no block allocated. NULL still means
- * "empty slot".
+ * val normally points to an 8-byte aligned block, so a real pointer has
+ * zero low 3 bits; a non-zero tag there marks a value carried in the
+ * word itself, no block allocated. NULL means "empty slot".
  *
  * tags:
  *   0x1 NULL          (no payload)
@@ -98,8 +94,8 @@ typedef struct {
  *   0x6 EMPTY_ARRAY   (no payload)
  *   0x7 reserved
  *
- * the zend-type aware helpers live in yac.c; everything here is plain C
- * so the allocator backends can include this header without php.h
+ * the zend-type aware helpers live in yac.c; this file stays plain C so
+ * the allocator backends can include it without php.h
  */
 #define YAC_EMBED_MASK              0x7
 
@@ -177,13 +173,10 @@ typedef struct {
 	unsigned int recycles;
 } yac_storage_stats;
 
-/* per-process stats accumulators: hits/miss land here on the hot path
- * instead of the shared stats line, and are folded back atomically at
- * request shutdown (or before stats are read). bumping the shared line
- * on every hit made it bounce between cores constantly — and in the
- * compact layout that line also carries the read-only globals — which
- * cost roughly a third of aggregate throughput. the cold counters
- * (kicks/fails/occupied/recycles) keep their direct increments */
+/* per-process hits/miss accumulators, folded into the shared stats at
+ * request shutdown; bumping the shared line on every hit bounced it
+ * between cores and cost roughly a third of aggregate throughput. the
+ * cold counters (kicks/fails/occupied/recycles) are incremented directly */
 static struct {
 	unsigned int hits;
 	unsigned int miss;
