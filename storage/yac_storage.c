@@ -320,8 +320,7 @@ static inline int yac_storage_fill_value(yac_kv_key *k, unsigned int len, char *
 		k->val->atime = tv;
 		k->val->hits = 0; /* every (re)write starts cold */
 		YAC_KEY_SET_LEN(*k->val, len, size);
-		memcpy(k->val->data, data, size);
-		k->u2.crc = yac_crc32(data, size);
+		k->u2.crc = yac_crc32_snapshot(k->val->data, data, size);
 		k->u1.flag = flag;
 	} else {
 		/* small scalars live in the tagged word itself, no block */
