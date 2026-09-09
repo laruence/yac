@@ -44,9 +44,16 @@
  *       tests/concurrency.php
  *
  * Tunables (environment): YAC_HAMMER_WORKERS, YAC_HAMMER_OPS,
- * YAC_HAMMER_SEED, YAC_HAMMER_SECONDS. A failure is reproducible in
- * shape (not in scheduling) with the same seed: the per-worker op
- * stream is mt_srand(seed + worker * 7919).
+ * YAC_HAMMER_SEED, YAC_HAMMER_SECONDS, YAC_HAMMER_FLUSH. A failure is
+ * reproducible in shape (not in scheduling) with the same seed: the
+ * per-worker op stream is mt_srand(seed + worker * 7919).
+ *
+ * YAC_HAMMER_FLUSH (0 disables) injects rare flush() calls, which clear
+ * the slot array without taking the slots they clear — the one operation
+ * that can pull a slot out from under a writer mid-publish. That damage
+ * does not surface as a wrong read: a slot left in a permanently
+ * "being written" state simply misses on every read and rejects every
+ * write, forever. The post-run liveness sweep below is what catches it.
  *
  * YAC_HAMMER_SECONDS > 0 overrides the op budget with a wall-clock
  * deadline — what CI wants, since runner speed varies: the run takes
@@ -85,6 +92,10 @@ function env_int($name, $def) {
 $workers     = env_int("YAC_HAMMER_WORKERS", 8);
 $ops         = env_int("YAC_HAMMER_OPS", 60000);
 $seed        = env_int("YAC_HAMMER_SEED", 20260831);
+/* odds of a flush at each sampling point (1 in N). rare on purpose: a
+ * cache that is constantly empty races nothing else. OFF by default until
+ * flush() stops racing the readers -- it currently crashes them */
+$flush_odds  = env_int("YAC_HAMMER_FLUSH", 0);
 /* seconds > 0 overrides the op budget: run until the deadline, which is
  * what CI wants — a bounded wall-clock regardless of worker speed. the
  * shared keys pool is sized to the number of workers so a small-CI core
@@ -185,9 +196,10 @@ function record_failure(&$failures, $worker, $op, $category, $key, $expected, $g
 	}
 }
 
-function run_worker($id, $ops, $seed, $shared_keys, $deadline) {
+function run_worker($id, $ops, $seed, $shared_keys, $deadline, $flush_odds) {
 	mt_srand($seed + $id * 7919);
 	$yac = new Yac();
+	$flushes = 0;
 
 	$seq      = 0;      /* shared/ephemeral write sequence */
 	$priv_seq = 0;      /* private write sequence */
@@ -201,6 +213,15 @@ function run_worker($id, $ops, $seed, $shared_keys, $deadline) {
 	for ($op = 0; $op < $ops; $op++) {
 		if (($op & 4095) === 0) {
 			$ring = sample_info($ring, $op, $yac);
+			/* flush() zeroes the slot array without taking the slots, so
+			 * it can land in the middle of another worker's publish. no
+			 * expectation is rolled back here: every key this worker
+			 * validates is one only it writes, so a flushed entry can
+			 * only come back as a miss, which is already legal */
+			if ($flush_odds && mt_rand(0, $flush_odds - 1) === 0) {
+				$yac->flush();
+				++$flushes;
+			}
 			/* wall-clock mode: stop once the deadline passes. checked
 			 * together with the sampling so the syscall lands at most
 			 * once per 4096 ops */
@@ -315,7 +336,8 @@ function run_worker($id, $ops, $seed, $shared_keys, $deadline) {
 		}
 		return min(count($failures), 100);
 	}
-	printf("[w%d] ok: %d ops, seq=%d, write_fails=%d\n", $id, $op, $seq, $write_fails);
+	printf("[w%d] ok: %d ops, seq=%d, write_fails=%d, flushes=%d\n",
+		$id, $op, $seq, $write_fails, $flushes);
 	return 0;
 }
 
@@ -338,7 +360,7 @@ for ($w = 0; $w < $workers; $w++) {
 		exit(1);
 	}
 	if ($pid === 0) {
-		exit(run_worker($w, $ops, $seed, $shared_keys, $deadline));
+		exit(run_worker($w, $ops, $seed, $shared_keys, $deadline, $flush_odds));
 	}
 	$pids[$w] = $pid;
 }
@@ -386,10 +408,46 @@ if ($after["kicks"] === $before["kicks"] && $after["recycles"] === $before["recy
 	printf("WARNING: no kicks and no recycles happened — pools are too big, the hammer did not bite\n");
 }
 
+/* liveness sweep: every worker has exited, so no slot is legitimately held
+ * by anyone. a slot left permanently in the "being written" state does not
+ * corrupt anything — it just misses on every read and rejects every write
+ * from here on — so nothing above can see it. with no concurrency left,
+ * set()/get() must be perfectly reliable, and any failure means structural
+ * damage that outlived the run.
+ *
+ * this must NOT be preceded by a flush(): zeroing the slot array is exactly
+ * what would repair such a slot and hide the bug.
+ *
+ * values are embedded scalars (no value block), so a failed set() cannot be
+ * blamed on an exhausted value allocator; kicks are fine, they succeed. */
+$sweep_keys  = $after["slots_size"];
+$dead_writes = 0;
+$dead_reads  = 0;
+$first_dead  = null;
+for ($i = 0; $i < $sweep_keys; $i++) {
+	$k = "sweep_$i";
+	if (!$boot_yac->set($k, $i)) {
+		if ($first_dead === null) { $first_dead = "set($k)"; }
+		++$dead_writes;
+		continue;
+	}
+	if ($boot_yac->get($k) !== $i) {
+		if ($first_dead === null) { $first_dead = "get($k)"; }
+		++$dead_reads;
+	}
+}
+if ($dead_writes || $dead_reads) {
+	printf("FAIL: liveness sweep on a quiesced cache: %d/%d writes rejected, %d readbacks wrong (first: %s)\n",
+		$dead_writes, $sweep_keys, $dead_reads, $first_dead);
+	printf("      slots are permanently unusable — a writer lost its slot mid-publish (flush() races the publish protocol)\n");
+	$failed_workers++;
+}
+
 if ($failed_workers > 0) {
 	printf("FAIL: %d/%d workers failed — per-worker disposition in the FAIL: lines above\n",
 		$failed_workers, $workers);
 	exit(1);
 }
-printf("PASS: every read returned a legitimate value or a miss\n");
+printf("PASS: every read returned a legitimate value or a miss; all %d slots still usable\n",
+	$sweep_keys);
 exit(0);

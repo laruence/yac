@@ -239,7 +239,7 @@ void *yac_alloc(unsigned int size, unsigned int flag, int interleaved) /* {{{ */
 	 * extra copy; other small values pass through a per-thread staging
 	 * buffer and skip emalloc/efree on the hot path (interleaved callers
 	 * like dump() hold many blocks at once and must get distinct memory).*/
-	if (((flag & (YAC_ENTRY_TYPE_MASK|YAC_ENTRY_COMPRESSED)) == IS_STRING)) {
+	if ((flag & (YAC_ENTRY_TYPE_MASK|YAC_ENTRY_COMPRESSED)) == IS_STRING) {
 		zend_string *res = zend_string_alloc(size, 0);
 		return ZSTR_VAL(res);
 	}

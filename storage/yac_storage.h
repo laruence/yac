@@ -125,7 +125,7 @@ typedef struct {
 /* slot.h is an unsigned long (32-bit on 32-bit builds): store and
  * compare the low bits explicitly; the key memcmp stays authoritative */
 #define YAC_HASH_STORE(hash)         ((unsigned long)(hash))
-#define YAC_HASH_MATCH(k, hash)      ((unsigned long)(hash) == (k).h)
+#define YAC_HASH_MATCH(h, hash)      ((unsigned long)(hash) == (h))
 
 typedef struct _yac_item_list {
 	unsigned int index;

@@ -178,20 +178,25 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 		/* the next probe slot's address is already known: pull it in
 		 * while this slot's CAS, load and compare are in flight */
 		yac_prefetch(&YAC_SG(slots)[(h + stride) & YAC_SG(slots_mask)]);
-		if (YAC_HASH_MATCH(k, hash) && YAC_KEY_KLEN(k) == len && !memcmp(k.key, key, len)) {
+		if (YAC_HASH_MATCH(k.h, hash) && YAC_KEY_KLEN(k) == len && !memcmp(k.key, key, len)) {
 			if (k.ttl && k.ttl <= tv) {
 				break; /* expired */
 			}
 			if (YAC_IS_EMBED(k.val)) {
-				/* the value lives in the slot itself, no block to go
-				 * stale, so the guarders below don't apply */
-				if (p->u2.atime != tv) {
-					p->u2.atime = tv;
-				}
 				*data = (char *)k.val; /* tagged word, YAC_IS_EMBED(data) */
 				*size = 0; /* the value word carries no metadata */
 				*flag = 0;
-				++p->u1.hits;
+				if (WRITEP(p)) {
+					if (YAC_IS_EMBED(p->val)) {
+						/* the value lives in the slot itself, no block to go
+						 * stale, so the guarders below don't apply */
+						if (p->u2.atime != tv) {
+							p->u2.atime = tv;
+						}
+						++p->u1.hits;
+					}
+					READP(p);
+				}
 				++local_stats.hits;
 				return 1;
 			} else {
@@ -253,7 +258,9 @@ int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long
 			return 0; /* the key was never stored */
 		}
 		yac_prefetch(&YAC_SG(slots)[(h + stride) & YAC_SG(slots_mask)]);
-		if (YAC_HASH_MATCH(k, hash) && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
+		if (YAC_HASH_MATCH(k.h, hash) && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
+			/* unlocked on purpose: at worst this expires a key another
+			 * writer just put here, which costs one entry and nothing more */
 			p->ttl = ttl ? ttl + tv : 1;
 			return 1;
 		}
@@ -356,7 +363,7 @@ int yac_storage_update(const char *key, unsigned int len, char *data, unsigned i
 			goto do_update; /* an insert takes the first empty slot on the path */
 		}
 		yac_prefetch(&YAC_SG(slots)[(h + stride) & YAC_SG(slots_mask)]);
-		if (YAC_HASH_MATCH(k, hash) && YAC_KEY_KLEN(k) == len && !memcmp(k.key, key, len)) {
+		if (YAC_HASH_MATCH(k.h, hash) && YAC_KEY_KLEN(k) == len && !memcmp(k.key, key, len)) {
 			if (add && (!k.ttl || k.ttl > tv)) {
 				return 0; /* add() must not overwrite a live entry */
 			}
