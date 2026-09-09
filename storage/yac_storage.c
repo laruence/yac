@@ -450,6 +450,10 @@ do_update:
 void yac_storage_flush(void) /* {{{ */ {
 	uint32_t i;
 
+	if (YAC_SG(in_flush)) {
+		return;
+	}
+
 	/* writers check this and give up, so the sweep below races with fewer
 	 * of them; it cannot exclude one already past its own check */
 	YAC_ATOMIC_ADD(&YAC_SG(in_flush), 1);
@@ -516,6 +520,10 @@ yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset, unsign
 	yac_item_list *item, *list = NULL;
 	unsigned int size = YAC_SG(slots_size), occupied = YAC_SG(stats.occupied);
 	unsigned int i = 0, n = 0, skipped = 0, max = MIN(occupied, limit);
+
+	if (YAC_SG(in_flush)) {
+		return NULL;
+	}
 
 	for (; i < size && n < max; i++) {
 		k = YAC_SG(slots)[i];
