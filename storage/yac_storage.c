@@ -90,6 +90,7 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, yac_user_alloc_
 	YAC_SG(stats.hits)  = 0;
 	YAC_SG(stats.miss)  = 0;
 	YAC_SG(stats.kicks) = 0;
+	YAC_SG(in_flush)    = 0;
 	YAC_SG(start_time)  = time(NULL);
 
    	memset((char *)YAC_SG(slots), 0, sizeof(yac_kv_key) * real_size);
@@ -159,6 +160,14 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 	uint64_t h, hash, stride;
 	uint32_t i;
 	yac_kv_key k, *p;
+
+	if (YAC_SG(in_flush)) {
+		/* the table is being cleared: report the miss the flush is about
+		 * to make true anyway, rather than racing the sweep for an entry
+		 * that is on its way out */
+		++local_stats.miss;
+		return 0;
+	}
 
 	hash = yac_hash(key, len);
 	h = YAC_HASH_HOME(hash, YAC_SG(slots_mask));
@@ -244,6 +253,10 @@ int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long
 	uint32_t i;
 	yac_kv_key k, *p;
 
+	if (YAC_SG(in_flush)) {
+		return 0; /* the flush removes the key regardless */
+	}
+
 	hash = yac_hash(key, len);
 	h = YAC_HASH_HOME(hash, YAC_SG(slots_mask));
 	stride = YAC_HASH_STRIDE(hash, YAC_SG(slots_mask));
@@ -275,21 +288,24 @@ static inline uint32_t yac_storage_pick_victim(yac_kv_key **paths) /* {{{ */ {
 	/* evict the least recently used slot of a fully live probe path; ties
 	 * fall to the least hit, then the earliest probe — closer to home
 	 * means shorter future lookups */
-	yac_kv_key c;
+	/* both candidates are snapshots: re-reading paths[victim] here would
+	 * compare a fresh hit count against an atime taken earlier, and the
+	 * slot may have been emptied (val == NULL) behind our back */
+	yac_kv_key c, best;
 	unsigned long atime, oldest;
 	uint32_t victim, i;
 
 	victim = 0;
-	c = *paths[victim];
-	oldest = YAC_KV_ATIME(c);
+	best = *paths[victim];
+	oldest = YAC_KV_ATIME(best);
 	for (i = 1; i < 4; i++) {
 		c = *paths[i];
 		atime = YAC_KV_ATIME(c);
-		if (atime < oldest) {
+		if (atime < oldest ||
+				(atime == oldest && YAC_KV_HITS(c) < YAC_KV_HITS(best))) {
 			oldest = atime;
 			victim = i;
-		} else if (atime == oldest && (YAC_KV_HITS(c) < YAC_KV_HITS(*paths[victim]))) {
-			victim = i;
+			best = c;
 		}
 	}
 
@@ -343,6 +359,12 @@ int yac_storage_update(const char *key, unsigned int len, char *data, unsigned i
 	uint32_t i;
 	uint64_t h, hash, stride;
 	yac_kv_key k, *p, *paths[4];
+
+	if (YAC_SG(in_flush)) {
+		/* the flush would clear this write anyway, and a writer racing the
+		 * sweep can leave a half-published slot behind it */
+		return 0;
+	}
 
 	hash = yac_hash(key, len);
 	stride = YAC_HASH_STRIDE(hash, YAC_SG(slots_mask));
@@ -426,9 +448,36 @@ do_update:
 /* }}} */
 
 void yac_storage_flush(void) /* {{{ */ {
+	uint32_t i;
+
+	/* writers check this and give up, so the sweep below races with fewer
+	 * of them; it cannot exclude one already past its own check */
+	YAC_ATOMIC_ADD(&YAC_SG(in_flush), 1);
+
+	/* take every slot and hold them all: while the whole table is held no
+	 * writer can commit anywhere (its step-5 WRITEP fails), so nothing can
+	 * be published into a slot the memset below has already passed. one
+	 * attempt per slot -- yac_slot_lock() already spins YAC_CAS_MAX_SPIN
+	 * times, and a holder that died between WRITEP and READP never
+	 * releases, so waiting on it would hang the flush */
+	for (i = 0; i < YAC_SG(slots_size); i++) {
+		yac_kv_key *p = &(YAC_SG(slots)[i]);
+		(void)WRITEP(p);
+	}
+
+	/* one pass clears the entries and the mutexes together: zeroing
+	 * slot.mutex releases every lock taken above, and it also frees a slot
+	 * wedged by a holder that died mid-publish -- the only thing in yac
+	 * that ever does */
+	memset((char *)YAC_SG(slots), 0, sizeof(yac_kv_key) * YAC_SG(slots_size));
+
+	/* writers that slipped past the check above may have counted slots
+	 * they took while the sweep ran */
 	YAC_SG(stats.occupied) = 0;
 
-	memset((char *)YAC_SG(slots), 0, sizeof(yac_kv_key) * YAC_SG(slots_size));
+	/* full barrier (__sync_fetch_and_add / InterlockedExchangeAdd): the
+	 * memset is plain stores, this publishes them */
+	YAC_ATOMIC_ADD(&YAC_SG(in_flush), -1);
 }
 /* }}} */
 

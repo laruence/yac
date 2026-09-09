@@ -77,7 +77,8 @@ typedef struct {
  * that don't know it yet */
 #define YAC_KV_HITS(k)  ((k).val == NULL ? 0 : \
 	(YAC_IS_EMBED((k).val) ? (k).u1.hits : (k).val->hits))
-#define YAC_KV_ATIME(k) (YAC_IS_EMBED((k).val) ? (k).u2.atime : (k).val->atime)
+#define YAC_KV_ATIME(k) ((k).val == NULL ? 0 : \
+	(YAC_IS_EMBED((k).val) ? (k).u2.atime : (k).val->atime))
 
 /* Embedded scalar values.
  *
@@ -189,6 +190,7 @@ typedef struct {
 	unsigned int slots_size;
 	unsigned int segments_num;
 	unsigned int segments_num_mask;
+	unsigned int in_flush;
 	unsigned long start_time;
 	yac_shared_segment **segments;
 	yac_shared_segment first_seg;
