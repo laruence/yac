@@ -30,7 +30,7 @@ class Thrower implements JsonSerializable {
 $cases = [
 	"inf"       => ["d" => INF],
 	"nan"       => ["d" => NAN],
-	"resource"  => ["r" => fopen("/etc/hosts", "r")],
+	"resource"  => ["r" => fopen("php://memory", "r")],
 	"bad_utf8"  => ["s" => "head\xB1\x31tail"],
 	"thrower"   => ["o" => new Thrower()],
 ];

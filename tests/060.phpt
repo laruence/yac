@@ -23,7 +23,7 @@ class ThrowSleep {
  * crash on buf->s or store a payload that can never be read back */
 $cases = [
 	"closure"  => function () {},
-	"internal" => new SplFileObject("/etc/hosts"),
+	"internal" => new ReflectionClass("Yac"),
 	"sleep"    => new ThrowSleep(),
 	"nested"   => ["head" => str_repeat("A", 32), "bad" => function () {}],
 ];
@@ -45,7 +45,7 @@ Exception: Serialization of 'Closure' is not allowed
 bool(false)
 
 Warning: Yac::set(): Serialization failed in %s on line %d
-Exception: Serialization of 'SplFileObject' is not allowed
+Exception: Serialization of 'ReflectionClass' is not allowed
 bool(false)
 
 Warning: Yac::set(): Serialization failed in %s on line %d
