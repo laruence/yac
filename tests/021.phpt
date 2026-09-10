@@ -27,6 +27,16 @@ var_dump($yac->foo);
 unset($yac->value);
 var_dump($yac->get("value"));
 var_dump($yac->value);
+
+/* the write handler must not take a ref of its own: the engine does not
+ * consume one, so the value would outlive the caller's unset */
+class Probe {
+	public function __destruct() { echo "DTOR\n"; }
+}
+$obj = new Probe();
+$yac->obj = $obj;
+unset($obj);
+echo "AFTER-UNSET\n";
 ?>
 --EXPECT--
 string(5) "value"
@@ -35,3 +45,5 @@ bool(false)
 NULL
 bool(false)
 NULL
+DTOR
+AFTER-UNSET

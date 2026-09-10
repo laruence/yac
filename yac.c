@@ -746,7 +746,6 @@ static YAC_WHANDLER yac_write_property(void *zobj, void *name, zval *value, void
 #endif
 
 	yac_add_impl(yac, member, value, 0, 0);
-    Z_TRY_ADDREF_P(value);
 
 	YAC_WHANDLER_RET(value);
 }
