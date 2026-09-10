@@ -48,10 +48,11 @@
  * reproducible in shape (not in scheduling) with the same seed: the
  * per-worker op stream is mt_srand(seed + worker * 7919).
  *
- * YAC_HAMMER_FLUSH (0 disables) injects rare flush() calls, which clear
- * the slot array without taking the slots they clear — the one operation
- * that can pull a slot out from under a writer mid-publish. That damage
- * does not surface as a wrong read: a slot left in a permanently
+ * YAC_HAMMER_FLUSH (0 disables) injects rare flush() calls. flush() takes
+ * every slot before clearing the table, but it clears a slot it could not
+ * take, and the clear releases the locks as it goes — so it stays the one
+ * operation that can pull a slot out from under a writer mid-publish. That
+ * damage does not surface as a wrong read: a slot left in a permanently
  * "being written" state simply misses on every read and rejects every
  * write, forever. The post-run liveness sweep below is what catches it.
  *
@@ -93,8 +94,7 @@ $workers     = env_int("YAC_HAMMER_WORKERS", 8);
 $ops         = env_int("YAC_HAMMER_OPS", 60000);
 $seed        = env_int("YAC_HAMMER_SEED", 20260831);
 /* odds of a flush at each sampling point (1 in N). rare on purpose: a
- * cache that is constantly empty races nothing else. OFF by default until
- * flush() stops racing the readers -- it currently crashes them */
+ * cache that is constantly empty races nothing else */
 $flush_odds  = env_int("YAC_HAMMER_FLUSH", 0);
 /* seconds > 0 overrides the op budget: run until the deadline, which is
  * what CI wants — a bounded wall-clock regardless of worker speed. the
@@ -213,9 +213,7 @@ function run_worker($id, $ops, $seed, $shared_keys, $deadline, $flush_odds) {
 	for ($op = 0; $op < $ops; $op++) {
 		if (($op & 4095) === 0) {
 			$ring = sample_info($ring, $op, $yac);
-			/* flush() zeroes the slot array without taking the slots, so
-			 * it can land in the middle of another worker's publish. no
-			 * expectation is rolled back here: every key this worker
+			/* no expectation is rolled back here: every key this worker
 			 * validates is one only it writes, so a flushed entry can
 			 * only come back as a miss, which is already legal */
 			if ($flush_odds && mt_rand(0, $flush_odds - 1) === 0) {
