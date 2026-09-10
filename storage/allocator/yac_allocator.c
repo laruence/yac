@@ -116,21 +116,29 @@ do_alloc:
 			goto do_retry;
 		}
 		return NULL;
-    } else { 
+    } else {
 		int i, max;
 		max = (YAC_SG(segments_num) > 4)? 4 : YAC_SG(segments_num);
 		for (i = 1; i < max; i++) {
-			segment = YAC_SG(segments)[(current + i) & YAC_SG(segments_num_mask)];
+			current = (current + 1) & YAC_SG(segments_num_mask);
+			segment = YAC_SG(segments)[current];
 			seg_size = segment->size;
 			pos = segment->pos;
 			if ((seg_size - pos) >= size) {
-				current = (current + i) & YAC_SG(segments_num_mask);
 				goto do_alloc;
 			}
 		}
-		segment->pos = 0;
-		++YAC_SG(stats.recycles);
-		goto do_alloc;
+		/* all full, recycle the last one. a plain pos = 0 would race the CAS
+		 * above and hand two callers the same address */
+		if (seg_size >= size &&
+				YAC_CAS((unsigned int *)&segment->pos, pos, (unsigned int)size)) {
+			++YAC_SG(stats.recycles);
+			return segment->p;
+		}
+		if (retry--) {
+			goto do_retry;
+		}
+		return NULL;
 	}
 }
 /* }}} */
