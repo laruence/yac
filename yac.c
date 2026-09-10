@@ -962,69 +962,6 @@ PHP_METHOD(yac, dump) {
 }
 /* }}} */
 
-#if 0
-only OO-style APIs is supported now
-/* {{{{ proto bool yac_add(mixed $keys, mixed $value[, int $ttl])
- */
-PHP_FUNCTION(yac_add)
-{
-	PHP_MN(yac_add)(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-}
-/* }}} */
-
-/* {{{ proto bool yac_set(mixed $keys, mixed $value[, int $ttl])
- */
-PHP_FUNCTION(yac_set)
-{
-	PHP_MN(yac_set)(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-}
-/* }}} */
-
-/* {{{ proto bool yac_get(mixed $keys[, int &$cas])
- */
-PHP_FUNCTION(yac_get)
-{
-	PHP_MN(yac_get)(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-}
-/* }}} */
-
-/* {{{ proto bool yac_delete(mixed $keys[, int $delay = 0])
- */
-PHP_FUNCTION(yac_delete)
-{
-	PHP_MN(yac_delete)(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-}
-/* }}} */
-
-/* {{{ proto bool yac_flush(void)
- */
-PHP_FUNCTION(yac_flush)
-{
-	PHP_MN(yac_flush)(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-}
-/* }}} */
-
-/* {{{ proto bool yac_info(void)
- */
-PHP_FUNCTION(yac_info)
-{
-	PHP_MN(yac_info)(INTERNAL_FUNCTION_PARAM_PASSTHRU);
-}
-/* }}} */
-
-/* {{{ yac_functions[] */
-zend_function_entry yac_functions[] = {
-	PHP_FE(yac_add, arginfo_yac_add)
-	PHP_FE(yac_set, arginfo_yac_add)
-	PHP_FE(yac_get, arginfo_yac_get)
-	PHP_FE(yac_delete, arginfo_yac_delete)
-	PHP_FE(yac_flush, arginfo_yac_void)
-	PHP_FE(yac_info, arginfo_yac_void)
-	{NULL, NULL}
-};
-/* }}} */
-#endif
-
 /** {{{ yac_methods
 */
 zend_function_entry yac_methods[] = {
