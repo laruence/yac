@@ -37,6 +37,16 @@ yac_storage_globals *yac_storage;
 static yac_user_alloc_t user_alloc;
 static yac_user_free_t user_free;
 
+/* hits counts one read in YAC_HITS_PER_SAMPLE and adds that much, so a hot
+ * entry claims its slot a third as often. the 2^32/phi multiplier makes it
+ * a Weyl sequence: samples never drift, so a key read at a fixed period is
+ * counted like any other. both entry forms must scale alike, YAC_KV_HITS
+ * compares them against each other */
+#define YAC_HITS_PER_SAMPLE	3
+static uint32_t yac_sample_clock;
+#define YAC_HITS_SAMPLE() \
+	(((++yac_sample_clock) * 0x9E3779B1u) < (0xFFFFFFFFu / YAC_HITS_PER_SAMPLE))
+
 void yac_storage_start_stats(void) /* {{{ */ {
 	memset(&local_stats, 0, sizeof(local_stats));
 }
@@ -237,20 +247,29 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 				break; /* expired */
 			}
 			if (YAC_IS_EMBED(k.val)) {
+				/* atime is never sampled: it picks the victim, hits only
+				 * breaks its ties. being second-granular it claims at most
+				 * once a second per slot anyway */
+				int stale = k.u2.atime != tv;
+				int sampled = YAC_HITS_SAMPLE();
+
 				*data = (char *)k.val; /* tagged word, YAC_IS_EMBED(data) */
 				*size = 0; /* the value word carries no metadata */
 				*flag = 0;
 				/* hits/atime live in the slot here, so touching them means
 				 * publishing -- the one read path that still claims. best
 				 * effort: a busy slot drops the count rather than wait */
-				if (YAC_SLOT_CLAIM(p)) {
+				if ((stale || sampled) && YAC_SLOT_CLAIM(p)) {
 					/* a writer may have replaced it, and that entry's hit
 					 * count is not ours to bump */
 					if ((yac_kv_val *)YAC_LOAD(&p->val) == k.val) {
-						if (YAC_LOAD(&p->u2.atime) != tv) {
+						if (stale) {
 							YAC_STORE(&p->u2.atime, tv);
 						}
-						YAC_STORE(&p->u1.hits, YAC_LOAD(&p->u1.hits) + 1);
+						if (sampled) {
+							YAC_STORE(&p->u1.hits,
+									YAC_LOAD(&p->u1.hits) + YAC_HITS_PER_SAMPLE);
+						}
 					}
 					YAC_SLOT_PUBLISH(p);
 				}
@@ -271,7 +290,11 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 					*data = s;
 					*size = YAC_KEY_VLEN(k);
 					*flag = k.u1.flag;
-					++k.val->hits;
+					/* sampled at the same rate as the embedded form above:
+					 * YAC_KV_HITS compares the two against each other */
+					if (YAC_HITS_SAMPLE()) {
+						k.val->hits += YAC_HITS_PER_SAMPLE;
+					}
 					++local_stats.hits;
 					return 1;
 				}

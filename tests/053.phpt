@@ -5,6 +5,10 @@ find() bumps a per-entry counter: block values keep it in the value
 block, embedded scalars keep it in the slot's flag union bytes.
 Overwriting a live entry carries the count forward; expired and
 deleted entries start cold again. dump() exposes the count.
+
+The counter is sampled (one read in YAC_HITS_PER_SAMPLE adds that
+much), so a count that followed reads is an estimate and only matched
+as %d. The zeroes are exact: every (re)write starts cold.
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--
@@ -78,13 +82,13 @@ $yac->delete("d");
 $yac->set("d", 42);
 var_dump(dump_find($yac, "d")["hits"]);
 ?>
---EXPECT--
+--EXPECTF--
 int(0)
 int(3)
-int(3)
-int(2)
+int(%d)
+int(%d)
 int(0)
-int(1)
+int(%d)
 int(0)
 int(0)
 int(0)
