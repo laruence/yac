@@ -354,7 +354,13 @@ static uint32_t snapshot_interleaved(char *dst, const char *buf, unsigned int si
 /* {{{ slicing-by-8 software fallback for CPUs without hardware CRC-32C:
  * the same polynomial the hardware instructions compute, so results agree
  * bit for bit; tables in yac_crc32_tab.h, verified against RFC 3720 B.4
- * ("123456789" -> 0xe3069283) */
+ * ("123456789" -> 0xe3069283)
+ *
+ * x86 needs this at runtime (the SSE4.2 probe can fail) and a build with
+ * neither ISA has nothing else, but an ARM build is arch-gated rather than
+ * probed, so yac_crc32_startup() below cannot reach the fallback there --
+ * compiling it in would only cost 8K of tables nobody reads */
+#if !HAVE_ARM_CRC32
 #include "yac_crc32_tab.h"
 
 static uint32_t slice8_core(char *dst, const char *data, unsigned int size) {
@@ -409,6 +415,7 @@ static uint32_t crc32c_sw(const char *buf, unsigned int size) {
 static uint32_t snapshot_slice8(char *dst, const char *data, unsigned int size) {
 	return slice8_core(dst, data, size);
 }
+#endif
 /* }}} */
 
 void yac_crc32_startup(void) /* {{{ */ {
