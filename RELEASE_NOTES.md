@@ -1,6 +1,29 @@
-Yac 2.4.1 was released on 2026-09-02; these notes mirror the GitHub release.
+Yac 2.4.2 was released on 2026-09-10; these notes mirror the GitHub release.
+
+## What's New in 2.4.2
+
+### Performance
+
+- String values are decoded straight into the `zend_string` handed back to PHP, so a read no longer copies the value twice
+- Copying a value and checksumming it are now a single pass on writes as well as reads
+- The next probe slot is prefetched while the current one's lock, load and compare are still in flight
+- Faster argument parsing for `add`/`set`/`get`/`delete`/`dump`
+- `dump()` builds its result array in bulk instead of one insert per entry
+- Overwriting an entry whose value has outgrown its block skips the checksum of the block being replaced
+- CRC-32C now picks its implementation by probing the CPU at runtime, so a binary built with `-msse4.2` still runs on older hardware
+
+### Fixes
+
+- Fixed `get()` crashing under concurrency: `find()` bumped the entry's hit count and access time without holding the slot, which could overwrite the type flag a concurrent write had just published and send the reader into a wild pointer
+- `flush()` now takes every slot before clearing the table; it could previously land in the middle of another writer's publish and leave a slot permanently unusable — every later read missing on it and every later write rejected
+- `dump()` returns an empty result while a `flush()` is in progress instead of reporting half-cleared slots
+- Fixed a wild-pointer read in the block-value guard of `find()`
+- Fixed `dump()` on PHP older than 7.4
+- Fixed the packaged tarball missing `storage/crc`, which made it fail to build (regression in 2.4.1)
 
 ## What's New in 2.4.1
+
+Yac 2.4.1 was released on 2026-09-02.
 
 ### Performance
 

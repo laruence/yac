@@ -12,10 +12,10 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2026-09-02</date>
- <time>13:25:00</time>
+ <date>2026-09-10</date>
+ <time>10:30:00</time>
  <version>
-  <release>2.4.1</release>
+  <release>2.4.2</release>
   <api>2.4.0</api>
  </version>
  <stability>
@@ -24,17 +24,19 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - Integrity-check every value with CRC-32C on read: three interleaved hardware chains for values over 1KB on x86-64/ARM64, sliced-by-8 software table elsewhere
-  - Eviction rework: separate expired sweep, victims picked by remaining ttl (ties fall to least hit), corrupt blocks tombstoned on find
-  - A single MurmurHash64A drives home slot and probe stride (two hashes before)
-  - hits/miss accumulated per process and folded once at request end, off the shared-counter hot path
-  - Default memory raised: keys 4M to 8M, values 32M to 64M; compression on by default at 4K
-  - Fixed a refcount leak on the multi-get $default
-  - Entries failing to decompress are now invalidated instead of being evicted over and over
-  - Fixed crc sampling and the decompression check
-  - Fixed spurious kicks
-  - Fixed the JSON serializer decoding from an unterminated buffer
-  - Fixed info() folding miss counts into the hits counter
+  - String values are decoded straight into the zend_string handed back to PHP, no second copy per read
+  - Copying a value and checksumming it are a single pass on writes as well as reads
+  - The next probe slot is prefetched while the current one's lock, load and compare are in flight
+  - Faster argument parsing for add/set/get/delete/dump
+  - dump() builds its result array in bulk instead of one insert per entry
+  - Overwriting an entry whose value outgrew its block skips the checksum of the block being replaced
+  - CRC-32C picks its implementation by probing the CPU at runtime, so a binary built with -msse4.2 still runs on older hardware
+  - Fixed get() crashing under concurrency: find() bumped the hit count and access time without holding the slot, overwriting the type flag a concurrent write had just published
+  - flush() now takes every slot before clearing the table; it could previously land mid-publish and leave a slot permanently unusable
+  - dump() returns an empty result while a flush() is in progress instead of reporting half-cleared slots
+  - Fixed a wild-pointer read in the block-value guard of find()
+  - Fixed dump() on PHP older than 7.4
+  - Fixed the packaged tarball missing storage/crc, which made it fail to build
  </notes>
  <contents> 
   <dir name="/"> 
@@ -161,6 +163,34 @@
   <configureoption name="enable-msgpack" prompt="enable msgpack serializer support?" default="no"/>
  </extsrcrelease>
  <changelog>
+  <release>
+   <date>2026-09-10</date>
+   <version>
+    <release>2.4.2</release>
+    <api>2.4.0</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
+   <notes>
+    - String values are decoded straight into the zend_string handed back to PHP, no second copy per read
+    - Copying a value and checksumming it are a single pass on writes as well as reads
+    - The next probe slot is prefetched while the current one's lock, load and compare are in flight
+    - Faster argument parsing for add/set/get/delete/dump
+    - dump() builds its result array in bulk instead of one insert per entry
+    - Overwriting an entry whose value outgrew its block skips the checksum of the block being replaced
+    - CRC-32C picks its implementation by probing the CPU at runtime, so a binary built with -msse4.2 still runs on older hardware
+    - Fixed get() crashing under concurrency: find() bumped the hit count and access time without holding the slot, overwriting the type flag a concurrent write had just published
+    - flush() now takes every slot before clearing the table; it could previously land mid-publish and leave a slot permanently unusable
+    - dump() returns an empty result while a flush() is in progress instead of reporting half-cleared slots
+    - Fixed a wild-pointer read in the block-value guard of find()
+    - Fixed dump() on PHP older than 7.4
+    - Fixed the packaged tarball missing storage/crc, which made it fail to build
+   </notes>
+  </release>
+
   <release>
    <date>2026-09-02</date>
    <version>
