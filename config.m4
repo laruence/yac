@@ -172,22 +172,37 @@ if test "$yac_cv_shm_ipc" != "yes" && test "$yac_cv_shm_mmap_anon" != "yes"; the
 fi
 
 dnl ---------------------------------------------------------------------
-dnl Atomics (yac_atomic.h falls back to inline asm / Interlocked*)
+dnl Atomics (storage/yac_atomic.h). Everything the versioned slot needs, in
+dnl one probe: type-generic plain load/store for the slot fields, acquire /
+dnl release on the sequence counter, and a CAS to claim it. MSVC has none of
+dnl these and goes through config.w32 instead.
+dnl
+dnl A link test, not a compile test: 64-bit atomics resolve to libatomic
+dnl calls on some 32-bit targets.
 dnl ---------------------------------------------------------------------
 
-AC_CACHE_CHECK([for __sync_bool_compare_and_swap support], [yac_cv_builtin_atomic],
+AC_CACHE_CHECK([for GNU atomic builtins], [yac_cv_gnu_atomic],
   [AC_LINK_IFELSE([AC_LANG_PROGRAM([], [[
-    int variable = 1;
-    return (__sync_bool_compare_and_swap(&variable, 1, 2)
-           && __sync_add_and_fetch(&variable, 1)) ? 1 : 0;
-  ]])], [yac_cv_builtin_atomic=yes], [yac_cv_builtin_atomic=no])])
-AS_VAR_IF([yac_cv_builtin_atomic], [yes],
-  [AC_DEFINE([HAVE_BUILTIN_ATOMIC], [1],
-    [Define to 1 if the compiler supports __sync_bool_compare_and_swap().])],
-  [AS_CASE([$host_alias],
-    [i?86-*|x86_64-*|amd64-*], [],
-    [*mingw*|*cygwin*|*-msvc*], [],
-    [AC_MSG_ERROR([no atomic CAS support: yac needs __sync builtins, x86 inline asm, or Win32 Interlocked*])])])
+    unsigned int u = 0;
+    unsigned long l = 0;
+    void *p = &l;
+
+    __atomic_store_n(&u, 1u, __ATOMIC_RELAXED);
+    __atomic_store_n(&l, 1ul, __ATOMIC_RELAXED);
+    __atomic_store_n(&p, (void *)0, __ATOMIC_RELAXED);
+    u = __atomic_load_n(&u, __ATOMIC_ACQUIRE);
+    __atomic_store_n(&u, u + 1, __ATOMIC_RELEASE);
+    __atomic_thread_fence(__ATOMIC_ACQUIRE);
+    __atomic_thread_fence(__ATOMIC_RELEASE);
+    if (!__sync_bool_compare_and_swap(&u, 2u, 3u)) {
+      return 1;
+    }
+    return (int)(__sync_fetch_and_add(&u, 1u)
+      + __atomic_load_n(&l, __ATOMIC_RELAXED)
+      + (__atomic_load_n(&p, __ATOMIC_RELAXED) != 0));
+  ]])], [yac_cv_gnu_atomic=yes], [yac_cv_gnu_atomic=no])])
+AS_VAR_IF([yac_cv_gnu_atomic], [yes], [],
+  [AC_MSG_ERROR([no atomic support: yac needs the __atomic and __sync builtins (gcc 4.7+ / clang 3.1+)])])
 
 dnl ---------------------------------------------------------------------
 dnl Hardware-accelerated CRC32C (storage/crc/yac_crc32.c)

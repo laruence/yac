@@ -48,7 +48,8 @@ typedef struct {
 	unsigned long h;
 	unsigned int len;
 	unsigned int ttl;
-	unsigned int mutex;
+	/* even: stable, odd: a writer is publishing (see yac_atomic.h) */
+	unsigned int seq;
 	union {
 		/* block values: serializer metadata (type bits +
 		 * YAC_ENTRY_COMPRESSED + the original length), which shared
