@@ -4,15 +4,12 @@
 
 class Yac {
 
-	/* properties */
-	protected string $_prefix = "";
-
 	/* methods */
 	public function __construct(string $prefix = "") {}
 
 	public function add(string|array $key, mixed $value = NULL, int $ttl = 0):?bool {}
 
-	public function get(string|array $key, mixed $default = NULL):?mixed {}
+	public function get(string|array $key, mixed $default = NULL):mixed {}
 
 	public function set(string|array $key, mixed $value = NULL, int $ttl = 0):?bool {}
 
@@ -22,5 +19,5 @@ class Yac {
 
 	public function info():array {}
 
-	public function dump(int $limit = 100):?array {}
+	public function dump(int $limit = 100, int $offset = 0):array {}
 }
