@@ -31,11 +31,32 @@
 #include "yac_serializer.h"
 
 int yac_serializer_json_pack(zval *pzval, smart_str *buf, char **msg) /* {{{ */ {
+	int failed;
+
 #if ((PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION < 3))
-	php_json_encode(buf, pzval);
+	failed = (php_json_encode(buf, pzval) == FAILURE);
 #else
-	php_json_encode(buf, pzval, 0); /* options */
+	failed = (php_json_encode(buf, pzval, 0) == FAILURE); /* options */
 #endif
+
+	/* the return value alone is not enough: INF/NAN only set an error code,
+	 * then write a 0 and report success, so a value json_encode() itself
+	 * refuses would be cached as that 0. the error code alone is not enough
+	 * either, the two paths that fail on a pending exception leave it unset.
+	 * PHP_JSON_THROW_ON_ERROR cannot help, it is read by json_encode()
+	 * rather than by the encoder. the code is assigned on every call, so it
+	 * is never a leftover from an earlier one */
+#if PHP_VERSION_ID >= 80600
+	failed |= (JSON_G(error_details).code != PHP_JSON_ERROR_NONE);
+#else
+	failed |= (JSON_G(error_code) != PHP_JSON_ERROR_NONE);
+#endif
+
+	/* buf is empty or half written whenever encoding stopped, and the caller
+	 * dereferences buf->s on success */
+	if (failed || EG(exception) || buf->s == NULL) {
+		return 0;
+	}
 
 	return 1;
 } /* }}} */

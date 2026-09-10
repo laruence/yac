@@ -35,6 +35,13 @@ int yac_serializer_php_pack(zval *pzval, smart_str *buf, char **msg) /* {{{ */ {
 	php_var_serialize(buf, pzval, &var_hash);
 	PHP_VAR_SERIALIZE_DESTROY(var_hash);
 
+	/* an unserializable value (a Closure, an internal object, a __sleep()
+	 * that throws) leaves buf either empty or half written, and the caller
+	 * dereferences buf->s on success -- cf. PHP_FUNCTION(serialize) */
+	if (EG(exception) || buf->s == NULL) {
+		return 0;
+	}
+
 	return 1;
 } /* }}} */
 

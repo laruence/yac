@@ -33,6 +33,13 @@
 
 int yac_serializer_msgpack_pack(zval *pzval, smart_str *buf, char **msg) /* {{{ */ {
 	php_msgpack_serialize(buf, pzval);
+
+	/* an unserializable value leaves buf either empty or half written, and
+	 * the caller dereferences buf->s on success */
+	if (EG(exception) || buf->s == NULL) {
+		return 0;
+	}
+
 	return 1;
 } /* }}} */
 
