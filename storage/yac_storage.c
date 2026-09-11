@@ -43,7 +43,7 @@ static yac_user_free_t user_free;
  * counted like any other. both entry forms must scale alike, YAC_KV_HITS
  * compares them against each other */
 #define YAC_HITS_PER_SAMPLE	3
-static uint32_t yac_sample_clock;
+static unsigned int yac_sample_clock;
 #define YAC_HITS_SAMPLE() \
 	(((++yac_sample_clock) * 0x9E3779B1u) < (0xFFFFFFFFu / YAC_HITS_PER_SAMPLE))
 
@@ -169,13 +169,13 @@ static inline uint64_t yac_hash(const char *data, unsigned int len) {
 static inline int yac_slot_snapshot(const YAC_SLOT_V yac_kv_key *p, yac_kv_key *k) /* {{{ */ {
 	/* metadata only: k.val's block can be recycled right after this returns,
 	 * so find()'s len/crc guards stay mandatory */
-	uint32_t retry = 0;
+	unsigned int retry = 0;
 
 	for (;;) {
 		unsigned int s2, s1 = YAC_SEQ_LOAD(&p->seq);
 
 		if (!(s1 & 1)) {
-			uint32_t w;
+			unsigned int w;
 
 			/* not *k = *p: that may tear or be reordered around the counter
 			 * reads. memcpy because punning k's fields would alias */
@@ -201,7 +201,7 @@ static inline int yac_slot_snapshot(const YAC_SLOT_V yac_kv_key *p, yac_kv_key *
 
 int yac_storage_find(const char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas, unsigned long tv) /* {{{ */ {
 	uint64_t h, hash, stride;
-	uint32_t i;
+	unsigned int i;
 	yac_kv_key k;
 	YAC_SLOT_V yac_kv_key *p;
 
@@ -309,7 +309,7 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 
 int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long tv) /* {{{ */ {
 	uint64_t h, hash, stride;
-	uint32_t i;
+	unsigned int i;
 	yac_kv_key k;
 	YAC_SLOT_V yac_kv_key *p;
 
@@ -343,7 +343,7 @@ int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long
 }
 /* }}} */
 
-static inline uint32_t yac_storage_pick_victim(const yac_kv_key *snaps) /* {{{ */ {
+static inline unsigned int yac_storage_pick_victim(const yac_kv_key *snaps) /* {{{ */ {
 	/* evict the least recently used slot of a fully live probe path; ties
 	 * fall to the least hit, then the earliest probe — closer to home
 	 * means shorter future lookups.
@@ -351,7 +351,7 @@ static inline uint32_t yac_storage_pick_victim(const yac_kv_key *snaps) /* {{{ *
 	 * snapshots only: re-reading a slot here would leave the sequence
 	 * protocol and compare two versions of the same slot */
 	unsigned long atime, oldest;
-	uint32_t victim, i;
+	unsigned int victim, i;
 
 	victim = 0;
 	oldest = YAC_KV_ATIME(snaps[victim]);
@@ -411,7 +411,7 @@ static inline int yac_storage_fill_value(yac_kv_key *k, unsigned int len, char *
 /* }}} */
 
 int yac_storage_update(const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add, unsigned long tv) /* {{{ */ {
-	uint32_t i, w;
+	unsigned int i, w;
 	uint64_t h, hash, stride;
 	yac_kv_key k, snaps[4];
 	YAC_SLOT_V yac_kv_key *p, *paths[4];
@@ -508,7 +508,7 @@ do_update:
 /* }}} */
 
 void yac_storage_flush(void) /* {{{ */ {
-	uint32_t i;
+	unsigned int i;
 
 	if (YAC_SG(in_flush)) {
 		return;
