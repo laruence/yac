@@ -76,9 +76,11 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
     }
 
     if (k_size <= allocate_size) {
+        /* size is the usable keys area, which is what was asked for, not the
+         * whole attachment: reserved already carries the attachment size */
         first_segment.reserved = allocate_size;
         first_segment.pos = 0;
-        first_segment.size = allocate_size;
+        first_segment.size = k_size;
         first_segment.p = shmat(shm_id, NULL, 0);
         shmctl(shm_id, IPC_RMID, &sds);
         if (first_segment.p == (void *)-1) {
