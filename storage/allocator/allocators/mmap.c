@@ -35,15 +35,13 @@
 #define MAP_FAILED (void *)-1
 #endif
 
-typedef struct  {
-	yac_shared_segment common;
-	unsigned long size;
-} yac_shared_segment_mmap;
+/* segment->reserved keeps the length of the whole mapping, and only for
+ * the segment that owns it, so detach_segment() munmaps exactly once */
 
-static int create_segments(unsigned long k_size, unsigned long v_size, yac_shared_segment_mmap **shared_segments_p, int *shared_segments_count, char **error_in) /* {{{ */ {
+static int create_segments(unsigned long k_size, unsigned long v_size, yac_shared_segment **shared_segments_p, int *shared_segments_count, char **error_in) /* {{{ */ {
 	unsigned long allocate_size, occupied_size =  0;
 	unsigned int i, segment_size, segments_num = 1024;
-	yac_shared_segment_mmap first_segment;
+	yac_shared_segment first_segment;
 
 	k_size = YAC_SMM_ALIGNED_SIZE(k_size);
 	v_size = YAC_SMM_ALIGNED_SIZE(v_size);
@@ -57,35 +55,36 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 
 	allocate_size = k_size + v_size;
 
-	first_segment.common.p = mmap(0, allocate_size, PROT_READ | PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
-	if (first_segment.common.p == MAP_FAILED) {
+	first_segment.p = mmap(0, allocate_size, PROT_READ | PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+	if (first_segment.p == MAP_FAILED) {
 		*error_in = "mmap";
 		return 0;
 	}
-	first_segment.size = allocate_size;
-	first_segment.common.size = k_size;
-	first_segment.common.pos = 0;
+	first_segment.reserved = allocate_size;
+	first_segment.size = k_size;
+	first_segment.pos = 0;
 
-	*shared_segments_p = (yac_shared_segment_mmap *)calloc(1, segments_num * sizeof(yac_shared_segment_mmap));
+	*shared_segments_p = (yac_shared_segment *)calloc(1, segments_num * sizeof(yac_shared_segment));
 	if (!*shared_segments_p) {
-		munmap(first_segment.common.p, first_segment.size);
+		munmap(first_segment.p, allocate_size);
 		*error_in = "calloc";
 		return 0;
 	} else {
-		*shared_segments_p[0] = first_segment;
+		(*shared_segments_p)[0] = first_segment;
 	}
 	*shared_segments_count = segments_num;
 
 	occupied_size = k_size;
 	for (i = 1; i < segments_num; i++) {
-		(*shared_segments_p)[i].size = 0;
-		(*shared_segments_p)[i].common.pos = 0;
-		(*shared_segments_p)[i].common.p = first_segment.common.p + occupied_size;
+		/* slices of the first mapping, they own nothing to unmap */
+		(*shared_segments_p)[i].reserved = 0;
+		(*shared_segments_p)[i].pos = 0;
+		(*shared_segments_p)[i].p = (char *)first_segment.p + occupied_size;
 		if ((allocate_size - occupied_size) >= YAC_SMM_ALIGNED_SIZE(segment_size)) {
-			(*shared_segments_p)[i].common.size = YAC_SMM_ALIGNED_SIZE(segment_size);
+			(*shared_segments_p)[i].size = YAC_SMM_ALIGNED_SIZE(segment_size);
 			occupied_size += YAC_SMM_ALIGNED_SIZE(segment_size);
 		} else {
-			(*shared_segments_p)[i].common.size = (allocate_size - occupied_size);
+			(*shared_segments_p)[i].size = (allocate_size - occupied_size);
 			break;
 		}
 	}
@@ -95,22 +94,16 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 /* }}} */
 
 static int detach_segment(yac_shared_segment *shared_segment) /* {{{ */ {
-	if (shared_segment->size) {
-		munmap(shared_segment->p, shared_segment->size);
+	if (shared_segment->reserved) {
+		munmap(shared_segment->p, (size_t)shared_segment->reserved);
 	}
 	return 0;
 }
 /* }}} */
 
-static unsigned long segment_type_size(void) /* {{{ */ {
-	return sizeof(yac_shared_segment_mmap);
-}
-/* }}} */
-
 yac_shared_memory_handlers yac_alloc_mmap_handlers = /* {{{ */ {
-	(create_segments_t)create_segments,
-	detach_segment,
-	segment_type_size
+	create_segments,
+	detach_segment
 };
 /* }}} */
 

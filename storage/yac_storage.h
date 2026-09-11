@@ -21,6 +21,8 @@
 #ifndef YAC_STORAGE_H
 #define YAC_STORAGE_H
 
+#include <stdint.h>
+
 #ifndef MIN
 #define MIN(a, b) ((a) < (b)? (a) : (b))
 #endif
@@ -146,9 +148,14 @@ typedef struct _yac_item_list {
 } yac_item_list;
 
 typedef struct {
-	volatile unsigned int pos; 
+	volatile unsigned int pos;
 	unsigned int size;
 	void *p;
+	/* reserved for the allocator implementation, opaque here: whatever the
+	 * backend in use needs to keep per segment. it lives in the common
+	 * struct so there is a single segment type and sizeof() is the only
+	 * stride the allocator ever needs */
+	uintptr_t reserved;
 } yac_shared_segment;
 
 typedef struct {

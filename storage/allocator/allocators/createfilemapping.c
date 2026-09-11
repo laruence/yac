@@ -35,10 +35,8 @@
 static HANDLE memfile = NULL;
 static void *mapping_base;
 
-typedef struct  {
-	yac_shared_segment common;
-	unsigned long size;
-} yac_shared_segment_create_file;
+/* segment->reserved keeps the length of the whole mapping, and only for
+ * the segment that owns it; detach_segment() still matches on mapping_base */
 
 #ifdef USE_FILE_MAPPING
 static char *create_name_with_username(char *name) /* {{{ */ {
@@ -117,12 +115,12 @@ static int yac_shared_alloc_reattach(size_t requested_size, char **error_in) /* 
 }
 /* }}} */
 
-static int create_segments(unsigned long k_size, unsigned long v_size, yac_shared_segment_create_file **shared_segments_p, int *shared_segments_count, char **error_in) /* {{{ */ {
+static int create_segments(unsigned long k_size, unsigned long v_size, yac_shared_segment **shared_segments_p, int *shared_segments_count, char **error_in) /* {{{ */ {
 	int ret;
 	unsigned long allocate_size, occupied_size = 0;
 	unsigned int i, segment_size, segments_num = 1024, is_reattach = 0;
 	int map_retries = 0;
-	yac_shared_segment_create_file first_segment;
+	yac_shared_segment first_segment;
 	void *default_mapping_base_set[] = {0, 0};
 	/* TODO: 
 	  improve fixed addresses on x64. It still makes no sense to do it as Windows addresses are virtual per se and can or should be randomized anyway 
@@ -184,7 +182,7 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 		return 0;
 	}
 
-	*shared_segments_p = (yac_shared_segment_create_file *)calloc(1, segments_num * sizeof(yac_shared_segment_create_file));
+	*shared_segments_p = (yac_shared_segment *)calloc(1, segments_num * sizeof(yac_shared_segment));
 	if (!*shared_segments_p) {
 		*error_in = "calloc";
 		return 0;
@@ -239,7 +237,7 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 		}
 
 		do {
-			first_segment.common.p = mapping_base = MapViewOfFileEx(memfile, FILE_MAP_ALL_ACCESS, 0, 0, 0, *wanted_mapping_base);
+			first_segment.p = mapping_base = MapViewOfFileEx(memfile, FILE_MAP_ALL_ACCESS, 0, 0, 0, *wanted_mapping_base);
 			if (*wanted_mapping_base == NULL) {
 				break;
 			}
@@ -262,23 +260,24 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 		fclose(fp);
 	}
 
-	first_segment.common.p = mapping_base;
-	first_segment.size = allocate_size;
-	first_segment.common.size = k_size;
-	first_segment.common.pos = 0;
+	first_segment.p = mapping_base;
+	first_segment.reserved = allocate_size;
+	first_segment.size = k_size;
+	first_segment.pos = 0;
 
 	(*shared_segments_p)[0] = first_segment;
 
 	occupied_size = k_size;
 	for (i = 1; i < segments_num; i++) {
-		(*shared_segments_p)[i].size = 0;
-		(*shared_segments_p)[i].common.pos = 0;
-		(*shared_segments_p)[i].common.p = (void *)((char *)first_segment.common.p + occupied_size);
+		/* slices of the first mapping, they own nothing to unmap */
+		(*shared_segments_p)[i].reserved = 0;
+		(*shared_segments_p)[i].pos = 0;
+		(*shared_segments_p)[i].p = (void *)((char *)first_segment.p + occupied_size);
 		if ((allocate_size - occupied_size) >= YAC_SMM_ALIGNED_SIZE(segment_size)) {
-			(*shared_segments_p)[i].common.size = YAC_SMM_ALIGNED_SIZE(segment_size);
+			(*shared_segments_p)[i].size = YAC_SMM_ALIGNED_SIZE(segment_size);
 			occupied_size += YAC_SMM_ALIGNED_SIZE(segment_size);
 		} else {
-			(*shared_segments_p)[i].common.size = (allocate_size - occupied_size);
+			(*shared_segments_p)[i].size = (allocate_size - occupied_size);
 			break;
 		}
 	}
@@ -296,15 +295,9 @@ static int detach_segment(yac_shared_segment *shared_segment) /* {{{ */ {
 }
 /* }}} */
 
-static unsigned long segment_type_size(void) /* {{{ */ {
-	return sizeof(yac_shared_segment_create_file);
-}
-/* }}} */
-
 yac_shared_memory_handlers yac_alloc_create_file_handlers = /* {{{ */ {
-	(create_segments_t)create_segments,
-	detach_segment,
-	segment_type_size
+	create_segments,
+	detach_segment
 };
 /* }}} */
 #endif /* USE_CREATE_FILE */

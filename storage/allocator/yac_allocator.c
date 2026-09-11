@@ -31,7 +31,7 @@
 int yac_allocator_startup(unsigned long k_size, unsigned long size, char **msg) /* {{{ */ {
 	char *p;
 	yac_shared_segment *segments = NULL;
-	int i, segments_num, segments_array_size, segment_size;
+	int i, segments_num, segments_array_size;
 	const yac_shared_memory_handlers *he;
 
 	if ((he = &yac_shared_memory_handler)) {
@@ -53,21 +53,22 @@ int yac_allocator_startup(unsigned long k_size, unsigned long size, char **msg) 
 		return 0;
 	}
 
-	segment_size = he->segment_type_size();
-	segments_array_size = (segments_num - 1) * segment_size;
+	segments_array_size = (segments_num - 1) * sizeof(yac_shared_segment);
 
 	yac_storage = segments[0].p;
-	memcpy(&YAC_SG(first_seg), (char *)(&segments[0]), segment_size);
+	/* segments[] is heap memory freed below, but the first descriptor is
+	 * still needed at shutdown, so keep a copy in shared memory */
+	YAC_SG(first_seg) = segments[0];
 
 	YAC_SG(segments_num) 		= segments_num - 1;
 	YAC_SG(segments_num_mask) 	= YAC_SG(segments_num) - 1;
-	YAC_SG(segments)     		= (yac_shared_segment **)((char *)yac_storage + YAC_SMM_ALIGNED_SIZE(sizeof(yac_storage_globals) + segment_size - sizeof(yac_shared_segment)));
+	YAC_SG(segments)     		= (yac_shared_segment **)((char *)yac_storage + YAC_SMM_ALIGNED_SIZE(sizeof(yac_storage_globals)));
 
 	p = (char *)YAC_SG(segments) + (sizeof(void *) * YAC_SG(segments_num));
-	memcpy(p, (char *)segments + segment_size, segments_array_size);
+	memcpy(p, &segments[1], segments_array_size);
 	for (i = 0; i < YAC_SG(segments_num); i++) {
 		YAC_SG(segments)[i] = (yac_shared_segment *)p;
-		p += segment_size;
+		p += sizeof(yac_shared_segment);
 	}
 	YAC_SG(slots) = (yac_kv_key *)((char *)YAC_SG(segments)
 			+ (YAC_SG(segments_num) * sizeof(void *)) + YAC_SMM_ALIGNED_SIZE(segments_array_size));

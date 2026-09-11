@@ -37,15 +37,16 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-typedef struct  {
-    yac_shared_segment common;
-    int shm_id;
-} yac_shared_segment_shm;
+/* segment->reserved keeps the size of the attachment this segment owns and
+ * is 0 when the segment is only a slice of one, so detach_segment() shmdt's
+ * exactly once. the shm id is deliberately not kept: IPC_RMID happens right
+ * after shmat, shmdt only takes an address, and 0 is a valid id so it could
+ * not double as the ownership flag anyway */
 
-static int create_segments(size_t k_size, size_t v_size, yac_shared_segment_shm **shared_segments_p, int *shared_segments_count, char **error_in) /* {{{ */ {
+static int create_segments(unsigned long k_size, unsigned long v_size, yac_shared_segment **shared_segments_p, int *shared_segments_count, char **error_in) /* {{{ */ {
 	struct shmid_ds sds;
 	int shm_id, shmget_flags;
-	yac_shared_segment_shm *shared_segments, first_segment;
+	yac_shared_segment *shared_segments, first_segment;
     unsigned int i, j, allocate_size, allocated_num, segments_num, segment_size;
 
 	shmget_flags = IPC_CREAT|SHM_R|SHM_W|IPC_EXCL;
@@ -75,12 +76,12 @@ static int create_segments(size_t k_size, size_t v_size, yac_shared_segment_shm 
     }
 
     if (k_size <= allocate_size) {
-        first_segment.shm_id = shm_id;
-        first_segment.common.pos = 0;
-        first_segment.common.size = allocate_size;
-        first_segment.common.p = shmat(shm_id, NULL, 0);
+        first_segment.reserved = allocate_size;
+        first_segment.pos = 0;
+        first_segment.size = allocate_size;
+        first_segment.p = shmat(shm_id, NULL, 0);
         shmctl(shm_id, IPC_RMID, &sds);
-        if (first_segment.common.p == (void *)-1) {
+        if (first_segment.p == (void *)-1) {
             *error_in = "shmat";
             return 0;
         }
@@ -91,7 +92,7 @@ static int create_segments(size_t k_size, size_t v_size, yac_shared_segment_shm 
     }
 
     allocated_num = (v_size % allocate_size)? (v_size / allocate_size) + 1 : (v_size / allocate_size);
-    shared_segments = (yac_shared_segment_shm *)calloc(1, (allocated_num) * sizeof(yac_shared_segment_shm));
+    shared_segments = (yac_shared_segment *)calloc(1, (allocated_num) * sizeof(yac_shared_segment));
     if (!shared_segments) {
         *error_in = "calloc";
         return 0;
@@ -102,20 +103,20 @@ static int create_segments(size_t k_size, size_t v_size, yac_shared_segment_shm 
         if (shm_id == -1) {
             *error_in = "shmget";
             for (j = 0; j < i; j++) {
-                shmdt(shared_segments[j].common.p);
+                shmdt(shared_segments[j].p);
             }
             free(shared_segments);
             return 0;
         }
-        shared_segments[i].shm_id = shm_id;
-        shared_segments[i].common.pos = 0;
-        shared_segments[i].common.size = allocate_size;
-        shared_segments[i].common.p = shmat(shm_id, NULL, 0);
+        shared_segments[i].reserved = allocate_size;
+        shared_segments[i].pos = 0;
+        shared_segments[i].size = allocate_size;
+        shared_segments[i].p = shmat(shm_id, NULL, 0);
         shmctl(shm_id, IPC_RMID, &sds);
-        if (shared_segments[i].common.p == (void *)-1) {
+        if (shared_segments[i].p == (void *)-1) {
             *error_in = "shmat";
             for (j = 0; j < i; j++) {
-                shmdt(shared_segments[j].common.p);
+                shmdt(shared_segments[j].p);
             }
             free(shared_segments);
             return 0;
@@ -123,31 +124,33 @@ static int create_segments(size_t k_size, size_t v_size, yac_shared_segment_shm 
     }
 
     ++segments_num;
-    *shared_segments_p = (yac_shared_segment_shm *)calloc(1, segments_num * sizeof(yac_shared_segment_shm));
+    *shared_segments_p = (yac_shared_segment *)calloc(1, segments_num * sizeof(yac_shared_segment));
     if (!*shared_segments_p) {
 		free(shared_segments);
         *error_in = "calloc";
         return 0;
     } else {
-        *shared_segments_p[0] = first_segment;
+        (*shared_segments_p)[0] = first_segment;
     }
     *shared_segments_count = segments_num;
 
     j = 0;
     for (i = 1; i < segments_num; i++) {
-        if (shared_segments[j].common.pos == 0) {
-            (*shared_segments_p)[i].shm_id = shared_segments[j].shm_id;
+        /* the first slice carved out of an attachment inherits its size and
+         * owns the shmdt; the rest stay 0 from calloc */
+        if (shared_segments[j].pos == 0) {
+            (*shared_segments_p)[i].reserved = shared_segments[j].reserved;
         }
 
-        if ((shared_segments[j].common.size - shared_segments[j].common.pos) >= (2 * YAC_SMM_ALIGNED_SIZE(segment_size))) {
-            (*shared_segments_p)[i].common.pos = 0;
-            (*shared_segments_p)[i].common.size = YAC_SMM_ALIGNED_SIZE(segment_size);
-            (*shared_segments_p)[i].common.p = shared_segments[j].common.p + YAC_SMM_ALIGNED_SIZE(shared_segments[j].common.pos);
-            shared_segments[j].common.pos += YAC_SMM_ALIGNED_SIZE(segment_size);
+        if ((shared_segments[j].size - shared_segments[j].pos) >= (2 * YAC_SMM_ALIGNED_SIZE(segment_size))) {
+            (*shared_segments_p)[i].pos = 0;
+            (*shared_segments_p)[i].size = YAC_SMM_ALIGNED_SIZE(segment_size);
+            (*shared_segments_p)[i].p = (char *)shared_segments[j].p + YAC_SMM_ALIGNED_SIZE(shared_segments[j].pos);
+            shared_segments[j].pos += YAC_SMM_ALIGNED_SIZE(segment_size);
         } else {
-            (*shared_segments_p)[i].common.pos = 0;
-            (*shared_segments_p)[i].common.size = shared_segments[j].common.size - shared_segments[j].common.pos;
-            (*shared_segments_p)[i].common.p = shared_segments[j].common.p + YAC_SMM_ALIGNED_SIZE(shared_segments[j].common.pos);
+            (*shared_segments_p)[i].pos = 0;
+            (*shared_segments_p)[i].size = shared_segments[j].size - shared_segments[j].pos;
+            (*shared_segments_p)[i].p = (char *)shared_segments[j].p + YAC_SMM_ALIGNED_SIZE(shared_segments[j].pos);
             j++;
         }
     }
@@ -158,23 +161,17 @@ static int create_segments(size_t k_size, size_t v_size, yac_shared_segment_shm 
 }
 /* }}} */
 
-static int detach_segment(yac_shared_segment_shm *shared_segment) /* {{{ */ {
-    if (shared_segment->shm_id) {
-        shmdt(shared_segment->common.p);
+static int detach_segment(yac_shared_segment *shared_segment) /* {{{ */ {
+    if (shared_segment->reserved) {
+        shmdt(shared_segment->p);
     }
 	return 1;
 }
 /* }}} */
 
-static size_t segment_type_size(void) /* {{{ */ {
-	return sizeof(yac_shared_segment_shm);
-}
-/* }}} */
-
 yac_shared_memory_handlers yac_alloc_shm_handlers = /* {{{ */ {
-	(create_segments_t)create_segments,
-	(detach_segment_t)detach_segment,
-	segment_type_size
+	create_segments,
+	detach_segment
 };
 /* }}} */
 

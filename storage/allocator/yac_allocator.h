@@ -58,7 +58,6 @@ typedef int (*detach_segment_t)(yac_shared_segment *shared_segment);
 typedef struct {
 	create_segments_t create_segments;
 	detach_segment_t detach_segment;
-	unsigned long (*segment_type_size)(void);
 } yac_shared_memory_handlers;
 
 typedef struct {
