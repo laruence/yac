@@ -4,7 +4,11 @@ Yac default memory sizes: 8M for keys, 64M for values
 Without explicit configuration, yac.keys_memory_size defaults to 8M and
 yac.values_memory_size to 64M; info() reports the effective sizes.
 --SKIPIF--
-<?php if (!extension_loaded("yac")) print "skip"; ?>
+<?php 
+if (!extension_loaded("yac")) die("skip");
+if (get_cfg_var('yac.keys_memory_size')) die("skip ini defines own keys memory size");
+if (get_cfg_var('yac.values_memory_size')) die("skip ini defines own keys memory size");
+ ?>
 --INI--
 yac.enable=1
 yac.enable_cli=1
