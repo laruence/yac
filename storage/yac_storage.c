@@ -36,6 +36,7 @@ yac_storage_globals *yac_storage;
 
 static yac_user_alloc_t user_alloc;
 static yac_user_free_t user_free;
+static yac_local_stats local_stats;
 
 /* hits counts one read in YAC_HITS_PER_SAMPLE and adds that much, so a hot
  * entry claims its slot a third as often. the 2^32/phi multiplier makes it

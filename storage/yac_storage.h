@@ -179,10 +179,10 @@ typedef struct {
  * request shutdown; bumping the shared line on every hit bounced it
  * between cores and cost roughly a third of aggregate throughput. the
  * cold counters (kicks/fails/occupied/recycles) are incremented directly */
-static struct {
+typedef struct {
 	unsigned int hits;
 	unsigned int miss;
-} local_stats;
+} yac_local_stats;
 
 typedef struct {
 	/* read-only after startup */
