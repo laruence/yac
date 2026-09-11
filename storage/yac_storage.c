@@ -167,12 +167,8 @@ static inline uint64_t yac_hash(const char *data, unsigned int len) {
 /* }}} */
 
 static inline int yac_slot_snapshot(const YAC_SLOT_V yac_kv_key *p, yac_kv_key *k) /* {{{ */ {
-	/* an even counter, unchanged across the copy, means no writer published in
-	 * between. field by field on purpose -- a struct assignment would be a race
-	 * the compiler may tear or reorder around the counter reads.
-	 *
-	 * metadata only: k.val's block can be recycled right after this returns, so
-	 * find()'s len/crc guarders stay mandatory. 0 if a writer kept it busy. */
+	/* metadata only: k.val's block can be recycled right after this returns,
+	 * so find()'s len/crc guards stay mandatory */
 	uint32_t retry = 0;
 
 	for (;;) {
@@ -181,27 +177,18 @@ static inline int yac_slot_snapshot(const YAC_SLOT_V yac_kv_key *p, yac_kv_key *
 		if (!(s1 & 1)) {
 			uint32_t w;
 
-			k->h   = YAC_LOAD(&p->h);
-			k->len = YAC_LOAD(&p->len);
-			k->ttl = YAC_LOAD(&p->ttl);
-			k->u1.flag = YAC_LOAD(&p->u1.flag);
-			/* crc/size at offsets 0 and 4 span the union everywhere; atime
-			 * overlays them (4 bytes on LLP64, 8 on LP64) */
-			k->u2.crc  = YAC_LOAD(&p->u2.crc);
-			k->u2.size = YAC_LOAD(&p->u2.size);
-			k->val = (yac_kv_val *)YAC_LOAD(&p->val);
-			/* 4-aligned, length a multiple of 4: copies as whole words */
-			for (w = 0; w < YAC_STORAGE_MAX_KEY_LEN / sizeof(unsigned int); w++) {
-				((unsigned int *)k->key)[w] =
-					YAC_LOAD(&((const YAC_SLOT_V unsigned int *)p->key)[w]);
+			/* not *k = *p: that may tear or be reordered around the counter
+			 * reads. memcpy because punning k's fields would alias */
+			for (w = 0; w < (sizeof(yac_kv_key) / sizeof(uintptr_t)); w++) {
+				uintptr_t word = YAC_LOAD(&((const YAC_SLOT_V uintptr_t *)p)[w]);
+				memcpy((char *)k + w * sizeof(uintptr_t), &word, sizeof(word));
 			}
 
-			/* a stale field must not pass a fresh check */
+			/* a stale word must not pass a fresh check */
 			YAC_READ_BARRIER();
 			s2 = YAC_LOAD(&p->seq);
 			if (s1 == s2) {
-				k->seq = s1; /* unread, but must not be undefined bytes */
-				return 1;
+				return 1; /* counter even and unchanged: every word is one version */
 			}
 		}
 		if (++retry == YAC_MAX_SPIN) {
@@ -501,11 +488,13 @@ do_update:
 	}
 	YAC_STORE(&p->h, k.h);
 	YAC_STORE(&p->ttl, k.ttl);
-	/* whole words, not memcpy(len): the reader copies the whole array, so
-	 * both sides must agree on the unit */
-	for (w = 0; w < YAC_STORAGE_MAX_KEY_LEN / sizeof(unsigned int); w++) {
-		YAC_STORE(&((YAC_SLOT_V unsigned int *)p->key)[w],
-			((const unsigned int *)k.key)[w]);
+	/* only the words the key spans; nothing compares past klen, so a longer
+	 * predecessor's tail may stay behind */
+	for (w = 0; w < (len + sizeof(uintptr_t) - 1) / sizeof(uintptr_t); w++) {
+		uintptr_t word;
+
+		memcpy(&word, k.key + w * sizeof(uintptr_t), sizeof(word));
+		YAC_STORE(&((YAC_SLOT_V uintptr_t *)p->key)[w], word);
 	}
 	YAC_STORE(&p->len, k.len);
 	YAC_STORE(&p->u1.flag, k.u1.flag);
@@ -627,7 +616,7 @@ yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset, unsign
 			item->size = k.u2.size;
 			item->flag = k.u1.flag;
 		}
-		memcpy(item->key, k.key, YAC_STORAGE_MAX_KEY_LEN);
+		memcpy(item->key, k.key, item->k_len);
 		item->next = list;
 		list = item;
 		++n;
