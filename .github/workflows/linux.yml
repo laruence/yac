@@ -8,16 +8,29 @@ on:
 
 jobs:
   linux:
-    name: "Linux PHP ${{ matrix.php }} (${{ matrix.ts }})"
+    name: "Linux PHP ${{ matrix.php }} (${{ matrix.ts }}, ${{ matrix.backend }})"
     runs-on: ubuntu-latest
     strategy:
       matrix:
         php: ["7.0", "7.2", "7.4", "8.0", "8.2", "8.4", "8.5"]
         ts: ["nts"]
+        backend: ["mmap"]
         include:
           - php: "8.5"
             ts: "ts"
+            backend: "mmap"
             OS: "ubuntu-latest"
+          # SysV IPC shm coverage. configure prefers mmap whenever its probe
+          # succeeds, so reaching shm.c means failing that probe on purpose.
+          # One modern and one legacy PHP; the suite's default 64M/128M value
+          # pools span several attachments there, which is the only way the
+          # multi-attachment carving gets exercised at all.
+          - php: "8.5"
+            ts: "nts"
+            backend: "shm"
+          - php: "7.4"
+            ts: "nts"
+            backend: "shm"
     env:
       PHP: ${{ matrix.php }}
       GITHUB: "yes"
@@ -44,10 +57,14 @@ jobs:
             phpize
       - name: Build
         run: |
-            ./configure
+            ./configure ${{ matrix.backend == 'shm' && 'yac_cv_shm_mmap_anon=no' || '' }}
       - name: Make
         run: |
             make
+      - name: Verify backend
+        run: |
+            php -n -d extension=modules/yac.so -d yac.enable=1 -d yac.enable_cli=1 -i \
+              | grep -q "Shared Memory => ${{ matrix.backend }}"
       - name: Test
         run: |
             make test
