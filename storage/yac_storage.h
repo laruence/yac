@@ -21,8 +21,6 @@
 #ifndef YAC_STORAGE_H
 #define YAC_STORAGE_H
 
-#include <stdint.h>
-
 #ifndef MIN
 #define MIN(a, b) ((a) < (b)? (a) : (b))
 #endif
@@ -35,9 +33,6 @@
 #define YAC_KEY_KLEN(k)				((k).len & YAC_KEY_KLEN_MASK)
 #define YAC_KEY_VLEN(k)				((k).len >> YAC_KEY_VLEN_BITS)
 #define YAC_KEY_SET_LEN(k, kl, vl)	((k).len = (vl << YAC_KEY_VLEN_BITS) | (kl & YAC_KEY_KLEN_MASK))
-
-/* checksumming lives in crc/yac_crc32.{h,c}: yac_crc32() over values,
- * yac_crc32_snapshot() for the copy-while-checksum find() path */
 
 typedef struct {
 	unsigned int len;
@@ -78,10 +73,8 @@ typedef struct {
 /* hits/atime live in the slot's u1/u2 unions for embedded entries and in
  * the value block otherwise; these macros dispatch on the form for sites
  * that don't know it yet */
-#define YAC_KV_HITS(k)  ((k).val == NULL ? 0 : \
-	(YAC_IS_EMBED((k).val) ? (k).u1.hits : (k).val->hits))
-#define YAC_KV_ATIME(k) ((k).val == NULL ? 0 : \
-	(YAC_IS_EMBED((k).val) ? (k).u2.atime : (k).val->atime))
+#define YAC_KV_HITS(k)  (YAC_IS_EMBED((k).val) ? (k).u1.hits : (k).val->hits)
+#define YAC_KV_ATIME(k) (YAC_IS_EMBED((k).val) ? (k).u2.atime : (k).val->atime)
 
 /* Embedded scalar values.
  *
@@ -155,7 +148,7 @@ typedef struct {
 	 * backend in use needs to keep per segment. it lives in the common
 	 * struct so there is a single segment type and sizeof() is the only
 	 * stride the allocator ever needs */
-	uintptr_t reserved;
+	unsigned int reserved;
 } yac_shared_segment;
 
 typedef struct {

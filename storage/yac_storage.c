@@ -425,7 +425,6 @@ int yac_storage_update(const char *key, unsigned int len, char *data, unsigned i
 	hash = yac_hash(key, len);
 	stride = YAC_HASH_STRIDE(hash, YAC_SG(slots_mask));
 
-
 	/* 1. walk the key's probe path (up to 4 slots) looking for the key
 	 * itself or an empty slot; both can be taken straight away */
 	h = YAC_HASH_HOME(hash, YAC_SG(slots_mask));
