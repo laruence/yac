@@ -381,14 +381,14 @@ static inline int yac_storage_fill_value(yac_kv_key *k, unsigned int len, char *
 		int has_block = k->val && !YAC_IS_EMBED(k->val);
 		if (!(has_block && k->u2.size >= sizeof(yac_kv_val) + size - 1 &&
 				k->u2.crc == yac_crc32(k->val->data, YAC_KEY_VLEN(*k)))) {
-			unsigned long real_size = yac_allocator_real_size(sizeof(yac_kv_val) + (size * YAC_STORAGE_FACTOR) - 1);
+			unsigned int real_size = yac_allocator_real_size(sizeof(yac_kv_val) + (size * YAC_STORAGE_FACTOR) - 1);
 			yac_kv_val *val;
 
 			if (!real_size) {
 				++YAC_SG(stats.fails);
 				return 0;
 			}
-			val = yac_allocator_raw_alloc(real_size, (int)hash);
+			val = yac_allocator_alloc(real_size, hash);
 			if (val == NULL) {
 				++YAC_SG(stats.fails);
 				return 0;

@@ -79,24 +79,7 @@ int yac_allocator_startup(unsigned long k_size, unsigned long size, char **msg) 
 }
 /* }}} */
 
-void yac_allocator_shutdown(void) /* {{{ */ {
-	yac_shared_segment **segments;
-	const yac_shared_memory_handlers *he;
-
-	segments = YAC_SG(segments);
-	if (segments) {
-		if ((he = &yac_shared_memory_handler)) {
-			int i = 0;
-			for (i = 0; i < YAC_SG(segments_num); i++) {
-				he->detach_segment(segments[i]);
-			}
-			he->detach_segment(&YAC_SG(first_seg));
-		}
-	}
-}
-/* }}} */
-
-static inline void *yac_allocator_alloc_algo2(unsigned long size, int hash) /* {{{ */ {
+void *yac_allocator_alloc(unsigned int size, uint64_t hash) /* {{{ */ {
 	yac_shared_segment *segment;
 	unsigned int seg_size, retry, pos, current;
 
@@ -144,67 +127,22 @@ do_alloc:
 }
 /* }}} */
 
-#if 0
-static inline void *yac_allocator_alloc_algo1(unsigned long size) /* {{{ */ {
-    int i, j, picked_seg, atime;
-    picked_seg = (YAC_SG(current_seg) + 1) & YAC_SG(segments_num_mask);
+void yac_allocator_shutdown(void) /* {{{ */ {
+	yac_shared_segment **segments;
+	const yac_shared_memory_handlers *he;
 
-    atime = YAC_SG(segments)[picked_seg]->atime;
-    for (i = 0; i < 10; i++) {
-        j = (picked_seg + 1) & YAC_SG(segments_num_mask);
-        if (YAC_SG(segments)[j]->atime < atime) {
-            picked_seg = j;
-            atime = YAC_SG(segments)[j]->atime;
-        }
-    }
-
-    YAC_SG(current_seg) = picked_seg;
-    YAC_SG(segments)[picked_seg]->pos = 0;
-    return yac_allocator_alloc_algo2(size);
-}
-/* }}} */
-#endif
-
-unsigned long yac_allocator_real_size(unsigned long size) /* {{{ */ {
-	unsigned long real_size = YAC_SMM_TRUE_SIZE(size);
-
-	if (real_size > YAC_SG(segments)[0]->size) {
-		return 0;
+	segments = YAC_SG(segments);
+	if (segments) {
+		if ((he = &yac_shared_memory_handler)) {
+			int i = 0;
+			for (i = 0; i < YAC_SG(segments_num); i++) {
+				he->detach_segment(segments[i]);
+			}
+			he->detach_segment(&YAC_SG(first_seg));
+		}
 	}
-
-	return real_size;
 }
 /* }}} */
-
-void * yac_allocator_raw_alloc(unsigned long real_size, int hash) /* {{{ */ {
-
-	return yac_allocator_alloc_algo2(real_size, hash);
-	/*
-    if (YAC_SG(exhausted)) {
-        return yac_allocator_alloc_algo1(real_size);
-    } else {
-        void *p;
-        if ((p = yac_allocator_alloc_algo2(real_size))) {
-            return p;
-        }
-        return yac_allocator_alloc_algo1(real_size);
-    }
-	*/
-}
-/* }}} */
-
-#if 0
-void yac_allocator_touch(void *p, unsigned long atime) /* {{{ */ {
-	yac_shared_block_header h = *(yac_shared_block_header *)(p - sizeof(yac_shared_block_header));
-
-	if (h.seg >= YAC_SG(segments_num)) {
-		return;
-	}
-	
-	YAC_SG(segments)[h.seg]->atime = atime;
-}
-/* }}} */
-#endif
 
 /*
  * Local variables:

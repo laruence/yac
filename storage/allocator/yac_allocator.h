@@ -19,6 +19,8 @@
 #ifndef YAC_ALLOCATOR_H
 #define YAC_ALLOCATOR_H
 
+#include <stdint.h>
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -67,16 +69,24 @@ typedef struct {
 
 int yac_allocator_startup(unsigned long first_seg_size, unsigned long size, char **err);
 void yac_allocator_shutdown(void);
-unsigned long yac_allocator_real_size(unsigned long size);
-void *yac_allocator_raw_alloc(unsigned long real_size, int seg);
 int  yac_allocator_free(void *p);
 
-static inline void * yac_allocator_alloc(unsigned long size, int seg) {
-    unsigned long real_size = yac_allocator_real_size(size);
+static inline unsigned int yac_allocator_real_size(unsigned int size) {
+	unsigned int real_size = YAC_SMM_TRUE_SIZE(size);
+	if (real_size > YAC_SG(segments)[0]->size) {
+		return 0;
+	}
+	return real_size;
+}
+
+void *yac_allocator_alloc(unsigned int real_size, uint64_t hash);
+
+static inline void* yac_allocator_safe_alloc(unsigned int size, uint64_t hash) {
+    unsigned int real_size = yac_allocator_real_size(size);
     if (!real_size) {
         return (void *)0;
     }
-    return yac_allocator_raw_alloc(real_size, seg);
+    return yac_allocator_alloc(real_size, hash);
 }
 
 #if defined(USE_MMAP)
