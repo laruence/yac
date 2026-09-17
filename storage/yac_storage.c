@@ -388,6 +388,7 @@ static inline int yac_storage_fill_value(yac_kv_key *k, unsigned int len, char *
 				++YAC_SG(stats.fails);
 				return 0;
 			}
+
 			val = yac_allocator_alloc(real_size, hash);
 			if (val == NULL) {
 				++YAC_SG(stats.fails);
