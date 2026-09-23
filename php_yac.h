@@ -47,7 +47,7 @@ extern zend_module_entry yac_module_entry;
 #define YAC_CLASS_PROPERTY_PREFIX  "_prefix"
 #define YAC_ENTRY_COMPRESSED	   0x0020
 #define YAC_ENTRY_TYPE_MASK        0x1f
-#define YAC_ENTRY_ORIG_LEN_SHIT    6 
+#define YAC_ENTRY_ORIG_LEN_SHIT    6
 #define YAC_ENTRY_MAX_ORIG_LEN     ((1U << ((sizeof(int)*8 - YAC_ENTRY_ORIG_LEN_SHIT))) - 1)
 #define YAC_MIN_COMPRESS_THRESHOLD 1024
 

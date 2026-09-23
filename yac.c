@@ -63,24 +63,33 @@ static inline int yac_arr_embedable(zend_array *arr) {
 	return zend_hash_num_elements(arr) == 0;
 }
 
+/* form pick for values that miss the val word: a tail word when the flag
+ * fits its payload and the bytes fit the slot's key area, 0 for a block */
+static inline uintptr_t yac_tail_word(unsigned int key_len, unsigned int size, unsigned int flag) {
+	if (YAC_EMBED_TAIL_FITS(flag) && key_len + size <= YAC_STORAGE_MAX_KEY_LEN) {
+		return YAC_EMBED_TAIL_WORD(flag);
+	}
+	return 0;
+}
+
 #define yac_embed_long(v) \
-	((char *)(uintptr_t)((((zend_ulong)(zend_long)(v)) << 2) | YAC_EMBED_LONG))
+	((uintptr_t)((((zend_ulong)(zend_long)(v)) << 2) | YAC_EMBED_LONG))
 #define yac_embed_long_val(p) \
 	((zend_long)(((zend_long)(uintptr_t)(p)) >> 2))
 
-#define yac_embed_null()        ((char *)(uintptr_t)YAC_EMBED_NULL)
-#define yac_embed_true()        ((char *)(uintptr_t)YAC_EMBED_TRUE)
-#define yac_embed_false()       ((char *)(uintptr_t)YAC_EMBED_FALSE)
-#define yac_embed_empty_array() ((char *)(uintptr_t)YAC_EMBED_EMPTY_ARRAY)
+#define yac_embed_null()        ((uintptr_t)YAC_EMBED_NULL)
+#define yac_embed_true()        ((uintptr_t)YAC_EMBED_TRUE)
+#define yac_embed_false()       ((uintptr_t)YAC_EMBED_FALSE)
+#define yac_embed_empty_array() ((uintptr_t)YAC_EMBED_EMPTY_ARRAY)
 
-static inline char *yac_embed_str(const char *s, unsigned int len) {
+static inline uintptr_t yac_embed_str(const char *s, unsigned int len) {
 	uintptr_t u = YAC_EMBED_STR | ((uintptr_t)len << 2);
 	unsigned int i;
 
 	for (i = 0; i < len; i++) {
 		u |= ((uintptr_t)(unsigned char)s[i]) << (5 + i * 8);
 	}
-	return (char *)u;
+	return u;
 }
 
 /* rebuild a zval straight from a tagged word; NULL means a corrupt tag
@@ -287,23 +296,25 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 
 	switch (Z_TYPE_P(value)) {
 		case IS_NULL:
-			ret = yac_storage_update(&yac->ctx, key, key_len, yac_embed_null(), 0, flag, ttl, add);
+			ret = yac_storage_update(&yac->ctx, key, key_len, NULL, 0, flag, yac_embed_null(), ttl, add);
 			break;
 		case IS_TRUE:
-			ret = yac_storage_update(&yac->ctx, key, key_len, yac_embed_true(), 0, flag, ttl, add);
+			ret = yac_storage_update(&yac->ctx, key, key_len, NULL, 0, flag, yac_embed_true(), ttl, add);
 			break;
 		case IS_FALSE:
-			ret = yac_storage_update(&yac->ctx, key, key_len, yac_embed_false(), 0, flag, ttl, add);
+			ret = yac_storage_update(&yac->ctx, key, key_len, NULL, 0, flag, yac_embed_false(), ttl, add);
 			break;
 		case IS_LONG:
 			if (yac_long_embedable(Z_LVAL_P(value))) {
-				ret = yac_storage_update(&yac->ctx, key, key_len, yac_embed_long(Z_LVAL_P(value)), 0, flag, ttl, add);
+				ret = yac_storage_update(&yac->ctx, key, key_len, NULL, 0, flag, yac_embed_long(Z_LVAL_P(value)), ttl, add);
 			} else {
-				ret = yac_storage_update(&yac->ctx, key, key_len, (char *)&Z_LVAL_P(value), sizeof(zend_long), flag, ttl, add);
+				ret = yac_storage_update(&yac->ctx, key, key_len, (char *)&Z_LVAL_P(value), sizeof(zend_long), flag,
+						yac_tail_word(key_len, sizeof(zend_long), flag), ttl, add);
 			}
 			break;
 		case IS_DOUBLE:
-			ret = yac_storage_update(&yac->ctx, key, key_len, (char *)&Z_DVAL_P(value), sizeof(double), flag, ttl, add);
+			ret = yac_storage_update(&yac->ctx, key, key_len, (char *)&Z_DVAL_P(value), sizeof(double), flag,
+						yac_tail_word(key_len, sizeof(double), flag), ttl, add);
 			break;
 		case IS_STRING:
 #ifdef IS_CONSTANT
@@ -311,9 +322,9 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 #endif
 			{
 				if (yac_str_embedable(Z_STR_P(value))) {
-					ret = yac_storage_update(&yac->ctx, key, key_len,
-							yac_embed_str(Z_STRVAL_P(value), (unsigned int)Z_STRLEN_P(value)),
-							Z_STRLEN_P(value), flag, ttl, add);
+					ret = yac_storage_update(&yac->ctx, key, key_len, NULL,
+							(unsigned int)Z_STRLEN_P(value), flag,
+							yac_embed_str(Z_STRVAL_P(value), (unsigned int)Z_STRLEN_P(value)), ttl, add);
 				} else if (Z_STRLEN_P(value) > YAC_G(compress_threshold) || Z_STRLEN_P(value) > YAC_STORAGE_MAX_ENTRY_LEN) {
 					int compressed_len;
 					char *compressed;
@@ -347,10 +358,12 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 
 					flag |= YAC_ENTRY_COMPRESSED;
 					flag |= (Z_STRLEN_P(value) << YAC_ENTRY_ORIG_LEN_SHIT);
-					ret = yac_storage_update(&yac->ctx, key, key_len, compressed, compressed_len, flag, ttl, add);
+					ret = yac_storage_update(&yac->ctx, key, key_len, compressed, compressed_len, flag,
+						yac_tail_word(key_len, compressed_len, flag), ttl, add);
 					efree(compressed);
 				} else {
-					ret = yac_storage_update(&yac->ctx, key, key_len, Z_STRVAL_P(value), Z_STRLEN_P(value), flag, ttl, add);
+					ret = yac_storage_update(&yac->ctx, key, key_len, Z_STRVAL_P(value), Z_STRLEN_P(value), flag,
+						yac_tail_word(key_len, (unsigned int)Z_STRLEN_P(value), flag), ttl, add);
 				}
 			}
 			break;
@@ -359,7 +372,7 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 		case IS_CONSTANT_ARRAY:
 #endif
 			if (yac_arr_embedable(Z_ARRVAL_P(value))) {
-				ret = yac_storage_update(&yac->ctx, key, key_len, yac_embed_empty_array(), 0, flag, ttl, add);
+				ret = yac_storage_update(&yac->ctx, key, key_len, NULL, 0, flag, yac_embed_empty_array(), ttl, add);
 				break;
 			}
 		case IS_OBJECT:
@@ -403,10 +416,12 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 
 						flag |= YAC_ENTRY_COMPRESSED;
 						flag |= (buf.s->len << YAC_ENTRY_ORIG_LEN_SHIT);
-						ret = yac_storage_update(&yac->ctx, key, key_len, compressed, compressed_len, flag, ttl, add);
+						ret = yac_storage_update(&yac->ctx, key, key_len, compressed, compressed_len, flag,
+						yac_tail_word(key_len, compressed_len, flag), ttl, add);
 						efree(compressed);
 					} else {
-						ret = yac_storage_update(&yac->ctx, key, key_len, ZSTR_VAL(buf.s), ZSTR_LEN(buf.s), flag, ttl, add);
+						ret = yac_storage_update(&yac->ctx, key, key_len, ZSTR_VAL(buf.s), ZSTR_LEN(buf.s), flag,
+						yac_tail_word(key_len, (unsigned int)ZSTR_LEN(buf.s), flag), ttl, add);
 					}
 					smart_str_free(&buf);
 				} else {

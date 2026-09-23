@@ -233,9 +233,22 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **dat
 				int stale = k.u2.atime != tv;
 				int sampled = YAC_HITS_SAMPLE(ctx);
 
-				*data = (char *)k.val; /* tagged word, YAC_IS_EMBED(data) */
-				*size = 0; /* the value word carries no metadata */
-				*flag = 0;
+				if (YAC_IS_EMBED_TAIL(k.val)) {
+					/* materialize from the snapshot; the seq check
+					 * already certified the bytes, no crc guard */
+					unsigned int vlen = YAC_KEY_VLEN(k);
+					unsigned int tflag = YAC_EMBED_TAIL_FLAG(k.val);
+					char *s = user_alloc(vlen, tflag, 0);
+
+					memcpy(s, k.key + YAC_KEY_KLEN(k), vlen);
+					*data = s;
+					*size = vlen;
+					*flag = tflag;
+				} else {
+					*data = (char *)k.val; /* tagged word, YAC_IS_EMBED(data) */
+					*size = 0; /* the value word carries no metadata */
+					*flag = 0;
+				}
 				/* hits/atime live in the slot here, so touching them means
 				 * publishing -- the one read path that still claims. best
 				 * effort: a busy slot drops the count rather than wait */
@@ -365,12 +378,21 @@ static inline unsigned int yac_storage_pick_victim(const yac_kv_key *snaps) /* {
 }
 /* }}} */
 
-static inline int yac_storage_fill_value(yac_ctx *ctx, yac_kv_key *k, unsigned int len, char *data, unsigned int size, unsigned int flag, uint64_t hash) /* {{{ */ {
+static inline int yac_storage_fill_value(yac_ctx *ctx, yac_kv_key *k, unsigned int len, char *data, unsigned int size, unsigned int flag, uintptr_t word, uint64_t hash) /* {{{ */ {
 	unsigned long tv = ctx->tv;
-	/* fill k with the new value (a block or an embedded word); every
-	 * field but h/ttl/key/len is set for the caller to commit, 0 when
-	 * no value block could be allocated */
-	if (!YAC_IS_EMBED(data)) {
+	/* fill k with the new value; the caller picked the form and assembled
+	 * word (0 = block path). every field but h/ttl/key/len is set for the
+	 * caller to commit, 0 when no value block could be allocated */
+	if (word) {
+		if (YAC_IS_EMBED_TAIL(word)) {
+			memcpy(k->key + len, data, size);
+		}
+		k->val = (yac_kv_val *)word;
+		k->u2.atime = tv;
+		k->u1.hits = 0;
+		return 1;
+	}
+	{
 		/* reuse the old block if big enough and intact, otherwise
 		 * allocate a fresh one (grown by YAC_STORAGE_FACTOR); the crc
 		 * guards against reusing a block the value pool has already
@@ -399,17 +421,12 @@ static inline int yac_storage_fill_value(yac_ctx *ctx, yac_kv_key *k, unsigned i
 		YAC_KEY_SET_LEN(*k->val, len, size);
 		k->u2.crc = yac_crc32_snapshot(k->val->data, data, size);
 		k->u1.flag = flag;
-	} else {
-		/* small scalars live in the tagged word itself, no block */
-		k->val = (yac_kv_val *)data;
-		k->u2.atime = tv;
-		k->u1.hits = 0;
 	}
 	return 1;
 }
 /* }}} */
 
-int yac_storage_update(yac_ctx *ctx, const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add) /* {{{ */ {
+int yac_storage_update(yac_ctx *ctx, const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, uintptr_t word, int ttl, int add) /* {{{ */ {
 	unsigned int i, w;
 	uint64_t h, hash, stride;
 	yac_kv_key k, snaps[4];
@@ -472,7 +489,7 @@ do_update:
 	/* 4. fill the new value into k; only blocks can go stale (recycled
 	 * or corrupted behind our back), embedded values and empty slots are
 	 * always intact */
-	if (!yac_storage_fill_value(ctx, &k, len, data, size, flag, hash)) {
+	if (!yac_storage_fill_value(ctx, &k, len, data, size, flag, word, hash)) {
 		return 0;
 	}
 
@@ -489,13 +506,16 @@ do_update:
 	}
 	YAC_STORE(&p->h, k.h);
 	YAC_STORE(&p->ttl, k.ttl);
-	/* only the words the key spans; nothing compares past klen, so a longer
-	 * predecessor's tail may stay behind */
-	for (w = 0; w < (len + sizeof(uintptr_t) - 1) / sizeof(uintptr_t); w++) {
-		uintptr_t word;
+	/* the words the key spans, plus a tail value's; nothing compares
+	 * past klen, so a longer predecessor's tail may stay behind */
+	{
+		unsigned int span = YAC_IS_EMBED_TAIL(k.val) ? len + size : len;
+		for (w = 0; w < (span + sizeof(uintptr_t) - 1) / sizeof(uintptr_t); w++) {
+			uintptr_t word;
 
-		memcpy(&word, k.key + w * sizeof(uintptr_t), sizeof(word));
-		YAC_STORE(&((YAC_SLOT_V uintptr_t *)p->key)[w], word);
+			memcpy(&word, k.key + w * sizeof(uintptr_t), sizeof(word));
+			YAC_STORE(&((YAC_SLOT_V uintptr_t *)p->key)[w], word);
+		}
 	}
 	YAC_STORE(&p->len, k.len);
 	YAC_STORE(&p->u1.flag, k.u1.flag);
@@ -699,13 +719,13 @@ yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset, unsign
 		item->v_len = YAC_KEY_VLEN(k);
 		item->embedded = YAC_IS_EMBED(k.val) != 0;
 		if (item->embedded) {
-			/* no value block: atime and the hit count live in the
-			 * slot's u2/u1 unions, crc/size/flag have no meaning */
+			/* no value block: atime/hits live in the slot's unions;
+			 * only tail entries carry a flag */
 			item->atime = k.u2.atime;
 			item->hits = k.u1.hits;
 			item->crc = 0;
 			item->size = 0;
-			item->flag = 0;
+			item->flag = YAC_IS_EMBED_TAIL(k.val) ? YAC_EMBED_TAIL_FLAG(k.val) : 0;
 		} else {
 			item->atime = k.val->atime;
 			item->hits = k.val->hits;

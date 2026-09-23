@@ -88,7 +88,8 @@ typedef struct {
  * tags (low 2 bits):
  *   0x1 LONG          (zend_long in the high (word bits - 2) bits)
  *   0x2 SHORT_STR     ([4..2] length 0..YAC_EMBED_STR_MAX_LEN, bytes from bit 5)
- *   0x3 SPECIAL       (high bits: 0 NULL, 1 TRUE, 2 FALSE, 3 EMPTY_ARRAY)
+ *   0x3 SPECIAL       (high bits: 0 NULL, 1 TRUE, 2 FALSE, 3 EMPTY_ARRAY,
+ *                      4 TAIL: value bytes in the slot's key tail)
  *
  * the zend-type aware helpers live in yac.c; this file stays plain C so
  * the allocator backends can include it without php.h
@@ -116,6 +117,18 @@ typedef struct {
 #define YAC_EMBED_STR_MAX_LEN       ((unsigned int)((sizeof(void*) * 8 - 5) / 8))
 #define YAC_EMBED_STR_LEN(p)        ((unsigned int)((((uintptr_t)(p)) >> 2) & 0x7))
 #define YAC_EMBED_STR_DATA(p)       (((uintptr_t)(p)) >> 5)
+
+/* tail values: serialized bytes that fit the slot's unused key tail
+ * (klen + size <= YAC_STORAGE_MAX_KEY_LEN), stored after the key instead
+ * of a block. word = (flag << 5) | 0x13, length in YAC_KEY_VLEN; the flag
+ * must fit the payload, whatever its layout */
+#define YAC_EMBED_TAIL              0x4
+#define YAC_EMBED_TAIL_BITS         0x13
+#define YAC_EMBED_TAIL_WORD(flag)   ((((uintptr_t)(flag)) << 5) | YAC_EMBED_TAIL_BITS)
+#define YAC_EMBED_TAIL_FLAG(p)      ((unsigned int)(((uintptr_t)(p)) >> 5))
+#define YAC_IS_EMBED_TAIL(p)        ((((uintptr_t)(p)) & 0x1f) == YAC_EMBED_TAIL_BITS)
+#define YAC_EMBED_TAIL_FLAG_BITS    (sizeof(uintptr_t) * 8 - 5)
+#define YAC_EMBED_TAIL_FITS(flag)   (((uintptr_t)(flag) >> YAC_EMBED_TAIL_FLAG_BITS) == 0)
 
 #define YAC_HASH_HOME(hash, mask)    ((hash) & (mask))
 /* odd, never zero: coprime with the power-of-two slot count, so a probe
@@ -217,7 +230,7 @@ void yac_storage_shutdown(void);
 int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas);
 /* if YAC_IS_EMBED(data), the tagged word itself is stored instead of
  * allocating a block (size is only kept as the displayed v_len) */
-int yac_storage_update(yac_ctx *ctx, const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add);
+int yac_storage_update(yac_ctx *ctx, const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, uintptr_t word, int ttl, int add);
 /* atomic increment of an embedded long; the key must already hold one
  * (no seeding, no coercion) and step/newval must fit the embedded range,
  * else 0 is returned with the value untouched. *newval holds the new count */
