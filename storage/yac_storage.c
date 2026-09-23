@@ -574,7 +574,7 @@ void yac_storage_free_info(yac_storage_info *info) /* {{{ */ {
 }
 /* }}} */
 
-yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset, unsigned int *num) /* {{{ */ {
+yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset, unsigned int *num, yac_dump_filter_t filter, void *ctx) /* {{{ */ {
 	yac_kv_key k;
 	yac_item_list *item, *list = NULL;
 	unsigned int size = YAC_SG(slots_size), occupied = YAC_SG(stats.occupied);
@@ -591,8 +591,11 @@ yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset, unsign
 		if (k.val == NULL) {
 			continue;
 		}
+		if (filter && !filter(k.key, YAC_KEY_KLEN(k), ctx)) {
+			continue;
+		}
 		if (skipped < offset) {
-			++skipped; /* the first offset occupied slots are not reported */
+			++skipped; /* the first offset matching entries are not reported */
 			continue;
 		}
 		item = user_alloc(sizeof(yac_item_list), 0, 1);

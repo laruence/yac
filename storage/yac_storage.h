@@ -221,7 +221,11 @@ void yac_storage_flush(void);
 const char * yac_storage_shared_memory_name(void);
 yac_storage_info * yac_storage_get_info(void);
 void yac_storage_free_info(yac_storage_info *info);
-yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset, unsigned int *num);
+/* per-entry predicate for yac_storage_dump(): return non-zero to report the
+ * entry; called before the entry is copied out, so filtered entries cost
+ * nothing. offset/limit count entries that pass the predicate */
+typedef int (*yac_dump_filter_t)(const unsigned char *key, unsigned int k_len, void *ctx);
+yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset, unsigned int *num, yac_dump_filter_t filter, void *ctx);
 void yac_storage_free_list(yac_item_list *list);
 /* fold this process's pending hits/miss counts into the shared stats */
 void yac_storage_start_stats(void);

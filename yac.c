@@ -907,11 +907,26 @@ PHP_METHOD(yac, info) {
 }
 /* }}} */
 
+typedef struct {
+	const char *prefix;
+	unsigned int prefix_len;
+} yac_dump_prefix_ctx;
+
+static int yac_dump_prefix_filter(const unsigned char *key, unsigned int k_len, void *ctx) /* {{{ */ {
+	yac_dump_prefix_ctx *c = ctx;
+	return k_len >= c->prefix_len && memcmp(c->prefix, key, c->prefix_len) == 0;
+}
+/* }}} */
+
 /** {{{ proto public Yac::dump(int $limit, int $offset)
 */
 PHP_METHOD(yac, dump) {
 	unsigned int num = 0;
 	zend_long limit = 100, offset = 0;
+	unsigned int prefix_len = 0;
+	yac_dump_prefix_ctx ctx;
+	yac_object *yac = Z_YACOBJ_P(getThis());
+	yac_dump_filter_t filter = NULL;
 	yac_item_list *list, *l;
 
 	ZEND_PARSE_PARAMETERS_START(0, 2)
@@ -920,7 +935,14 @@ PHP_METHOD(yac, dump) {
 		Z_PARAM_LONG(offset)
 	ZEND_PARSE_PARAMETERS_END();
 
-	if ((list = l = yac_storage_dump(limit, offset, &num))) {
+	if (yac->prefix_len) {
+		ctx.prefix = (const char*)yac->prefix;
+		ctx.prefix_len = yac->prefix_len;
+		filter = yac_dump_prefix_filter;
+		prefix_len = yac->prefix_len;
+	}
+
+	if ((list = l = yac_storage_dump(limit, offset, &num, filter, filter ? &ctx : NULL))) {
 		array_init_size(return_value, num);
 		zend_hash_real_init(Z_ARRVAL_P(return_value), 1 /* packed */);
 		ZEND_HASH_FILL_PACKED(Z_ARRVAL_P(return_value)) {
@@ -933,7 +955,7 @@ PHP_METHOD(yac, dump) {
 				add_assoc_long(&item, "hash", l->h);
 				add_assoc_long(&item, "crc", l->crc);
 				add_assoc_long(&item, "ttl", l->ttl);
-				add_assoc_long(&item, "k_len", l->k_len);
+				add_assoc_long(&item, "k_len", l->k_len - prefix_len);
 				if ((l->flag & YAC_ENTRY_COMPRESSED)) {
 					add_assoc_long(&item, "v_len", (((uint32_t)l->flag) >> YAC_ENTRY_ORIG_LEN_SHIT));
 					add_assoc_long(&item, "c_len", l->v_len);
@@ -944,7 +966,7 @@ PHP_METHOD(yac, dump) {
 				add_assoc_long(&item, "atime", l->atime);
 				add_assoc_long(&item, "hits", l->hits);
 				add_assoc_bool(&item, "embedded", l->embedded);
-				add_assoc_stringl(&item, "key", (char*)l->key, l->k_len);
+				add_assoc_stringl(&item, "key", (char*)l->key + prefix_len, l->k_len - prefix_len);
 				ZEND_HASH_FILL_ADD(&item);
 			}
 		} ZEND_HASH_FILL_END();
