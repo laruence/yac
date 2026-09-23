@@ -174,14 +174,15 @@ typedef struct {
 	unsigned int recycles;
 } yac_storage_stats;
 
-/* per-process hits/miss accumulators, folded into the shared stats at
- * request shutdown; bumping the shared line on every hit bounced it
- * between cores and cost roughly a third of aggregate throughput. the
- * cold counters (kicks/fails/recycles) are incremented directly */
+/* per-call context, passed from the PHP layer; the storage layer uses
+ * tv for TTL comparisons, sample_clock for hit-count sampling, and
+ * hits/miss are accumulated here and flushed to shared stats by the caller */
 typedef struct {
 	unsigned int hits;
 	unsigned int miss;
-} yac_local_stats;
+	unsigned int sample_clock;
+	unsigned long tv;
+} yac_ctx;
 
 typedef struct {
 	/* read-only after startup */
@@ -211,11 +212,11 @@ int yac_storage_startup(unsigned long first_size, unsigned long size, yac_user_a
 void yac_storage_shutdown(void);
 /* data carries either a heap buffer (*data is an efree-able copy) or an
  * embedded value word (test with YAC_IS_EMBED); size is 0 for embeds */
-int yac_storage_find(const char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas, unsigned long tv);
+int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas);
 /* if YAC_IS_EMBED(data), the tagged word itself is stored instead of
  * allocating a block (size is only kept as the displayed v_len) */
-int yac_storage_update(const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add, unsigned long tv);
-int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long tv);
+int yac_storage_update(yac_ctx *ctx, const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add);
+int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl);
 void yac_storage_flush(void);
 const char * yac_storage_shared_memory_name(void);
 yac_storage_info * yac_storage_get_info(void);
@@ -226,9 +227,6 @@ void yac_storage_free_info(yac_storage_info *info);
 typedef int (*yac_dump_filter_t)(const unsigned char *key, unsigned int k_len, void *ctx);
 yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset, unsigned int *num, yac_dump_filter_t filter, void *ctx);
 void yac_storage_free_list(yac_item_list *list);
-/* fold this process's pending hits/miss counts into the shared stats */
-void yac_storage_start_stats(void);
-void yac_storage_flush_stats(void);
 
 #endif	/* YAC_STORAGE_H */
 

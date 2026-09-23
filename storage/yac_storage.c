@@ -36,7 +36,6 @@ yac_storage_globals *yac_storage;
 
 static yac_user_alloc_t user_alloc;
 static yac_user_free_t user_free;
-static yac_local_stats local_stats;
 
 /* hits counts one read in YAC_HITS_PER_SAMPLE and adds that much, so a hot
  * entry claims its slot a third as often. the 2^32/phi multiplier makes it
@@ -44,23 +43,13 @@ static yac_local_stats local_stats;
  * counted like any other. both entry forms must scale alike, YAC_KV_HITS
  * compares them against each other */
 #define YAC_HITS_PER_SAMPLE	3
-static unsigned int yac_sample_clock;
-#define YAC_HITS_SAMPLE() \
-	(((++yac_sample_clock) * 0x9E3779B1u) < (0xFFFFFFFFu / YAC_HITS_PER_SAMPLE))
+#define YAC_HITS_SAMPLE(ctx) \
+	((((++(ctx)->sample_clock) * 0x9E3779B1u) < (0xFFFFFFFFu / YAC_HITS_PER_SAMPLE)))
 
-void yac_storage_start_stats(void) /* {{{ */ {
-	memset(&local_stats, 0, sizeof(local_stats));
-}
-/* }}} */
-
-void yac_storage_flush_stats(void) /* {{{ */ {
-	if (local_stats.hits) {
-		YAC_ATOMIC_ADD(&YAC_SG(stats.hits), local_stats.hits);
-		local_stats.hits = 0;
-	}
-	if (local_stats.miss) {
-		YAC_ATOMIC_ADD(&YAC_SG(stats.miss), local_stats.miss);
-		local_stats.miss = 0;
+static inline void yac_ctx_refresh_tv(yac_ctx *ctx) /* {{{ */ {
+	unsigned long now = (unsigned long)time(NULL);
+	if (ctx->tv != now) {
+		ctx->tv = now;
 	}
 }
 /* }}} */
@@ -130,7 +119,7 @@ static inline uint64_t yac_hash(const char *data, unsigned int len) {
 
 #if SIZEOF_SIZE_T == 8
 		/* 64-bit builds: keys are 8-aligned (zend_string val sits at struct
-		 * offset 24, yac_object prefix at offset 0), a direct load is safe */
+		 * offset 24, yac_object prefix at offset 24), a direct load is safe */
 		k = *(uint64_t*)data;
 #else
 		/* 32-bit builds only guarantee 4-alignment */
@@ -199,17 +188,21 @@ static inline int yac_slot_snapshot(const YAC_SLOT_V yac_kv_key *p, yac_kv_key *
 }
 /* }}} */
 
-int yac_storage_find(const char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas, unsigned long tv) /* {{{ */ {
+int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas) /* {{{ */ {
 	uint64_t h, hash, stride;
 	unsigned int i;
 	yac_kv_key k;
 	YAC_SLOT_V yac_kv_key *p;
+	unsigned long tv;
+
+	yac_ctx_refresh_tv(ctx);
+	tv = ctx->tv;
 
 	if (YAC_SG(in_flush)) {
 		/* the table is being cleared: report the miss the flush is about
 		 * to make true anyway, rather than racing the sweep for an entry
 		 * that is on its way out */
-		++local_stats.miss;
+		++ctx->miss;
 		return 0;
 	}
 
@@ -238,7 +231,7 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 				 * breaks its ties. being second-granular it claims at most
 				 * once a second per slot anyway */
 				int stale = k.u2.atime != tv;
-				int sampled = YAC_HITS_SAMPLE();
+				int sampled = YAC_HITS_SAMPLE(ctx);
 
 				*data = (char *)k.val; /* tagged word, YAC_IS_EMBED(data) */
 				*size = 0; /* the value word carries no metadata */
@@ -260,7 +253,7 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 					}
 					YAC_SLOT_PUBLISH(p);
 				}
-				++local_stats.hits;
+				++ctx->hits;
 				return 1;
 			} else {
 				/* snapshot the header while live — p->val may turn into a
@@ -279,10 +272,10 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 					*flag = k.u1.flag;
 					/* sampled at the same rate as the embedded form above:
 					 * YAC_KV_HITS compares the two against each other */
-					if (YAC_HITS_SAMPLE()) {
+					if (YAC_HITS_SAMPLE(ctx)) {
 						k.val->hits += YAC_HITS_PER_SAMPLE;
 					}
-					++local_stats.hits;
+					++ctx->hits;
 					return 1;
 				}
 				user_free(s, k.u1.flag);
@@ -301,17 +294,21 @@ int yac_storage_find(const char *key, unsigned int len, char **data, unsigned in
 		h = (h + stride) & YAC_SG(slots_mask);
 	}
 
-	++local_stats.miss;
+	++ctx->miss;
 
 	return 0;
 }
 /* }}} */
 
-int yac_storage_delete(const char *key, unsigned int len, int ttl, unsigned long tv) /* {{{ */ {
+int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl) /* {{{ */ {
 	uint64_t h, hash, stride;
 	unsigned int i;
 	yac_kv_key k;
 	YAC_SLOT_V yac_kv_key *p;
+	unsigned long tv;
+
+	yac_ctx_refresh_tv(ctx);
+	tv = ctx->tv;
 
 	if (YAC_SG(in_flush)) {
 		return 0; /* the flush removes the key regardless */
@@ -368,7 +365,8 @@ static inline unsigned int yac_storage_pick_victim(const yac_kv_key *snaps) /* {
 }
 /* }}} */
 
-static inline int yac_storage_fill_value(yac_kv_key *k, unsigned int len, char *data, unsigned int size, unsigned int flag, uint64_t hash, unsigned long tv) /* {{{ */ {
+static inline int yac_storage_fill_value(yac_ctx *ctx, yac_kv_key *k, unsigned int len, char *data, unsigned int size, unsigned int flag, uint64_t hash) /* {{{ */ {
+	unsigned long tv = ctx->tv;
 	/* fill k with the new value (a block or an embedded word); every
 	 * field but h/ttl/key/len is set for the caller to commit, 0 when
 	 * no value block could be allocated */
@@ -411,11 +409,15 @@ static inline int yac_storage_fill_value(yac_kv_key *k, unsigned int len, char *
 }
 /* }}} */
 
-int yac_storage_update(const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add, unsigned long tv) /* {{{ */ {
+int yac_storage_update(yac_ctx *ctx, const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add) /* {{{ */ {
 	unsigned int i, w;
 	uint64_t h, hash, stride;
 	yac_kv_key k, snaps[4];
 	YAC_SLOT_V yac_kv_key *p, *paths[4];
+	unsigned long tv;
+
+	yac_ctx_refresh_tv(ctx);
+	tv = ctx->tv;
 
 	if (YAC_SG(in_flush)) {
 		/* the flush would clear this write anyway, and a writer racing the
@@ -470,7 +472,7 @@ do_update:
 	/* 4. fill the new value into k; only blocks can go stale (recycled
 	 * or corrupted behind our back), embedded values and empty slots are
 	 * always intact */
-	if (!yac_storage_fill_value(&k, len, data, size, flag, hash, tv)) {
+	if (!yac_storage_fill_value(ctx, &k, len, data, size, flag, hash)) {
 		return 0;
 	}
 
@@ -542,9 +544,6 @@ yac_storage_info * yac_storage_get_info(void) /* {{{ */ {
 	yac_storage_info *info;
 	unsigned int i, occupied = 0;
 
-	/* fold this process's pending counts so the shared numbers are
-	 * accurate; the request keeps accumulating afterwards */
-	yac_storage_flush_stats();
 	info = user_alloc(sizeof(yac_storage_info), 0, 0);
 
 	info->k_msize = (unsigned long)YAC_SG(first_seg).size;

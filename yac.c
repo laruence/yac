@@ -38,6 +38,7 @@
 #include "yac_legacy_arginfo.h"
 #endif
 #include "storage/yac_storage.h"
+#include "storage/yac_atomic.h"
 #include "storage/allocator/yac_allocator.h"
 #include "serializer/yac_serializer.h"
 #ifdef HAVE_LZ4_H
@@ -136,6 +137,7 @@ zend_class_entry *yac_class_ce;
 static zend_object_handlers yac_obj_handlers;
 
 typedef struct {
+	yac_ctx ctx;
 	unsigned char prefix[YAC_STORAGE_MAX_KEY_LEN];
 	uint16_t prefix_len;
 	zend_object std;
@@ -204,6 +206,11 @@ PHP_INI_END()
 
 #define Z_YACOBJ_P(zv)   (php_yac_fetch_object(Z_OBJ_P(zv)))
 
+#if SIZEOF_SIZE_T == 8
+/* the key buffer must stay 8-aligned for yac_hash's 64-bit fast path */
+ZEND_STATIC_ASSERT((offsetof(yac_object, prefix) % 8) == 0, "yac_object prefix must be 8-aligned");
+#endif
+
 static inline yac_object *php_yac_fetch_object(zend_object *obj) /* {{{ */ {
 	return (yac_object *)((char*)(obj) - offsetof(yac_object, std));
 }
@@ -267,7 +274,6 @@ void yac_free(void *addr, unsigned int flag) /* {{{ */ {
 static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl, int add) /* {{{ */ {
 	int ret = 0, flag = Z_TYPE_P(value);
 	char *msg;
-	time_t tv;
 	const char *key;
 	size_t key_len;
 
@@ -275,26 +281,25 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 		return ret;
 	}
 
-	tv = time(NULL);
 	switch (Z_TYPE_P(value)) {
 		case IS_NULL:
-			ret = yac_storage_update(key, key_len, yac_embed_null(), 0, flag, ttl, add, tv);
+			ret = yac_storage_update(&yac->ctx, key, key_len, yac_embed_null(), 0, flag, ttl, add);
 			break;
 		case IS_TRUE:
-			ret = yac_storage_update(key, key_len, yac_embed_true(), 0, flag, ttl, add, tv);
+			ret = yac_storage_update(&yac->ctx, key, key_len, yac_embed_true(), 0, flag, ttl, add);
 			break;
 		case IS_FALSE:
-			ret = yac_storage_update(key, key_len, yac_embed_false(), 0, flag, ttl, add, tv);
+			ret = yac_storage_update(&yac->ctx, key, key_len, yac_embed_false(), 0, flag, ttl, add);
 			break;
 		case IS_LONG:
 			if (yac_long_embedable(Z_LVAL_P(value))) {
-				ret = yac_storage_update(key, key_len, yac_embed_long(Z_LVAL_P(value)), 0, flag, ttl, add, tv);
+				ret = yac_storage_update(&yac->ctx, key, key_len, yac_embed_long(Z_LVAL_P(value)), 0, flag, ttl, add);
 			} else {
-				ret = yac_storage_update(key, key_len, (char *)&Z_LVAL_P(value), sizeof(zend_long), flag, ttl, add, tv);
+				ret = yac_storage_update(&yac->ctx, key, key_len, (char *)&Z_LVAL_P(value), sizeof(zend_long), flag, ttl, add);
 			}
 			break;
 		case IS_DOUBLE:
-			ret = yac_storage_update(key, key_len, (char *)&Z_DVAL_P(value), sizeof(double), flag, ttl, add, tv);
+			ret = yac_storage_update(&yac->ctx, key, key_len, (char *)&Z_DVAL_P(value), sizeof(double), flag, ttl, add);
 			break;
 		case IS_STRING:
 #ifdef IS_CONSTANT
@@ -302,9 +307,9 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 #endif
 			{
 				if (yac_str_embedable(Z_STR_P(value))) {
-					ret = yac_storage_update(key, key_len,
+					ret = yac_storage_update(&yac->ctx, key, key_len,
 							yac_embed_str(Z_STRVAL_P(value), (unsigned int)Z_STRLEN_P(value)),
-							Z_STRLEN_P(value), flag, ttl, add, tv);
+							Z_STRLEN_P(value), flag, ttl, add);
 				} else if (Z_STRLEN_P(value) > YAC_G(compress_threshold) || Z_STRLEN_P(value) > YAC_STORAGE_MAX_ENTRY_LEN) {
 					int compressed_len;
 					char *compressed;
@@ -338,10 +343,10 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 
 					flag |= YAC_ENTRY_COMPRESSED;
 					flag |= (Z_STRLEN_P(value) << YAC_ENTRY_ORIG_LEN_SHIT);
-					ret = yac_storage_update(key, key_len, compressed, compressed_len, flag, ttl, add, tv);
+					ret = yac_storage_update(&yac->ctx, key, key_len, compressed, compressed_len, flag, ttl, add);
 					efree(compressed);
 				} else {
-					ret = yac_storage_update(key, key_len, Z_STRVAL_P(value), Z_STRLEN_P(value), flag, ttl, add, tv);
+					ret = yac_storage_update(&yac->ctx, key, key_len, Z_STRVAL_P(value), Z_STRLEN_P(value), flag, ttl, add);
 				}
 			}
 			break;
@@ -350,7 +355,7 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 		case IS_CONSTANT_ARRAY:
 #endif
 			if (yac_arr_embedable(Z_ARRVAL_P(value))) {
-				ret = yac_storage_update(key, key_len, yac_embed_empty_array(), 0, flag, ttl, add, tv);
+				ret = yac_storage_update(&yac->ctx, key, key_len, yac_embed_empty_array(), 0, flag, ttl, add);
 				break;
 			}
 		case IS_OBJECT:
@@ -394,10 +399,10 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 
 						flag |= YAC_ENTRY_COMPRESSED;
 						flag |= (buf.s->len << YAC_ENTRY_ORIG_LEN_SHIT);
-						ret = yac_storage_update(key, key_len, compressed, compressed_len, flag, ttl, add, tv);
+						ret = yac_storage_update(&yac->ctx, key, key_len, compressed, compressed_len, flag, ttl, add);
 						efree(compressed);
 					} else {
-						ret = yac_storage_update(key, key_len, ZSTR_VAL(buf.s), ZSTR_LEN(buf.s), flag, ttl, add, tv);
+						ret = yac_storage_update(&yac->ctx, key, key_len, ZSTR_VAL(buf.s), ZSTR_LEN(buf.s), flag, ttl, add);
 					}
 					smart_str_free(&buf);
 				} else {
@@ -505,7 +510,6 @@ static inline void yac_add_update_internal(INTERNAL_FUNCTION_PARAMETERS, int add
 static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zval *rv) /* {{{ */ {
 	uint32_t flag, size = 0;
 	char *data, *msg;
-	time_t tv;
 	const char *key;
 	size_t key_len;
 
@@ -513,8 +517,7 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 		return NULL;
 	}
 
-	tv = time(NULL);
-	if (yac_storage_find(key, key_len, &data, &size, &flag, (int *)cas, tv)) {
+	if (yac_storage_find(&yac->ctx, key, key_len, &data, &size, &flag, (int *)cas)) {
 		if (YAC_IS_EMBED(data)) {
 			/* the value word itself, no heap buffer to free */
 			return yac_embed_to_zval(data, rv);
@@ -641,7 +644,6 @@ static zval* yac_get_multi_impl(yac_object *yac, zval *keys, zval *def, zval *rv
 /* }}} */
 
 static int yac_delete_impl(yac_object *yac, zend_string *name, int ttl) /* {{{ */ {
-	time_t tv = 0;
 	const char *key;
 	size_t key_len;
 
@@ -649,11 +651,7 @@ static int yac_delete_impl(yac_object *yac, zend_string *name, int ttl) /* {{{ *
 		return 0;
 	}
 
-	if (ttl) {
-		tv = (zend_ulong)time(NULL);
-	}
-
-	return yac_storage_delete(key, key_len, ttl, tv);
+	return yac_storage_delete(&yac->ctx, key, key_len, ttl);
 }
 /* }}} */
 
@@ -684,6 +682,10 @@ static int yac_delete_multi_impl(yac_object *yac, zval *keys, int ttl) /* {{{ */
 static zend_object *yac_object_new(zend_class_entry *ce) /* {{{ */ {
 	yac_object *yac = emalloc(sizeof(yac_object) + zend_object_properties_size(ce));
 
+	/* emalloc does not zero: the ctx counters must start empty, tv=0 makes
+	 * the first yac_ctx_refresh_tv() re-read the clock */
+	memset(&yac->ctx, 0, sizeof(yac->ctx));
+
 	zend_object_std_init(&yac->std, ce);
 	yac->std.handlers = &yac_obj_handlers;
 	yac->prefix_len = 0;
@@ -693,7 +695,29 @@ static zend_object *yac_object_new(zend_class_entry *ce) /* {{{ */ {
 }
 /* }}} */
 
+/* fold this object's pending hit/miss counts into the shared stats. called
+ * on object teardown (long-lived workers never run RSHUTDOWN per request)
+ * and before info() reports, so a live object's own activity shows up; the
+ * enable flag doubles as "storage is up", still 1 while the module tears
+ * down any request-local objects it holds */
+static void yac_object_commit_stats(yac_object *yac) /* {{{ */ {
+	if (YAC_G(enable)) {
+		if (yac->ctx.hits) {
+			YAC_ATOMIC_ADD(&YAC_SG(stats.hits), yac->ctx.hits);
+			yac->ctx.hits = 0;
+		}
+		if (yac->ctx.miss) {
+			YAC_ATOMIC_ADD(&YAC_SG(stats.miss), yac->ctx.miss);
+			yac->ctx.miss = 0;
+		}
+	}
+}
+/* }}} */
+
 static void yac_object_free(zend_object *object) /* {{{ */ {
+	yac_object *yac = php_yac_fetch_object(object);
+
+	yac_object_commit_stats(yac);
 	zend_object_std_dtor(object);
 }
 /* }}} */
@@ -883,7 +907,9 @@ PHP_METHOD(yac, flush) {
 */
 PHP_METHOD(yac, info) {
 	yac_storage_info *inf;
+	yac_object *yac = Z_YACOBJ_P(getThis());
 
+	yac_object_commit_stats(yac);
 	inf = yac_storage_get_info();
 
 	array_init(return_value);
@@ -1179,18 +1205,6 @@ static zend_module_dep yac_module_deps[] = {
 	{NULL, NULL, NULL, 0}
 };
 
-PHP_RINIT_FUNCTION(yac) /* {{{ */ {
-	yac_storage_start_stats();
-	return SUCCESS;
-}
-/* }}} */
-
-PHP_RSHUTDOWN_FUNCTION(yac) /* {{{ */ {
-	yac_storage_flush_stats();
-	return SUCCESS;
-}
-/* }}} */
-
 /* {{{ yac_module_entry
  */
 zend_module_entry yac_module_entry = {
@@ -1201,8 +1215,8 @@ zend_module_entry yac_module_entry = {
 	NULL, /* yac_functions, */
 	PHP_MINIT(yac),
 	PHP_MSHUTDOWN(yac),
-	PHP_RINIT(yac),
-	PHP_RSHUTDOWN(yac),
+	NULL, /* RINIT removed: stats now live in the object ctx */
+	NULL, /* RSHUTDOWN removed: stats commit in yac_object_free */
 	PHP_MINFO(yac),
 	PHP_YAC_VERSION,
 	PHP_MODULE_GLOBALS(yac),
