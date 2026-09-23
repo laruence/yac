@@ -51,8 +51,8 @@
  * shifts unsigned (signed left-shift of negatives would be UB), decoding
  * relies on arithmetic right shift as every supported compiler does */
 static inline int yac_long_embedable(zend_long v) {
-	return (((zend_ulong)(v) + ((zend_ulong)1 << (sizeof(zend_long) * 8 - 4)))
-			>> (sizeof(zend_long) * 8 - 3)) == 0;
+	return (((zend_ulong)(v) + ((zend_ulong)1 << (sizeof(zend_long) * 8 - 3)))
+			>> (sizeof(zend_long) * 8 - 2)) == 0;
 }
 
 static inline int yac_str_embedable(zend_string *str) {
@@ -64,9 +64,9 @@ static inline int yac_arr_embedable(zend_array *arr) {
 }
 
 #define yac_embed_long(v) \
-	((char *)(uintptr_t)((((zend_ulong)(zend_long)(v)) << 3) | YAC_EMBED_LONG))
+	((char *)(uintptr_t)((((zend_ulong)(zend_long)(v)) << 2) | YAC_EMBED_LONG))
 #define yac_embed_long_val(p) \
-	((zend_long)(((zend_long)(uintptr_t)(p)) >> 3))
+	((zend_long)(((zend_long)(uintptr_t)(p)) >> 2))
 
 #define yac_embed_null()        ((char *)(uintptr_t)YAC_EMBED_NULL)
 #define yac_embed_true()        ((char *)(uintptr_t)YAC_EMBED_TRUE)
@@ -74,11 +74,11 @@ static inline int yac_arr_embedable(zend_array *arr) {
 #define yac_embed_empty_array() ((char *)(uintptr_t)YAC_EMBED_EMPTY_ARRAY)
 
 static inline char *yac_embed_str(const char *s, unsigned int len) {
-	uintptr_t u = YAC_EMBED_STR | ((uintptr_t)len << 3);
+	uintptr_t u = YAC_EMBED_STR | ((uintptr_t)len << 2);
 	unsigned int i;
 
 	for (i = 0; i < len; i++) {
-		u |= ((uintptr_t)(unsigned char)s[i]) << (6 + i * 8);
+		u |= ((uintptr_t)(unsigned char)s[i]) << (5 + i * 8);
 	}
 	return (char *)u;
 }
@@ -87,15 +87,6 @@ static inline char *yac_embed_str(const char *s, unsigned int len) {
  * and the caller degrades the hit to a miss */
 static zval* yac_embed_to_zval(const char *data, zval *rv) /* {{{ */ {
 	switch (((uintptr_t)data) & YAC_EMBED_MASK) {
-		case YAC_EMBED_NULL:
-			ZVAL_NULL(rv);
-			return rv;
-		case YAC_EMBED_TRUE:
-			ZVAL_TRUE(rv);
-			return rv;
-		case YAC_EMBED_FALSE:
-			ZVAL_FALSE(rv);
-			return rv;
 		case YAC_EMBED_LONG:
 			ZVAL_LONG(rv, yac_embed_long_val(data));
 			return rv;
@@ -118,13 +109,26 @@ static zval* yac_embed_to_zval(const char *data, zval *rv) /* {{{ */ {
 				}
 				return rv;
 			}
-		case YAC_EMBED_EMPTY_ARRAY:
+		case YAC_EMBED_SPECIAL:
+			switch ((uintptr_t)data) {
+				case YAC_EMBED_NULL:
+					ZVAL_NULL(rv);
+					return rv;
+				case YAC_EMBED_TRUE:
+					ZVAL_TRUE(rv);
+					return rv;
+				case YAC_EMBED_FALSE:
+					ZVAL_FALSE(rv);
+					return rv;
+				case YAC_EMBED_EMPTY_ARRAY:
 #if PHP_VERSION_ID >= 80000
-			ZVAL_EMPTY_ARRAY(rv);
+					ZVAL_EMPTY_ARRAY(rv);
 #else
-			array_init(rv);
+					array_init(rv);
 #endif
-			return rv;
+					return rv;
+			}
+			return NULL;
 		default:
 			return NULL;
 	}

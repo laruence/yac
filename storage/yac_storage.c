@@ -508,11 +508,11 @@ do_update:
 }
 /* }}} */
 
-/* an embedded long keeps the value in the top (word bits - 3) bits; the
+/* an embedded long keeps the value in the top (word bits - 2) bits; the
  * test mirrors yac_long_embedable() but on the stored word width */
 static inline int yac_long_stored(intptr_t v) {
-	return (((uintptr_t)v + ((uintptr_t)1 << (sizeof(uintptr_t) * 8 - 4)))
-			>> (sizeof(uintptr_t) * 8 - 3)) == 0;
+	return (((uintptr_t)v + ((uintptr_t)1 << (sizeof(uintptr_t) * 8 - 3)))
+			>> (sizeof(uintptr_t) * 8 - 2)) == 0;
 }
 
 int yac_storage_incr(yac_ctx *ctx, const char *key, unsigned int len, intptr_t step, intptr_t *newval) /* {{{ */ {
@@ -563,13 +563,13 @@ int yac_storage_incr(yac_ctx *ctx, const char *key, unsigned int len, intptr_t s
 		word = (uintptr_t)YAC_LOAD((const YAC_SLOT_V yac_kv_val **)&p->val);
 		ok = 0;
 		if ((word & YAC_EMBED_MASK) == YAC_EMBED_LONG) {
-			intptr_t cur = (intptr_t)word >> 3;
+			intptr_t cur = (intptr_t)word >> 2;
 
 			v = cur + step; /* both operands fit the range, so this cannot wrap */
 			if (yac_long_stored(v)) {
 				*newval = v;
 				YAC_STORE((YAC_SLOT_V yac_kv_val **)&p->val,
-						(yac_kv_val *)(((uintptr_t)v << 3) | YAC_EMBED_LONG));
+						(yac_kv_val *)(((uintptr_t)v << 2) | YAC_EMBED_LONG));
 				YAC_STORE(&p->u2.atime, ctx->tv);
 				ok = 1;
 			}

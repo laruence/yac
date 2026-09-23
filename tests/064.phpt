@@ -17,12 +17,12 @@ $yac->flush();
 
 /* a plain long that does not fit the embedded range is stored as a block;
  * incr refuses it */
-$max = (1 << 60) - 1;
+$max = (1 << 61) - 1;
 var_dump($yac->set("big", $max));
-var_dump($yac->incr("big", 1));   /* would reach 2^60: overflow, false */
+var_dump($yac->incr("big", 1));   /* would reach 2^61: overflow, false */
 var_dump($yac->get("big"));       /* $max, unchanged */
 
-var_dump($yac->set("big2", $max + 1)); /* 2^60: not embedable, stored as block */
+var_dump($yac->set("big2", $max + 1)); /* 2^61: not embedable, stored as block */
 var_dump($yac->incr("big2"));      /* block long: false */
 
 $yac->flush();
@@ -30,6 +30,6 @@ $yac->flush();
 --EXPECTF--
 bool(true)
 bool(false)
-int(1152921504606846975)
+int(2305843009213693951)
 bool(true)
 bool(false)
