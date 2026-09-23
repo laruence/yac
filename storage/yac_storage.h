@@ -21,6 +21,8 @@
 #ifndef YAC_STORAGE_H
 #define YAC_STORAGE_H
 
+#include <stdint.h>
+
 #ifndef MIN
 #define MIN(a, b) ((a) < (b)? (a) : (b))
 #endif
@@ -216,6 +218,10 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **dat
 /* if YAC_IS_EMBED(data), the tagged word itself is stored instead of
  * allocating a block (size is only kept as the displayed v_len) */
 int yac_storage_update(yac_ctx *ctx, const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add);
+/* atomic increment of an embedded long; the key must already hold one
+ * (no seeding, no coercion) and step/newval must fit the embedded range,
+ * else 0 is returned with the value untouched. *newval holds the new count */
+int yac_storage_incr(yac_ctx *ctx, const char *key, unsigned int len, intptr_t step, intptr_t *newval);
 int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl);
 void yac_storage_flush(void);
 /* fold a call context's accumulated hits/miss into the shared stats; the

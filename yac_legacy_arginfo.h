@@ -23,6 +23,13 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_class_Yac_delete, 0, 0, 1)
 	ZEND_ARG_INFO(0, delay)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_class_Yac_incr, 0, 0, 0)
+	ZEND_ARG_INFO(0, key)
+	ZEND_ARG_INFO(0, step)
+ZEND_END_ARG_INFO()
+
+#define arginfo_class_Yac_decr arginfo_class_Yac_incr
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_class_Yac_flush, 0, 0, 0)
 ZEND_END_ARG_INFO()
 
