@@ -170,7 +170,6 @@ typedef struct {
 	unsigned int hits;
 	unsigned int miss;
 	unsigned int kicks;
-	unsigned int occupied;
 	unsigned int fails;
 	unsigned int recycles;
 } yac_storage_stats;
@@ -178,7 +177,7 @@ typedef struct {
 /* per-process hits/miss accumulators, folded into the shared stats at
  * request shutdown; bumping the shared line on every hit bounced it
  * between cores and cost roughly a third of aggregate throughput. the
- * cold counters (kicks/fails/occupied/recycles) are incremented directly */
+ * cold counters (kicks/fails/recycles) are incremented directly */
 typedef struct {
 	unsigned int hits;
 	unsigned int miss;

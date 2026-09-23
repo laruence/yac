@@ -96,7 +96,6 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, yac_user_alloc_
 
 	YAC_SG(slots_size) 	= real_size;
 	YAC_SG(slots_mask) 	= real_size - 1;
-	YAC_SG(stats.occupied) = 0;
 	YAC_SG(stats.fails) = 0;
 	YAC_SG(stats.hits)  = 0;
 	YAC_SG(stats.miss)  = 0;
@@ -437,7 +436,6 @@ int yac_storage_update(const char *key, unsigned int len, char *data, unsigned i
 		}
 		k = snaps[i];
 		if (k.val == NULL) {
-			++YAC_SG(stats.occupied); /* this write occupies a new slot */
 			goto do_update; /* an insert takes the first empty slot on the path */
 		}
 		yac_prefetch(&YAC_SG(slots)[(h + stride) & YAC_SG(slots_mask)]);
@@ -534,10 +532,6 @@ void yac_storage_flush(void) /* {{{ */ {
 	 * died mid-publish -- the only thing in yac that does */
 	memset((char *)YAC_SG(slots), 0, sizeof(yac_kv_key) * YAC_SG(slots_size));
 
-	/* writers that slipped past the check above may have counted slots
-	 * they took while the sweep ran */
-	YAC_SG(stats.occupied) = 0;
-
 	/* full barrier (__sync_fetch_and_add / InterlockedExchangeAdd): the
 	 * memset is plain stores, this publishes them */
 	YAC_ATOMIC_ADD(&YAC_SG(in_flush), -1);
@@ -546,6 +540,7 @@ void yac_storage_flush(void) /* {{{ */ {
 
 yac_storage_info * yac_storage_get_info(void) /* {{{ */ {
 	yac_storage_info *info;
+	unsigned int i, occupied = 0;
 
 	/* fold this process's pending counts so the shared numbers are
 	 * accurate; the request keeps accumulating afterwards */
@@ -563,7 +558,17 @@ yac_storage_info * yac_storage_get_info(void) /* {{{ */ {
 	info->recycles = YAC_SG(stats.recycles);
 	info->start_time = YAC_SG(start_time);
 	info->slots_size = YAC_SG(slots_size);
-	info->occupied = YAC_SG(stats.occupied);
+
+	/* count live slots directly: a slot a writer is holding mid-publish
+	 * is skipped, which the old counter could not express */
+	for (i = 0; i < YAC_SG(slots_size); i++) {
+		yac_kv_key k;
+
+		if (yac_slot_snapshot(&YAC_SG(slots)[i], &k) && k.val != NULL) {
+			++occupied;
+		}
+	}
+	info->occupied = occupied;
 
 	return info;
 }
@@ -577,8 +582,8 @@ void yac_storage_free_info(yac_storage_info *info) /* {{{ */ {
 yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset, unsigned int *num, yac_dump_filter_t filter, void *ctx) /* {{{ */ {
 	yac_kv_key k;
 	yac_item_list *item, *list = NULL;
-	unsigned int size = YAC_SG(slots_size), occupied = YAC_SG(stats.occupied);
-	unsigned int i = 0, n = 0, skipped = 0, max = MIN(occupied, limit);
+	unsigned int size = YAC_SG(slots_size);
+	unsigned int i = 0, n = 0, skipped = 0, max = limit;
 
 	if (YAC_SG(in_flush)) {
 		return NULL;
