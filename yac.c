@@ -63,14 +63,15 @@ static inline int yac_arr_embedable(zend_array *arr) {
 	return zend_hash_num_elements(arr) == 0;
 }
 
-/* form pick for values that miss the val word: a tail word when the flag
- * fits its payload and the bytes fit the slot's key area, 0 for a block */
-static inline uintptr_t yac_tail_word(unsigned int key_len, unsigned int size, unsigned int flag) {
-	if (YAC_EMBED_TAIL_FITS(flag) && key_len + size <= YAC_STORAGE_MAX_KEY_LEN) {
-		return YAC_EMBED_TAIL_WORD(flag);
+static inline uintptr_t yac_try_inline(unsigned int key_len, unsigned int size, unsigned int flag) /* {{{ */ {
+	/* form pick for values that miss the val word: an inline word when
+	 * the bytes fit the slot's key area, 0 for a block */
+	if (key_len + size <= YAC_STORAGE_MAX_KEY_LEN) {
+		return YAC_EMBED_INLINE_WORD(flag);
 	}
 	return 0;
 }
+/* }}} */
 
 #define yac_embed_long(v) \
 	((uintptr_t)((((zend_ulong)(zend_long)(v)) << 2) | YAC_EMBED_LONG))
@@ -309,12 +310,12 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 				ret = yac_storage_update(&yac->ctx, key, key_len, NULL, 0, flag, yac_embed_long(Z_LVAL_P(value)), ttl, add);
 			} else {
 				ret = yac_storage_update(&yac->ctx, key, key_len, (char *)&Z_LVAL_P(value), sizeof(zend_long), flag,
-						yac_tail_word(key_len, sizeof(zend_long), flag), ttl, add);
+						yac_try_inline(key_len, sizeof(zend_long), flag), ttl, add);
 			}
 			break;
 		case IS_DOUBLE:
 			ret = yac_storage_update(&yac->ctx, key, key_len, (char *)&Z_DVAL_P(value), sizeof(double), flag,
-						yac_tail_word(key_len, sizeof(double), flag), ttl, add);
+						yac_try_inline(key_len, sizeof(double), flag), ttl, add);
 			break;
 		case IS_STRING:
 #ifdef IS_CONSTANT
@@ -359,11 +360,11 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 					flag |= YAC_ENTRY_COMPRESSED;
 					flag |= (Z_STRLEN_P(value) << YAC_ENTRY_ORIG_LEN_SHIT);
 					ret = yac_storage_update(&yac->ctx, key, key_len, compressed, compressed_len, flag,
-						yac_tail_word(key_len, compressed_len, flag), ttl, add);
+						0 /* compressed values always use blocks */, ttl, add);
 					efree(compressed);
 				} else {
 					ret = yac_storage_update(&yac->ctx, key, key_len, Z_STRVAL_P(value), Z_STRLEN_P(value), flag,
-						yac_tail_word(key_len, (unsigned int)Z_STRLEN_P(value), flag), ttl, add);
+						yac_try_inline(key_len, (unsigned int)Z_STRLEN_P(value), flag), ttl, add);
 				}
 			}
 			break;
@@ -417,11 +418,11 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 						flag |= YAC_ENTRY_COMPRESSED;
 						flag |= (buf.s->len << YAC_ENTRY_ORIG_LEN_SHIT);
 						ret = yac_storage_update(&yac->ctx, key, key_len, compressed, compressed_len, flag,
-						yac_tail_word(key_len, compressed_len, flag), ttl, add);
+						0 /* compressed values always use blocks */, ttl, add);
 						efree(compressed);
 					} else {
 						ret = yac_storage_update(&yac->ctx, key, key_len, ZSTR_VAL(buf.s), ZSTR_LEN(buf.s), flag,
-						yac_tail_word(key_len, (unsigned int)ZSTR_LEN(buf.s), flag), ttl, add);
+						yac_try_inline(key_len, (unsigned int)ZSTR_LEN(buf.s), flag), ttl, add);
 					}
 					smart_str_free(&buf);
 				} else {

@@ -45,7 +45,7 @@ var_dump($yac->get("k_sstr7"));
 var_dump(bin2hex($yac->get("k_nul")));
 var_dump($yac->get("k_empty_arr"));
 
-/* a big int must leave the val word on any platform (rides the key tail) */
+/* a big int must leave the val word on any platform (stored inline) */
 var_dump($yac->set("k_big", PHP_INT_MAX));
 var_dump($yac->get("k_big") === PHP_INT_MAX);
 

@@ -89,7 +89,7 @@ typedef struct {
  *   0x1 LONG          (zend_long in the high (word bits - 2) bits)
  *   0x2 SHORT_STR     ([4..2] length 0..YAC_EMBED_STR_MAX_LEN, bytes from bit 5)
  *   0x3 SPECIAL       (high bits: 0 NULL, 1 TRUE, 2 FALSE, 3 EMPTY_ARRAY,
- *                      4 TAIL: value bytes in the slot's key tail)
+ *                      4 INLINE: value bytes after the key)
  *
  * the zend-type aware helpers live in yac.c; this file stays plain C so
  * the allocator backends can include it without php.h
@@ -118,17 +118,15 @@ typedef struct {
 #define YAC_EMBED_STR_LEN(p)        ((unsigned int)((((uintptr_t)(p)) >> 2) & 0x7))
 #define YAC_EMBED_STR_DATA(p)       (((uintptr_t)(p)) >> 5)
 
-/* tail values: serialized bytes that fit the slot's unused key tail
- * (klen + size <= YAC_STORAGE_MAX_KEY_LEN), stored after the key instead
- * of a block. word = (flag << 5) | 0x13, length in YAC_KEY_VLEN; the flag
- * must fit the payload, whatever its layout */
-#define YAC_EMBED_TAIL              0x4
-#define YAC_EMBED_TAIL_BITS         0x13
-#define YAC_EMBED_TAIL_WORD(flag)   ((((uintptr_t)(flag)) << 5) | YAC_EMBED_TAIL_BITS)
-#define YAC_EMBED_TAIL_FLAG(p)      ((unsigned int)(((uintptr_t)(p)) >> 5))
-#define YAC_IS_EMBED_TAIL(p)        ((((uintptr_t)(p)) & 0x1f) == YAC_EMBED_TAIL_BITS)
-#define YAC_EMBED_TAIL_FLAG_BITS    (sizeof(uintptr_t) * 8 - 5)
-#define YAC_EMBED_TAIL_FITS(flag)   (((uintptr_t)(flag) >> YAC_EMBED_TAIL_FLAG_BITS) == 0)
+/* inline values: uncompressed value bytes that fit the slot's unused key
+ * area (klen + size <= YAC_STORAGE_MAX_KEY_LEN), stored after the key
+ * instead of a block. word = (flag << 5) | 0x13, length in YAC_KEY_VLEN;
+ * the flag is the plain zend type, compressed values always use blocks */
+#define YAC_EMBED_INLINE            0x4
+#define YAC_EMBED_INLINE_BITS       0x13
+#define YAC_EMBED_INLINE_WORD(flag) ((((uintptr_t)(flag)) << 5) | YAC_EMBED_INLINE_BITS)
+#define YAC_EMBED_INLINE_FLAG(p)    ((unsigned int)(((uintptr_t)(p)) >> 5))
+#define YAC_IS_EMBED_INLINE(p)      ((((uintptr_t)(p)) & 0x1f) == YAC_EMBED_INLINE_BITS)
 
 #define YAC_HASH_HOME(hash, mask)    ((hash) & (mask))
 /* odd, never zero: coprime with the power-of-two slot count, so a probe

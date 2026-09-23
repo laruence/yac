@@ -233,11 +233,11 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **dat
 				int stale = k.u2.atime != tv;
 				int sampled = YAC_HITS_SAMPLE(ctx);
 
-				if (YAC_IS_EMBED_TAIL(k.val)) {
+				if (YAC_IS_EMBED_INLINE(k.val)) {
 					/* materialize from the snapshot; the seq check
 					 * already certified the bytes, no crc guard */
 					unsigned int vlen = YAC_KEY_VLEN(k);
-					unsigned int tflag = YAC_EMBED_TAIL_FLAG(k.val);
+					unsigned int tflag = YAC_EMBED_INLINE_FLAG(k.val);
 					char *s = user_alloc(vlen, tflag, 0);
 
 					memcpy(s, k.key + YAC_KEY_KLEN(k), vlen);
@@ -384,7 +384,7 @@ static inline int yac_storage_fill_value(yac_ctx *ctx, yac_kv_key *k, unsigned i
 	 * word (0 = block path). every field but h/ttl/key/len is set for the
 	 * caller to commit, 0 when no value block could be allocated */
 	if (word) {
-		if (YAC_IS_EMBED_TAIL(word)) {
+		if (YAC_IS_EMBED_INLINE(word)) {
 			memcpy(k->key + len, data, size);
 		}
 		k->val = (yac_kv_val *)word;
@@ -506,10 +506,10 @@ do_update:
 	}
 	YAC_STORE(&p->h, k.h);
 	YAC_STORE(&p->ttl, k.ttl);
-	/* the words the key spans, plus a tail value's; nothing compares
-	 * past klen, so a longer predecessor's tail may stay behind */
+	/* the words the key spans, plus an inline value's; nothing compares
+	 * past klen, so a longer predecessor's trailing bytes may stay behind */
 	{
-		unsigned int span = YAC_IS_EMBED_TAIL(k.val) ? len + size : len;
+		unsigned int span = YAC_IS_EMBED_INLINE(k.val) ? len + size : len;
 		for (w = 0; w < (span + sizeof(uintptr_t) - 1) / sizeof(uintptr_t); w++) {
 			uintptr_t word;
 
@@ -720,12 +720,12 @@ yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset, unsign
 		item->embedded = YAC_IS_EMBED(k.val) != 0;
 		if (item->embedded) {
 			/* no value block: atime/hits live in the slot's unions;
-			 * only tail entries carry a flag */
+			 * only inline entries carry a flag */
 			item->atime = k.u2.atime;
 			item->hits = k.u1.hits;
 			item->crc = 0;
 			item->size = 0;
-			item->flag = YAC_IS_EMBED_TAIL(k.val) ? YAC_EMBED_TAIL_FLAG(k.val) : 0;
+			item->flag = YAC_IS_EMBED_INLINE(k.val) ? YAC_EMBED_INLINE_FLAG(k.val) : 0;
 		} else {
 			item->atime = k.val->atime;
 			item->hits = k.val->hits;

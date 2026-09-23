@@ -1,8 +1,8 @@
 --TEST--
 Yac::dump() reports embedded entries (embedded => bool)
 --DESCRIPTION--
-Val-word embeds and key-tail values report embedded=true with size/crc 0;
-only tail entries have a real v_len. Block values report embedded=false.
+Val-word embeds and key-inline values report embedded=true with size/crc 0;
+only inline entries have a real v_len. Block values report embedded=false.
 Assertions are stable across 32/64-bit builds.
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
@@ -43,17 +43,17 @@ foreach ($embed_keys as $key) {
 	var_dump($item["embedded"], $item["size"], $item["crc"]);
 }
 
-/* 7-byte string: val word on 64-bit, tail on 32-bit */
+/* 7-byte string: val word on 64-bit, inline on 32-bit */
 $yac->set("emb_sstr7", "abcdefg");
 var_dump(dump_find($yac, "emb_sstr7")["embedded"]);
 
-/* too big for the val word, fit the key tail */
-$tail_keys = array("emb_big", "emb_dbl", "emb_arr");
+/* too big for the val word, small enough to store inline */
+$inline_keys = array("emb_big", "emb_dbl", "emb_arr");
 $yac->set("emb_big", PHP_INT_MAX);
 $yac->set("emb_dbl", 3.14);
 $yac->set("emb_arr", array("a" => 1));
 
-foreach ($tail_keys as $key) {
+foreach ($inline_keys as $key) {
 	$item = dump_find($yac, $key);
 	var_dump($item["embedded"], $item["v_len"] > 0, $item["size"]);
 }
