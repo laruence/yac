@@ -540,6 +540,18 @@ void yac_storage_flush(void) /* {{{ */ {
 }
 /* }}} */
 
+void yac_storage_commit_stats(yac_ctx *ctx) /* {{{ */ {
+	if (ctx->hits) {
+		YAC_ATOMIC_ADD(&YAC_SG(stats.hits), ctx->hits);
+		ctx->hits = 0;
+	}
+	if (ctx->miss) {
+		YAC_ATOMIC_ADD(&YAC_SG(stats.miss), ctx->miss);
+		ctx->miss = 0;
+	}
+}
+/* }}} */
+
 yac_storage_info * yac_storage_get_info(void) /* {{{ */ {
 	yac_storage_info *info;
 	unsigned int i, occupied = 0;

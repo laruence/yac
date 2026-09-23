@@ -218,6 +218,9 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **dat
 int yac_storage_update(yac_ctx *ctx, const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, int ttl, int add);
 int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl);
 void yac_storage_flush(void);
+/* fold a call context's accumulated hits/miss into the shared stats; the
+ * ctx keeps counting afterwards */
+void yac_storage_commit_stats(yac_ctx *ctx);
 const char * yac_storage_shared_memory_name(void);
 yac_storage_info * yac_storage_get_info(void);
 void yac_storage_free_info(yac_storage_info *info);

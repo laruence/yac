@@ -38,7 +38,6 @@
 #include "yac_legacy_arginfo.h"
 #endif
 #include "storage/yac_storage.h"
-#include "storage/yac_atomic.h"
 #include "storage/allocator/yac_allocator.h"
 #include "serializer/yac_serializer.h"
 #ifdef HAVE_LZ4_H
@@ -702,14 +701,7 @@ static zend_object *yac_object_new(zend_class_entry *ce) /* {{{ */ {
  * down any request-local objects it holds */
 static void yac_object_commit_stats(yac_object *yac) /* {{{ */ {
 	if (YAC_G(enable)) {
-		if (yac->ctx.hits) {
-			YAC_ATOMIC_ADD(&YAC_SG(stats.hits), yac->ctx.hits);
-			yac->ctx.hits = 0;
-		}
-		if (yac->ctx.miss) {
-			YAC_ATOMIC_ADD(&YAC_SG(stats.miss), yac->ctx.miss);
-			yac->ctx.miss = 0;
-		}
+		yac_storage_commit_stats(&yac->ctx);
 	}
 }
 /* }}} */
