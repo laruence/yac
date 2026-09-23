@@ -1,5 +1,5 @@
 --TEST--
-Yac::incr() refuses block-stored longs beyond the embedded range (64-bit)
+Yac::incr() refuses inline-stored longs beyond the embedded range (64-bit)
 --SKIPIF--
 <?php
 if (!extension_loaded("yac")) print "skip";
@@ -15,15 +15,15 @@ yac.values_memory_size=32M
 $yac = new Yac();
 $yac->flush();
 
-/* a plain long that does not fit the embedded range is stored as a block;
- * incr refuses it */
+/* a plain long that does not fit the embedded range is stored inline
+ * (raw 8 bytes); incr refuses it */
 $max = (1 << 61) - 1;
 var_dump($yac->set("big", $max));
 var_dump($yac->incr("big", 1));   /* would reach 2^61: overflow, false */
 var_dump($yac->get("big"));       /* $max, unchanged */
 
-var_dump($yac->set("big2", $max + 1)); /* 2^61: not embedable, stored as block */
-var_dump($yac->incr("big2"));      /* block long: false */
+var_dump($yac->set("big2", $max + 1)); /* 2^61: not embedable, stored inline */
+var_dump($yac->incr("big2"));      /* inline long: false */
 
 $yac->flush();
 ?>

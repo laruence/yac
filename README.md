@@ -340,6 +340,39 @@ Removes a stored variable from the cache. If `$delay` is specified (in seconds),
 
 Returns `true` on success, `false` on failure.
 
+### Yac::incr / Yac::decr
+
+```php
+Yac::incr(string $key[, int $step = 1]): int|false
+Yac::decr(string $key[, int $step = 1]): int|false
+```
+
+Atomically increments (or decrements) an integer counter by `$step` and
+returns the new value. (since Yac 2.5.0)
+
+Counters only work on integers that fit the slot's embedded value word:
+**[-2^61, 2^61-1] on 64-bit systems, [-2^29, 2^29-1] on 32-bit systems**.
+Larger integers are stored outside the value word and cannot be counted.
+
+Returns `false`, leaving the stored value untouched, when:
+
+- the key does not exist — counters are never auto-seeded, `set()` the
+  initial value first
+- the stored value is not an integer (string, float, array, …)
+- the stored integer, or `$step` itself, is outside the range above
+- the result would leave the range
+
+```php
+<?php
+$yac = new Yac();
+$yac->set("counter", 5);
+$yac->incr("counter");       // 6
+$yac->incr("counter", 3);    // 9
+$yac->decr("counter", 4);    // 5
+$yac->incr("missing");       // false — not auto-seeded
+?>
+```
+
 ### Yac::flush
 
 ```php
@@ -465,9 +498,12 @@ Dump cache entries for debugging. Returns an array of entries, each containing:
 
 Small values are **embedded** in the slot itself instead of allocating a value
 block: `NULL`, booleans, small integers, strings up to 7 bytes and empty
-arrays. Embedded entries allocate no value memory at all, so for them `crc`
-and `size` are reported as `0`, while `atime` and `hits` are kept in the slot
-and remain meaningful.
+arrays live in the slot's value pointer, and values too big for the pointer
+but fitting the slot's unused key area (key length + value size ≤ 48 bytes)
+are stored **inline** right after the key. Embedded entries allocate no value
+memory at all, so for them `crc` and `size` are reported as `0`, while
+`atime` and `hits` are kept in the slot and remain meaningful; for inline
+entries `v_len` reports the stored byte count.
 
 `$limit` controls the maximum number of entries returned (default 100). Passing `-1` dumps **all** entries — intended for debugging only: the whole result is materialized as a PHP array and can consume a lot of memory on a busy cache.
 

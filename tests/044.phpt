@@ -2,9 +2,11 @@
 Embedded scalar values (tagged val pointers)
 --DESCRIPTION--
 NULL/bool/small ints/strings up to 7 bytes/empty arrays are stored embedded
-in the slot's val pointer (low 3 tag bits) without allocating a value
-block. This covers round-trips, the large-int fallback to the block path,
-embedded/block transitions on the same key, add() semantics, delete and ttl.
+in the slot's val pointer (low 2 tag bits) without allocating a value
+block; values too big for the word but fitting the slot's key area are
+stored inline there. This covers round-trips, the large-int/double
+fallback off the val word, embedded/inline/block transitions on the same
+key, add() semantics, delete and ttl.
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--

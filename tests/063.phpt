@@ -1,5 +1,5 @@
 --TEST--
-Yac::incr()/decr() only touch embedded longs
+Yac::incr()/decr() only step val-word longs
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--

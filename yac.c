@@ -915,8 +915,8 @@ static zval* yac_incr_impl(yac_object *yac, zend_string *name, zend_long step, z
 		return NULL;
 	}
 
-	/* the key must already hold an embedded long; an absent key, a value of
-	 * another type, or a step/result that leaves the embedded range all fail
+	/* the key must already hold a val-word long; an absent key, a value of
+	 * another type, or a step/result that leaves the val-word range all fail
 	 * without touching the stored value */
 	if (!yac_storage_incr(&yac->ctx, key, key_len, (intptr_t)step, &newval)) {
 		return NULL;

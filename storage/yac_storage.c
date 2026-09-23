@@ -528,7 +528,7 @@ do_update:
 }
 /* }}} */
 
-/* an embedded long keeps the value in the top (word bits - 2) bits; the
+/* a val-word long keeps the value in the top (word bits - 2) bits; the
  * test mirrors yac_long_embedable() but on the stored word width */
 static inline int yac_long_stored(intptr_t v) {
 	return (((uintptr_t)v + ((uintptr_t)1 << (sizeof(uintptr_t) * 8 - 3)))
@@ -541,10 +541,10 @@ int yac_storage_incr(yac_ctx *ctx, const char *key, unsigned int len, intptr_t s
 	yac_kv_key k;
 	YAC_SLOT_V yac_kv_key *p;
 
-	/* read-modify-write on an embedded long; the slot claim window is the
+	/* read-modify-write on a val-word long; the slot claim window is the
 	 * atomic boundary, same last-writer-wins ceiling as update(). the key
-	 * must already hold an embedded long (no 0-seeding, no type coercion),
-	 * and a step or result that leaves the embedded range is refused with
+	 * must already hold a val-word long (no 0-seeding, no type coercion),
+	 * and a step or result that leaves the val-word range is refused with
 	 * the value left untouched */
 	if (!yac_long_stored(step)) {
 		return 0; /* a step this large can never fit the counter */
@@ -574,7 +574,7 @@ int yac_storage_incr(yac_ctx *ctx, const char *key, unsigned int len, intptr_t s
 			h = (h + stride) & YAC_SG(slots_mask);
 			continue;
 		}
-		/* the slot holds an embedded long. re-read the live word under the
+		/* the slot holds a val-word long. re-read the live word under the
 		 * claim before deciding, so a writer that swapped a block or another
 		 * tag in for the long is not clobbered */
 		if (!YAC_SLOT_CLAIM(p)) {
