@@ -205,8 +205,9 @@ PHP_INI_END()
 
 #define Z_YACOBJ_P(zv)   (php_yac_fetch_object(Z_OBJ_P(zv)))
 
-#if SIZEOF_SIZE_T == 8
-/* the key buffer must stay 8-aligned for yac_hash's 64-bit fast path */
+#if SIZEOF_SIZE_T == 8 && defined(ZEND_STATIC_ASSERT)
+/* the key buffer must stay 8-aligned for yac_hash's 64-bit fast path;
+ * ZEND_STATIC_ASSERT is only available as of PHP 8.3 */
 ZEND_STATIC_ASSERT((offsetof(yac_object, prefix) % 8) == 0, "yac_object prefix must be 8-aligned");
 #endif
 

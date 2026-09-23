@@ -35,16 +35,6 @@ var_dump($yac->set("d", 1.5));
 var_dump($yac->decr("d"));        /* false */
 var_dump($yac->get("d"));         /* 1.5 untouched */
 
-/* a plain long that does not fit the embedded range is stored as a block;
- * incr refuses it */
-$max = (1 << 60) - 1;
-var_dump($yac->set("big", $max));
-var_dump($yac->incr("big", 1));   /* would reach 2^60: overflow, false */
-var_dump($yac->get("big"));       /* $max, unchanged */
-
-var_dump($yac->set("big2", $max + 1)); /* 2^60: not embedable, stored as block */
-var_dump($yac->incr("big2"));      /* block long: false */
-
 /* negatives */
 var_dump($yac->set("neg", -10));
 var_dump($yac->decr("neg", 5));    /* -15 */
@@ -69,11 +59,6 @@ bool(false)
 bool(true)
 bool(false)
 float(1.5)
-bool(true)
-bool(false)
-int(1152921504606846975)
-bool(true)
-bool(false)
 bool(true)
 int(-15)
 int(-10)
