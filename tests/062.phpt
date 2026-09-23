@@ -21,12 +21,12 @@ $yac_b->set("k1", "v3");
 $yac_raw->set("plain", "v4");
 
 /* prefixed instance sees only its own entries, keys without the prefix */
-$keys_a = array_map(fn($i) => $i["key"], $yac_a->dump(100));
+$keys_a = array_map(function ($i) { return $i["key"]; }, $yac_a->dump(100));
 sort($keys_a);
 var_dump($keys_a);
 
 /* a different prefix sees a different set */
-$keys_b = array_map(fn($i) => $i["key"], $yac_b->dump(100));
+$keys_b = array_map(function ($i) { return $i["key"]; }, $yac_b->dump(100));
 var_dump($keys_b);
 
 /* the prefix must not be leaked into the keys */
@@ -34,23 +34,23 @@ var_dump(in_array("a_k1", $keys_a));
 var_dump(in_array("b_k1", $keys_a));
 
 /* unprefixed instance: no filtering, sees every entry with prefixes intact */
-$keys_raw = array_map(fn($i) => $i["key"], $yac_raw->dump(100));
+$keys_raw = array_map(function ($i) { return $i["key"]; }, $yac_raw->dump(100));
 sort($keys_raw);
 var_dump($keys_raw);
 
 /* a_->set("b_k1") is stored as a_b_k1; the a_ instance strips the prefix, showing it as "b_k1" */
 $yac_a->set("b_k1", "v5");
-$keys_a2 = array_map(fn($i) => $i["key"], $yac_a->dump(100));
+$keys_a2 = array_map(function ($i) { return $i["key"]; }, $yac_a->dump(100));
 sort($keys_a2);
 var_dump($keys_a2);
 
 /* unprefixed instance sees every entry, including a_b_k1 (now 5 entries) */
-$keys_all = array_map(fn($i) => $i["key"], $yac_raw->dump(100));
+$keys_all = array_map(function ($i) { return $i["key"]; }, $yac_raw->dump(100));
 sort($keys_all);
 var_dump($keys_all);
 
 /* offset counts only matching entries: skip the first of a_ */
-$page = array_map(fn($i) => $i["key"], $yac_a->dump(100, 2));
+$page = array_map(function ($i) { return $i["key"]; }, $yac_a->dump(100, 2));
 sort($page);
 var_dump(count($page));
 
