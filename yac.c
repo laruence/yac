@@ -527,7 +527,7 @@ static inline void yac_add_update_internal(INTERNAL_FUNCTION_PARAMETERS, int add
 }
 /* }}} */
 
-static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zval *rv) /* {{{ */ {
+static zval* yac_get_impl(yac_object *yac, zend_string *name, zval *rv) /* {{{ */ {
 	uint32_t flag, size = 0;
 	char *data, *msg;
 	const char *key;
@@ -537,7 +537,7 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, uint32_t *cas, zva
 		return NULL;
 	}
 
-	if (yac_storage_find(&yac->ctx, key, key_len, &data, &size, &flag, (int *)cas)) {
+	if (yac_storage_find(&yac->ctx, key, key_len, &data, &size, &flag)) {
 		if (YAC_IS_EMBED(data)) {
 			/* the value word itself, no heap buffer to free */
 			return yac_embed_to_zval(data, rv);
@@ -630,12 +630,11 @@ static zval* yac_get_multi_impl(yac_object *yac, zval *keys, zval *def, zval *rv
 	array_init(rv);
 
 	ZEND_HASH_FOREACH_VAL(ht, value) {
-		uint32_t lcas = 0;
 		zval *v, tmp;
 
 		switch (Z_TYPE_P(value)) {
 			case IS_STRING:
-				if ((v = yac_get_impl(yac, Z_STR_P(value), &lcas, &tmp))) {
+				if ((v = yac_get_impl(yac, Z_STR_P(value), &tmp))) {
 					zend_symtable_update(Z_ARRVAL_P(rv), Z_STR_P(value), v);
 				} else if (def) {
 					/* every miss slot owns its own refcount; copying here keeps
@@ -647,7 +646,7 @@ static zval* yac_get_multi_impl(yac_object *yac, zval *keys, zval *def, zval *rv
 			default:
 				{
 					zend_string *key = zval_get_string(value);
-					if ((v = yac_get_impl(yac, key, &lcas, &tmp))) {
+					if ((v = yac_get_impl(yac, key, &tmp))) {
 						zend_symtable_update(Z_ARRVAL_P(rv), key, v);
 					} else if (def) {
 						zend_symtable_update(Z_ARRVAL_P(rv), key, def);
@@ -762,7 +761,7 @@ static zval* yac_read_property(void /* for PHP8 compatibility */ *zobj, void *na
 	member = (zend_string*)name;
 #endif
 
-	if (yac_get_impl(yac, member, NULL, rv)) {
+	if (yac_get_impl(yac, member, rv)) {
 		return rv;
 	}
 
@@ -849,7 +848,6 @@ PHP_METHOD(yac, set) {
 /** {{{ proto public Yac::get(mixed $keys[, mixed $default = NULL])
 */
 PHP_METHOD(yac, get) {
-	uint32_t lcas = 0;
 	zval *ret, *keys, *def = NULL;
 
 	ZEND_PARSE_PARAMETERS_START(1, 2)
@@ -861,10 +859,10 @@ PHP_METHOD(yac, get) {
 	if (Z_TYPE_P(keys) == IS_ARRAY) {
 		ret = yac_get_multi_impl(Z_YACOBJ_P(getThis()), keys, def, return_value);
 	} else if (Z_TYPE_P(keys) == IS_STRING) {
-		ret = yac_get_impl(Z_YACOBJ_P(getThis()), Z_STR_P(keys), &lcas, return_value);
+		ret = yac_get_impl(Z_YACOBJ_P(getThis()), Z_STR_P(keys), return_value);
 	} else {
 		zend_string *key = zval_get_string(keys);
-		ret = yac_get_impl(Z_YACOBJ_P(getThis()), key, &lcas, return_value);
+		ret = yac_get_impl(Z_YACOBJ_P(getThis()), key, return_value);
 		zend_string_release(key);
 	}
 

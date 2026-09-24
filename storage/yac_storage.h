@@ -225,7 +225,7 @@ int yac_storage_startup(unsigned long first_size, unsigned long size, yac_user_a
 void yac_storage_shutdown(void);
 /* data carries either a heap buffer (*data is an efree-able copy) or an
  * embedded value word (test with YAC_IS_EMBED); size is 0 for embeds */
-int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas);
+int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag);
 /* if YAC_IS_EMBED(data), the tagged word itself is stored instead of
  * allocating a block (size is only kept as the displayed v_len) */
 int yac_storage_update(yac_ctx *ctx, const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, uintptr_t word, int ttl, int add);

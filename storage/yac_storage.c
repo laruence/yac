@@ -188,7 +188,7 @@ static inline int yac_slot_snapshot(const YAC_SLOT_V yac_kv_key *p, yac_kv_key *
 }
 /* }}} */
 
-int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag, int *cas) /* {{{ */ {
+int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **data, unsigned int *size, unsigned int *flag) /* {{{ */ {
 	uint64_t h, hash, stride;
 	unsigned int i;
 	yac_kv_key k;
