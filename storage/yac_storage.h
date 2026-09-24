@@ -149,6 +149,9 @@ typedef struct _yac_item_list {
 	unsigned int flag;
 	unsigned int size;
 	unsigned char embedded;
+	/* the slot's value word: tagged embed word, or block pointer. dump()
+	 * ignores it; peek() decodes the value form from it */
+	uintptr_t val;
 	unsigned char key[YAC_STORAGE_MAX_KEY_LEN];
 	struct _yac_item_list *next;
 } yac_item_list;
@@ -235,9 +238,10 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **dat
  * allocating a block (size is only kept as the displayed v_len) */
 int yac_storage_update(yac_ctx *ctx, const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, uintptr_t word, int ttl, int add);
 int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl);
-/* existence probe: reports whether a live entry is stored, without copying
- * the value or touching its atime/hits (an expired entry counts as absent) */
-int yac_storage_exists(yac_ctx *ctx, const char *key, unsigned int len);
+/* non-destructive probe: on a live hit, folds the slot into *out (the dump()
+ * item form, val word included) and returns 1, else 0. reads no value block
+ * and touches no atime/hits, so peeking is not an access the way find() is */
+int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_item_list *out);
 void yac_storage_flush(void);
 /* fold a call context's accumulated hits/miss into the shared stats; the
  * ctx keeps counting afterwards */

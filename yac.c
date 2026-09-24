@@ -706,6 +706,7 @@ static int yac_delete_multi_impl(yac_object *yac, zval *keys, int ttl) /* {{{ */
 /* }}} */
 
 static int yac_has_impl(yac_object *yac, zend_string *name) /* {{{ */ {
+	yac_item_list item;
 	const char *key;
 	size_t key_len;
 
@@ -713,7 +714,68 @@ static int yac_has_impl(yac_object *yac, zend_string *name) /* {{{ */ {
 		return 0;
 	}
 
-	return yac_storage_exists(&yac->ctx, key, key_len);
+	return yac_storage_peek(&yac->ctx, key, key_len, &item);
+}
+/* }}} */
+
+/* only an embedded NULL word reads as "not set"; every other form is a
+ * stored, non-null value */
+static inline int yac_item_is_null(const yac_item_list *item) /* {{{ */ {
+	return item->embedded && item->val == YAC_EMBED_NULL;
+}
+/* }}} */
+
+/* emptiness from the peeked item alone. every falsy value is embedded or
+ * inline, so peek() settles it with no value read -- except a block double,
+ * whose bytes live in the block: fall back to a full get() */
+static int yac_item_is_empty(yac_object *yac, zend_string *name, const yac_item_list *item) /* {{{ */ {
+	uintptr_t word = item->val;
+
+	if (item->embedded) {
+		if (YAC_IS_EMBED_INLINE(word)) {
+			/* inline long is never 0, inline string is never "" or "0";
+			 * only a double can be falsy */
+			if ((item->flag & YAC_ENTRY_TYPE_MASK) == IS_DOUBLE && item->v_len == sizeof(double)) {
+				double d;
+				memcpy(&d, item->key + item->k_len, sizeof(double));
+				return d == 0.0;
+			}
+			return 0;
+		}
+		switch (word & YAC_EMBED_MASK) {
+			case YAC_EMBED_LONG:
+				return yac_embed_long_val(word) == 0;
+			case YAC_EMBED_STR:
+				{
+					unsigned int slen = YAC_EMBED_STR_LEN(word);
+					if (slen == 0) {
+						return 1; /* "" */
+					}
+					return slen == 1 && ((word >> 5) & 0xff) == '0'; /* "0" */
+				}
+			case YAC_EMBED_SPECIAL:
+				/* NULL, FALSE, empty array are empty; TRUE is not.
+				 * INLINE shares the tag but was handled above */
+				return word != YAC_EMBED_TRUE;
+		}
+		return 0;
+	}
+
+	/* a block double is the one falsy value peek() can't see -- its bytes
+	 * live in the block, not the item -- so defer to a full get(). every
+	 * other block form is necessarily non-empty */
+	if (((item->flag & YAC_ENTRY_TYPE_MASK) == IS_DOUBLE) && !(item->flag & YAC_ENTRY_COMPRESSED)) {
+		zval rv, *v;
+		int ret;
+		if ((v = yac_get_impl(yac, name, &rv)) == NULL) {
+			return 1;
+		}
+		ret = !zend_is_true(v);
+		zval_ptr_dtor(v);
+		return ret;
+	}
+
+	return 0;
 }
 /* }}} */
 
@@ -825,8 +887,9 @@ static void yac_unset_property(void *zobj, void *name, void **cache_slot) /* {{{
 static int yac_has_property(void *zobj, void *name, int has_set_exists, void **cache_slot) /* {{{ */ {
 	yac_object *yac;
 	zend_string *member;
-	zval rv, *v;
-	int ret;
+	yac_item_list item;
+	const char *key;
+	size_t key_len;
 
 #if PHP_VERSION_ID < 80000
 	yac = Z_YACOBJ_P((zval*)zobj);
@@ -836,18 +899,23 @@ static int yac_has_property(void *zobj, void *name, int has_set_exists, void **c
 	member = (zend_string*)name;
 #endif
 
-	/* 0 = isset, 1 = empty, 2 = property_exists. property_exists is existence
-	 * only; isset/empty must read the value to tell null (or falsy) from a miss */
-	if (has_set_exists == YAC_PROPERTY_EXISTS) {
-		return yac_has_impl(yac, member);
+	if ((key = yac_assemble_key(yac, member, &key_len)) == NULL) {
+		return 0;
 	}
 
-	if ((v = yac_get_impl(yac, member, &rv)) == NULL) {
-		return 0; /* miss: neither set nor non-empty */
+	/* one probe settles all three; peek() does not count as an access */
+	if (!yac_storage_peek(&yac->ctx, key, key_len, &item)) {
+		return 0; /* miss: not set, empty, nonexistent alike */
 	}
-	ret = has_set_exists == 0 ? (Z_TYPE_P(v) != IS_NULL) : zend_is_true(v);
-	zval_ptr_dtor(v);
-	return ret;
+
+	/* 0 = isset, 1 = empty, 2 = property_exists */
+	if (has_set_exists == YAC_PROPERTY_EXISTS) {
+		return 1;
+	}
+	if (has_set_exists == 0) {
+		return !yac_item_is_null(&item);
+	}
+	return !yac_item_is_empty(yac, member, &item);
 }
 /* }}} */
 

@@ -353,7 +353,41 @@ int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl)
 }
 /* }}} */
 
-int yac_storage_exists(yac_ctx *ctx, const char *key, unsigned int len) /* {{{ */ {
+/* fold a slot snapshot into the item form both dump() and peek() report;
+ * the val word rides along so peek() needs no second trip into shm */
+static inline void yac_item_fill(yac_item_list *item, const yac_kv_key *k, unsigned int index) /* {{{ */ {
+	item->index = index;
+	item->h = k->h;
+	item->ttl = k->ttl;
+	item->k_len = YAC_KEY_KLEN(*k);
+	item->v_len = YAC_KEY_VLEN(*k);
+	item->val = (uintptr_t)k->val;
+	item->embedded = YAC_IS_EMBED(k->val) != 0;
+	if (item->embedded) {
+		/* no value block: atime/hits live in the slot's unions;
+		 * only inline entries carry a flag */
+		item->atime = k->u2.atime;
+		item->hits = k->u1.hits;
+		item->crc = 0;
+		item->size = 0;
+		item->flag = YAC_IS_EMBED_INLINE(k->val) ? YAC_EMBED_INLINE_FLAG(k->val) : 0;
+	} else {
+		item->atime = k->val->atime;
+		item->hits = k->val->hits;
+		item->crc = k->u2.crc;
+		item->size = k->u2.size;
+		item->flag = k->u1.flag;
+	}
+	memcpy(item->key, k->key, item->k_len);
+	if (YAC_IS_EMBED_INLINE(k->val)) {
+		/* an inline value's bytes ride past k_len in the key area; copy them
+		 * too (k_len + v_len <= 48). dump() ignores the extra bytes */
+		memcpy(item->key + item->k_len, k->key + item->k_len, item->v_len);
+	}
+}
+/* }}} */
+
+int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_item_list *out) /* {{{ */ {
 	uint64_t h, hash, stride;
 	unsigned int i;
 	yac_kv_key k;
@@ -367,8 +401,8 @@ int yac_storage_exists(yac_ctx *ctx, const char *key, unsigned int len) /* {{{ *
 		return 0; /* the flush removes the key regardless */
 	}
 
-	/* probe only: reads the metadata snapshot, never the value, and touches no
-	 * atime/hits -- has() must not count as an access the way get() does */
+	/* probe only: folds the slot into item form, never reads the value
+	 * block, never touches atime/hits. an expired entry counts as absent */
 	hash = yac_hash(key, len);
 	h = YAC_HASH_HOME(hash, YAC_SG(slots_mask));
 	stride = YAC_HASH_STRIDE(hash, YAC_SG(slots_mask));
@@ -382,7 +416,11 @@ int yac_storage_exists(yac_ctx *ctx, const char *key, unsigned int len) /* {{{ *
 		}
 		yac_prefetch(&YAC_SG(slots)[(h + stride) & YAC_SG(slots_mask)]);
 		if (YAC_HASH_MATCH(k.h, hash) && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
-			return !(k.ttl && k.ttl <= tv); /* expired counts as absent */
+			if (k.ttl && k.ttl <= tv) {
+				return 0;
+			}
+			yac_item_fill(out, &k, h);
+			return 1;
 		}
 		h = (h + stride) & YAC_SG(slots_mask);
 	}
@@ -680,28 +718,7 @@ yac_item_list * yac_storage_dump(unsigned int limit, unsigned int offset, unsign
 			continue;
 		}
 		item = user_alloc(sizeof(yac_item_list), 0, 1);
-		item->index = i;
-		item->h = k.h;
-		item->ttl = k.ttl;
-		item->k_len = YAC_KEY_KLEN(k);
-		item->v_len = YAC_KEY_VLEN(k);
-		item->embedded = YAC_IS_EMBED(k.val) != 0;
-		if (item->embedded) {
-			/* no value block: atime/hits live in the slot's unions;
-			 * only inline entries carry a flag */
-			item->atime = k.u2.atime;
-			item->hits = k.u1.hits;
-			item->crc = 0;
-			item->size = 0;
-			item->flag = YAC_IS_EMBED_INLINE(k.val) ? YAC_EMBED_INLINE_FLAG(k.val) : 0;
-		} else {
-			item->atime = k.val->atime;
-			item->hits = k.val->hits;
-			item->crc = k.u2.crc;
-			item->size = k.u2.size;
-			item->flag = k.u1.flag;
-		}
-		memcpy(item->key, k.key, item->k_len);
+		yac_item_fill(item, &k, i);
 		item->next = list;
 		list = item;
 		++n;

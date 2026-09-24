@@ -1,5 +1,5 @@
 --TEST--
-isset()/empty()/property_exists() on Yac map to stored entries
+isset()/empty()/property_exists() on Yac read a stored entry without touching its LRU state
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--
@@ -18,6 +18,7 @@ $yac->set("n", null);
 $yac->set("f", false);
 $yac->set("e", "");
 $yac->set("z", 0);
+$yac->set("s0", "0");
 $yac->set("big", str_repeat("x", 100));   /* block value path */
 
 /* isset(): stored and not null. A stored null reads like a miss here, which
@@ -25,14 +26,44 @@ $yac->set("big", str_repeat("x", 100));   /* block value path */
 var_dump(isset($yac->i), isset($yac->s), isset($yac->n), isset($yac->f),
         isset($yac->e), isset($yac->z), isset($yac->big), isset($yac->miss));
 
-/* empty(): stored and falsy, or absent */
+/* empty(): stored and falsy, or absent. Every falsy value is embedded or
+ * inline, so peek() settles them with no value read */
 var_dump(empty($yac->i), empty($yac->n), empty($yac->f), empty($yac->e),
-        empty($yac->z), empty($yac->big), empty($yac->miss));
+        empty($yac->z), empty($yac->s0), empty($yac->big), empty($yac->miss));
 
 /* property_exists(): stored at all, a null included */
 var_dump(property_exists($yac, "i"), property_exists($yac, "n"),
         property_exists($yac, "f"), property_exists($yac, "big"),
         property_exists($yac, "miss"));
+
+/* a double has no embedded form: a short key stores it inline (0.0 is falsy
+ * and must read empty), a long key pushes it to a block that peek() cannot
+ * decode, so empty() falls back to a full read there. Both must agree with PHP */
+$yac->set("d0", 0.0);
+$yac->set("d1", 1.5);
+$longkey = str_repeat("K", 45);   /* > 40, so the double lands in a block */
+$yac->set($longkey, 0.0);
+var_dump(empty($yac->d0), empty($yac->d1), isset($yac->d0), $yac->has("d0"));
+var_dump(empty($yac->$longkey), isset($yac->$longkey), $yac->has($longkey));
+
+/* none of the four may count as an access: hits and atime stay put */
+$hits = function ($yac, $key) {
+	foreach ($yac->dump(1000) as $i) {
+		if ($i["key"] === $key) {
+			return $i["hits"];
+		}
+	}
+	return -1;
+};
+$yac->set("h", str_repeat("y", 64));   /* block, so it carries a hit counter */
+$before = $hits($yac, "h");
+for ($n = 0; $n < 100; $n++) {
+	$yac->has("h");
+	isset($yac->h);
+	empty($yac->h);
+	property_exists($yac, "h");
+}
+var_dump($before, $hits($yac, "h"));
 
 /* an expired or deleted key is absent to all three */
 $yac->set("t", 1, 1);
@@ -58,13 +89,23 @@ bool(true)
 bool(true)
 bool(true)
 bool(true)
+bool(true)
+bool(false)
+bool(true)
+bool(true)
+bool(true)
+bool(true)
+bool(true)
+bool(false)
+bool(true)
 bool(false)
 bool(true)
 bool(true)
 bool(true)
 bool(true)
 bool(true)
-bool(false)
+int(0)
+int(0)
 bool(false)
 bool(false)
 bool(false)
