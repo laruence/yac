@@ -41,7 +41,11 @@
  *
  *   php -n -d extension=modules/yac.so -d yac.enable_cli=1 \
  *       -d yac.keys_memory_size=1M -d yac.values_memory_size=8M \
- *       tests/concurrency.php
+ *       .github/workflows/scripts/concurrency.php
+ *
+ * Lives outside tests/ on purpose: phpize --clean deletes tests/*.php
+ * (that pattern exists to remove run-tests artifacts), which would drop
+ * this file from the source tree.
  *
  * Tunables (environment): YAC_HAMMER_WORKERS, YAC_HAMMER_OPS,
  * YAC_HAMMER_SEED, YAC_HAMMER_SECONDS, YAC_HAMMER_FLUSH. A failure is
