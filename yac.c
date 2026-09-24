@@ -219,6 +219,13 @@ PHP_INI_END()
 
 #define Z_YACOBJ_P(zv)   (php_yac_fetch_object(Z_OBJ_P(zv)))
 
+/* property_exists() passes 2; the ZEND_PROPERTY_EXISTS name only exists as of 7.4 */
+#ifdef ZEND_PROPERTY_EXISTS
+#define YAC_PROPERTY_EXISTS ZEND_PROPERTY_EXISTS
+#else
+#define YAC_PROPERTY_EXISTS 0x2
+#endif
+
 #if SIZEOF_SIZE_T == 8 && defined(ZEND_STATIC_ASSERT)
 /* the key buffer must stay 8-aligned for yac_hash's 64-bit fast path;
  * ZEND_STATIC_ASSERT is only available as of PHP 8.3 */
@@ -698,6 +705,18 @@ static int yac_delete_multi_impl(yac_object *yac, zval *keys, int ttl) /* {{{ */
 }
 /* }}} */
 
+static int yac_has_impl(yac_object *yac, zend_string *name) /* {{{ */ {
+	const char *key;
+	size_t key_len;
+
+	if ((key = yac_assemble_key(yac, name, &key_len)) == NULL) {
+		return 0;
+	}
+
+	return yac_storage_exists(&yac->ctx, key, key_len);
+}
+/* }}} */
+
 static zend_object *yac_object_new(zend_class_entry *ce) /* {{{ */ {
 	yac_object *yac = emalloc(sizeof(yac_object) + zend_object_properties_size(ce));
 
@@ -803,6 +822,35 @@ static void yac_unset_property(void *zobj, void *name, void **cache_slot) /* {{{
 }
 /* }}} */
 
+static int yac_has_property(void *zobj, void *name, int has_set_exists, void **cache_slot) /* {{{ */ {
+	yac_object *yac;
+	zend_string *member;
+	zval rv, *v;
+	int ret;
+
+#if PHP_VERSION_ID < 80000
+	yac = Z_YACOBJ_P((zval*)zobj);
+	member = Z_STR_P((zval*)name);
+#else
+	yac = php_yac_fetch_object((zend_object*)zobj);
+	member = (zend_string*)name;
+#endif
+
+	/* 0 = isset, 1 = empty, 2 = property_exists. property_exists is existence
+	 * only; isset/empty must read the value to tell null (or falsy) from a miss */
+	if (has_set_exists == YAC_PROPERTY_EXISTS) {
+		return yac_has_impl(yac, member);
+	}
+
+	if ((v = yac_get_impl(yac, member, &rv)) == NULL) {
+		return 0; /* miss: neither set nor non-empty */
+	}
+	ret = has_set_exists == 0 ? (Z_TYPE_P(v) != IS_NULL) : zend_is_true(v);
+	zval_ptr_dtor(v);
+	return ret;
+}
+/* }}} */
+
 /** {{{ proto public Yac::__construct([string $prefix])
 */
 PHP_METHOD(yac, __construct) {
@@ -901,6 +949,19 @@ PHP_METHOD(yac, delete) {
 	}
 
 	RETURN_BOOL(ret);
+}
+/* }}} */
+
+/** {{{ proto public Yac::has(string $key): bool
+*/
+PHP_METHOD(yac, has) {
+	zend_string *key;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STR(key)
+	ZEND_PARSE_PARAMETERS_END();
+
+	RETURN_BOOL(yac_has_impl(Z_YACOBJ_P(getThis()), key));
 }
 /* }}} */
 
@@ -1024,6 +1085,7 @@ zend_function_entry yac_methods[] = {
 	PHP_ME(yac, set, arginfo_class_Yac_set, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, get, arginfo_class_Yac_get, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, delete, arginfo_class_Yac_delete, ZEND_ACC_PUBLIC)
+	PHP_ME(yac, has, arginfo_class_Yac_has, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, flush, arginfo_class_Yac_flush, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, info, arginfo_class_Yac_info, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, dump, arginfo_class_Yac_dump, ZEND_ACC_PUBLIC)
@@ -1118,6 +1180,7 @@ PHP_MINIT_FUNCTION(yac)
 		yac_obj_handlers.read_property  = (zend_object_read_property_t)yac_read_property;
 		yac_obj_handlers.write_property = (zend_object_write_property_t)yac_write_property;
 		yac_obj_handlers.unset_property = (zend_object_unset_property_t)yac_unset_property;
+		yac_obj_handlers.has_property   = (zend_object_has_property_t)yac_has_property;
 		yac_obj_handlers.get_property_ptr_ptr = (zend_object_get_property_ptr_ptr_t)yac_read_property_ptr;
 	}
 

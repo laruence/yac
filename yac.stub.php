@@ -15,6 +15,8 @@ class Yac {
 
 	public function delete(string|array $key, int $delay = 0):?bool {}
 
+	public function has(string $key):bool {}
+
 	public function flush():bool {}
 
 	public function info():array {}

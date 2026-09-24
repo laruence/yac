@@ -1,5 +1,5 @@
 /* This is a generated file, edit yac.stub.php instead.
- * Stub hash: 2c2c5f051e6d92ff432cbfe09a55d55ae38188d1 */
+ * Stub hash: 2b924dfa0aedea432a5bd8edffc509ebb689fb1c */
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_class_Yac___construct, 0, 0, 0)
 	ZEND_ARG_INFO(0, prefix)
@@ -21,6 +21,10 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_INFO_EX(arginfo_class_Yac_delete, 0, 0, 1)
 	ZEND_ARG_INFO(0, key)
 	ZEND_ARG_INFO(0, delay)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_class_Yac_has, 0, 0, 1)
+	ZEND_ARG_INFO(0, key)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_class_Yac_flush, 0, 0, 0)

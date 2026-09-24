@@ -353,6 +353,44 @@ int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl)
 }
 /* }}} */
 
+int yac_storage_exists(yac_ctx *ctx, const char *key, unsigned int len) /* {{{ */ {
+	uint64_t h, hash, stride;
+	unsigned int i;
+	yac_kv_key k;
+	YAC_SLOT_V yac_kv_key *p;
+	unsigned long tv;
+
+	yac_ctx_refresh_tv(ctx);
+	tv = ctx->tv;
+
+	if (YAC_SG(in_flush)) {
+		return 0; /* the flush removes the key regardless */
+	}
+
+	/* probe only: reads the metadata snapshot, never the value, and touches no
+	 * atime/hits -- has() must not count as an access the way get() does */
+	hash = yac_hash(key, len);
+	h = YAC_HASH_HOME(hash, YAC_SG(slots_mask));
+	stride = YAC_HASH_STRIDE(hash, YAC_SG(slots_mask));
+	for (i = 0; i < 4; i++) {
+		p = &(YAC_SG(slots)[h]);
+		if (!yac_slot_snapshot(p, &k)) {
+			return 0;
+		}
+		if (k.val == NULL) {
+			return 0; /* empty slot: the key was never stored */
+		}
+		yac_prefetch(&YAC_SG(slots)[(h + stride) & YAC_SG(slots_mask)]);
+		if (YAC_HASH_MATCH(k.h, hash) && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
+			return !(k.ttl && k.ttl <= tv); /* expired counts as absent */
+		}
+		h = (h + stride) & YAC_SG(slots_mask);
+	}
+
+	return 0;
+}
+/* }}} */
+
 static inline unsigned int yac_storage_pick_victim(const yac_kv_key *snaps) /* {{{ */ {
 	/* evict the least recently used slot of a fully live probe path; ties
 	 * fall to the least hit, then the earliest probe — closer to home

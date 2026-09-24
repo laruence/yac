@@ -235,6 +235,9 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **dat
  * allocating a block (size is only kept as the displayed v_len) */
 int yac_storage_update(yac_ctx *ctx, const char *key, unsigned int len, char *data, unsigned int size, unsigned int flag, uintptr_t word, int ttl, int add);
 int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl);
+/* existence probe: reports whether a live entry is stored, without copying
+ * the value or touching its atime/hits (an expired entry counts as absent) */
+int yac_storage_exists(yac_ctx *ctx, const char *key, unsigned int len);
 void yac_storage_flush(void);
 /* fold a call context's accumulated hits/miss into the shared stats; the
  * ctx keeps counting afterwards */

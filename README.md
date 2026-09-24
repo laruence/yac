@@ -340,6 +340,26 @@ Removes a stored variable from the cache. If `$delay` is specified (in seconds),
 
 Returns `true` on success, `false` on failure.
 
+### Yac::has
+
+```php
+Yac::has(string $key): bool
+```
+
+Reports whether a live entry is stored under `$key`. (since Yac 2.5.0)
+
+Returns `true` only when the key exists and has not expired. An expired
+or deleted key, like one that was never stored, returns `false`.
+
+```php
+<?php
+$yac = new Yac();
+$yac->set("k", 1);
+var_dump($yac->has("k"));   // true
+var_dump($yac->has("no"));  // false
+?>
+```
+
 ### Yac::flush
 
 ```php
