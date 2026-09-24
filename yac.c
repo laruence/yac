@@ -714,12 +714,12 @@ static zend_object *yac_object_new(zend_class_entry *ce) /* {{{ */ {
 }
 /* }}} */
 
-/* fold this object's pending hit/miss counts into the shared stats. called
- * on object teardown (long-lived workers never run RSHUTDOWN per request)
- * and before info() reports, so a live object's own activity shows up; the
- * enable flag doubles as "storage is up", still 1 while the module tears
- * down any request-local objects it holds */
 static void yac_object_commit_stats(yac_object *yac) /* {{{ */ {
+	/* fold this object's pending hit/miss counts into the shared stats. called
+	 * on object teardown (long-lived workers never run RSHUTDOWN per request)
+	 * and before info() reports, so a live object's own activity shows up; the
+	 * enable flag doubles as "storage is up", still 1 while the module tears
+	 * down any request-local objects it holds */
 	if (YAC_G(enable)) {
 		yac_storage_commit_stats(&yac->ctx);
 	}
@@ -1003,11 +1003,6 @@ PHP_METHOD(yac, info) {
 	return;
 }
 /* }}} */
-
-typedef struct {
-	const char *prefix;
-	unsigned int prefix_len;
-} yac_dump_prefix_ctx;
 
 static int yac_dump_prefix_filter(const unsigned char *key, unsigned int k_len, void *ctx) /* {{{ */ {
 	yac_dump_prefix_ctx *c = ctx;

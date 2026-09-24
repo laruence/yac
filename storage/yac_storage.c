@@ -528,12 +528,13 @@ do_update:
 }
 /* }}} */
 
-/* a val-word long keeps the value in the top (word bits - 2) bits; the
- * test mirrors yac_long_embedable() but on the stored word width */
-static inline int yac_long_stored(intptr_t v) {
+static inline int yac_long_stored(intptr_t v) /* {{{ */{
+	/* a val-word long keeps the value in the top (word bits - 2) bits; the
+	 * test mirrors yac_long_embedable() but on the stored word width */
 	return (((uintptr_t)v + ((uintptr_t)1 << (sizeof(uintptr_t) * 8 - 3)))
 			>> (sizeof(uintptr_t) * 8 - 2)) == 0;
 }
+/* }}} */
 
 int yac_storage_incr(yac_ctx *ctx, const char *key, unsigned int len, intptr_t step, intptr_t *newval) /* {{{ */ {
 	uint64_t hash, stride, h;

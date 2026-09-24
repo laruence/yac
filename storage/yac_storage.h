@@ -198,6 +198,11 @@ typedef struct {
 } yac_ctx;
 
 typedef struct {
+	const char *prefix;
+	unsigned int prefix_len;
+} yac_dump_prefix_ctx;
+
+typedef struct {
 	/* read-only after startup */
 	yac_kv_key  *slots;
 	unsigned int slots_mask;
