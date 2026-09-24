@@ -340,39 +340,6 @@ Removes a stored variable from the cache. If `$delay` is specified (in seconds),
 
 Returns `true` on success, `false` on failure.
 
-### Yac::incr / Yac::decr
-
-```php
-Yac::incr(string $key[, int $step = 1]): int|false
-Yac::decr(string $key[, int $step = 1]): int|false
-```
-
-Atomically increments (or decrements) an integer counter by `$step` and
-returns the new value. (since Yac 2.5.0)
-
-Counters only work on integers that fit the slot's embedded value word:
-**[-2^61, 2^61-1] on 64-bit systems, [-2^29, 2^29-1] on 32-bit systems**.
-Larger integers are stored outside the value word and cannot be counted.
-
-Returns `false`, leaving the stored value untouched, when:
-
-- the key does not exist — counters are never auto-seeded, `set()` the
-  initial value first
-- the stored value is not an integer (string, float, array, …)
-- the stored integer, or `$step` itself, is outside the range above
-- the result would leave the range
-
-```php
-<?php
-$yac = new Yac();
-$yac->set("counter", 5);
-$yac->incr("counter");       // 6
-$yac->incr("counter", 3);    // 9
-$yac->decr("counter", 4);    // 5
-$yac->incr("missing");       // false — not auto-seeded
-?>
-```
-
 ### Yac::flush
 
 ```php

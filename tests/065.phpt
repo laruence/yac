@@ -4,7 +4,7 @@ Inline values (stored in the slot's unused key area)
 Values that miss the val word but fit the slot's key area (klen + size <= 48)
 are stored inline after the key, block-less: dump() shows embedded with a real v_len.
 Covers round-trips, the capacity boundary, form transitions, NUL bytes,
-overwrite, incr() refusal, add()/delete()/ttl.
+overwrite, add()/delete()/ttl.
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--
@@ -78,10 +78,6 @@ var_dump($yac->get("t_grow") === str_repeat("h", 40));
 var_dump($yac->set("t_grow", str_repeat("i", 15)));
 var_dump($yac->get("t_grow") === str_repeat("i", 15));
 
-/* incr refuses an inline long: only val-word embeds count */
-var_dump($yac->incr("t_big"));
-var_dump($yac->get("t_big") === PHP_INT_MAX);
-
 /* add()/delete()/ttl on inline entries */
 var_dump($yac->add("t_str", "nope"));
 var_dump($yac->get("t_str") === $s8);
@@ -133,8 +129,6 @@ bool(true)
 bool(true)
 bool(true)
 bool(true)
-bool(true)
-bool(false)
 bool(true)
 bool(false)
 bool(true)

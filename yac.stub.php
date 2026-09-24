@@ -15,10 +15,6 @@ class Yac {
 
 	public function delete(string|array $key, int $delay = 0):?bool {}
 
-	public function incr(string $key, int $step = 1):int|false {}
-
-	public function decr(string $key, int $step = 1):int|false {}
-
 	public function flush():bool {}
 
 	public function info():array {}

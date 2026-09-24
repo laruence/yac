@@ -904,66 +904,6 @@ PHP_METHOD(yac, delete) {
 }
 /* }}} */
 
-static zval* yac_incr_impl(yac_object *yac, zend_string *name, zend_long step, zval *rv) /* {{{ */ {
-	const char *key;
-	size_t key_len;
-	intptr_t newval;
-
-	if ((key = yac_assemble_key(yac, name, &key_len)) == NULL) {
-		return NULL;
-	}
-
-	/* the key must already hold a val-word long; an absent key, a value of
-	 * another type, or a step/result that leaves the val-word range all fail
-	 * without touching the stored value */
-	if (!yac_storage_incr(&yac->ctx, key, key_len, (intptr_t)step, &newval)) {
-		return NULL;
-	}
-	ZVAL_LONG(rv, (zend_long)newval);
-	return rv;
-}
-/* }}} */
-
-/** {{{ proto public Yac::incr(mixed $key, int $step = 1): int|false
-*/
-PHP_METHOD(yac, incr) {
-	zend_string *key;
-	zend_long step = 1;
-	zval *ret;
-
-	ZEND_PARSE_PARAMETERS_START(1, 2)
-		Z_PARAM_STR(key)
-		Z_PARAM_OPTIONAL
-		Z_PARAM_LONG(step)
-	ZEND_PARSE_PARAMETERS_END();
-
-	ret = yac_incr_impl(Z_YACOBJ_P(getThis()), key, step, return_value);
-	if (ret == NULL) {
-		RETURN_FALSE;
-	}
-}
-/* }}} */
-
-/** {{{ proto public Yac::decr(mixed $key, int $step = 1): int|false
-*/
-PHP_METHOD(yac, decr) {
-	zend_string *key;
-	zend_long step = 1;
-	zval *ret;
-
-	ZEND_PARSE_PARAMETERS_START(1, 2)
-		Z_PARAM_STR(key)
-		Z_PARAM_OPTIONAL
-		Z_PARAM_LONG(step)
-	ZEND_PARSE_PARAMETERS_END();
-
-	ret = yac_incr_impl(Z_YACOBJ_P(getThis()), key, -step, return_value);
-	if (ret == NULL) {
-		RETURN_FALSE;
-	}
-}
-/* }}} */
-
 /** {{{ proto public Yac::flush(void)
 */
 PHP_METHOD(yac, flush) {
@@ -1084,8 +1024,6 @@ zend_function_entry yac_methods[] = {
 	PHP_ME(yac, set, arginfo_class_Yac_set, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, get, arginfo_class_Yac_get, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, delete, arginfo_class_Yac_delete, ZEND_ACC_PUBLIC)
-	PHP_ME(yac, incr, arginfo_class_Yac_incr, ZEND_ACC_PUBLIC)
-	PHP_ME(yac, decr, arginfo_class_Yac_decr, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, flush, arginfo_class_Yac_flush, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, info, arginfo_class_Yac_info, ZEND_ACC_PUBLIC)
 	PHP_ME(yac, dump, arginfo_class_Yac_dump, ZEND_ACC_PUBLIC)
