@@ -650,9 +650,13 @@ void yac_storage_commit_stats(yac_ctx *ctx) /* {{{ */ {
 }
 /* }}} */
 
-yac_storage_info * yac_storage_get_info(void) /* {{{ */ {
+yac_storage_info * yac_storage_get_info(yac_ctx *ctx) /* {{{ */ {
 	yac_storage_info *info;
 	unsigned int i, occupied = 0;
+	unsigned long tv;
+
+	yac_ctx_refresh_tv(ctx);
+	tv = ctx->tv;
 
 	info = user_alloc(sizeof(yac_storage_info), 0, 0);
 
@@ -668,12 +672,15 @@ yac_storage_info * yac_storage_get_info(void) /* {{{ */ {
 	info->start_time = YAC_SG(start_time);
 	info->slots_size = YAC_SG(slots_size);
 
-	/* count live slots directly: a slot a writer is holding mid-publish
-	 * is skipped, which the old counter could not express */
+	/* count live slots directly: a value block or tagged word that is still
+	 * there and not yet expired. no snapshot — occupied is a ballpark and a
+	 * slot mid-publish may be counted or skipped, which is fine. reading val
+	 * and ttl as relaxed loads also avoids spinning on a busy writer. */
 	for (i = 0; i < YAC_SG(slots_size); i++) {
-		yac_kv_key k;
+		YAC_SLOT_V yac_kv_key *p = &YAC_SG(slots)[i];
+		unsigned int ttl = YAC_LOAD(&p->ttl);
 
-		if (yac_slot_snapshot(&YAC_SG(slots)[i], &k) && k.val != NULL) {
+		if (YAC_LOAD(&p->val) != NULL && !(ttl && ttl <= tv)) {
 			++occupied;
 		}
 	}

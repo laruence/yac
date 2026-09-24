@@ -981,7 +981,7 @@ PHP_METHOD(yac, info) {
 	yac_object *yac = Z_YACOBJ_P(getThis());
 
 	yac_object_commit_stats(yac);
-	inf = yac_storage_get_info();
+	inf = yac_storage_get_info(&yac->ctx);
 
 	array_init(return_value);
 
@@ -1231,7 +1231,8 @@ PHP_MINFO_FUNCTION(yac)
 	if (YAC_G(enable)) {
 		char buf[64];
 		yac_storage_info *inf;
-		inf = yac_storage_get_info();
+		yac_ctx ctx = {0};
+		inf = yac_storage_get_info(&ctx);
 
 		php_info_print_table_start();
 		php_info_print_table_colspan_header(2, "Cache info");

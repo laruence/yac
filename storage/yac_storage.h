@@ -244,7 +244,9 @@ void yac_storage_flush(void);
  * ctx keeps counting afterwards */
 void yac_storage_commit_stats(yac_ctx *ctx);
 const char * yac_storage_shared_memory_name(void);
-yac_storage_info * yac_storage_get_info(void);
+/* occupied is counted live from the slots using ctx->tv for the TTL filter,
+ * so it needs a context (a zeroed one is fine when there is no object) */
+yac_storage_info * yac_storage_get_info(yac_ctx *ctx);
 void yac_storage_free_info(yac_storage_info *info);
 /* per-entry predicate for yac_storage_dump(): return non-zero to report the
  * entry; called before the entry is copied out, so filtered entries cost
