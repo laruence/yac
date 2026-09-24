@@ -51,9 +51,17 @@ var_dump($yac->get("k_empty_arr"));
 var_dump($yac->set("k_big", PHP_INT_MAX));
 var_dump($yac->get("k_big") === PHP_INT_MAX);
 
-/* doubles always leave the val word */
-var_dump($yac->set("k_dbl", 3.14));
-var_dump($yac->get("k_dbl"));
+/* doubles: one that survives a float round-trip embeds in the val word
+   (1.5, 0.0), one that doesn't leaves it (3.14 -> inline). every form must
+   round-trip exactly, the sign of -0.0 included */
+var_dump($yac->set("k_dbl", 1.5));
+var_dump($yac->get("k_dbl") === 1.5);
+var_dump($yac->set("k_dzero", 0.0));
+var_dump($yac->get("k_dzero"));
+var_dump($yac->set("k_dneg", -0.0));
+var_dump($yac->get("k_dneg"));
+var_dump($yac->set("k_dpi", 3.14));
+var_dump($yac->get("k_dpi") === 3.14);
 
 /* type transitions on the same key: inline -> block -> inline */
 var_dump($yac->set("k_flip", 42));
@@ -103,7 +111,13 @@ array(0) {
 bool(true)
 bool(true)
 bool(true)
-float(3.14)
+bool(true)
+bool(true)
+float(0)
+bool(true)
+float(-0)
+bool(true)
+bool(true)
 bool(true)
 bool(true)
 bool(true)

@@ -80,16 +80,19 @@ typedef struct {
 
 /* Embedded scalar values.
  *
- * val normally points to an 8-byte aligned block, so a real pointer has
- * zero low 2 bits; a non-zero tag there marks a value carried in the
- * word itself, no block allocated. The all-zero word (tag 00, unused)
- * means "empty slot".
+ * val normally points to an 8-byte aligned block, so a real pointer has zero
+ * low 3 bits; a non-zero tag there marks a value carried in the word itself.
+ * The all-zero word means "empty slot".
  *
  * tags (low 2 bits):
  *   0x1 LONG          (zend_long in the high (word bits - 2) bits)
  *   0x2 SHORT_STR     ([4..2] length 0..YAC_EMBED_STR_MAX_LEN, bytes from bit 5)
- *   0x3 SPECIAL       (high bits: 0 NULL, 1 TRUE, 2 FALSE, 3 EMPTY_ARRAY,
- *                      4 INLINE: value bytes after the key)
+ *   0x3 SPECIAL       ([4..2] kind: 0 NULL, 1 TRUE, 2 FALSE, 3 EMPTY_ARRAY,
+ *                      4 DOUBLE; top bit set instead means INLINE)
+ *
+ * DOUBLE on 64-bit carries a float in [62..31], so any double that survives
+ * a float round-trip embeds; 32-bit has no room and carries only +/-0.0.
+ * LONG never collides with INLINE despite its top bit: different tag.
  *
  * the zend-type aware helpers live in yac.c; this file stays plain C so
  * the allocator backends can include it without php.h
@@ -100,11 +103,21 @@ typedef struct {
 #define YAC_EMBED_STR               0x2
 #define YAC_EMBED_SPECIAL           0x3
 
-/* full words: tag 0x3 with the discriminator in the bits above */
+/* SPECIAL words: tag 0x3, kind in bits [4..2] */
+#define YAC_EMBED_DISC_MASK         0x1f
 #define YAC_EMBED_NULL              0x3
 #define YAC_EMBED_TRUE              0x7
 #define YAC_EMBED_FALSE             0xb
 #define YAC_EMBED_EMPTY_ARRAY       0xf
+
+#if defined(UINTPTR_MAX) && UINTPTR_MAX > 0xffffffffu
+#define YAC_EMBED_HAS_DOUBLE        1
+#define YAC_EMBED_DOUBLE            0x13
+#define YAC_EMBED_DOUBLE_SHIFT      31
+#else
+#define YAC_EMBED_DOUBLE_ZERO       0x13
+#define YAC_EMBED_DOUBLE_NEG_ZERO   0x17
+#endif
 
 /* applies to both the slot's val and the char *data passed through
  * find()/update(): non-zero low bits mean the value word itself, zero
@@ -120,13 +133,13 @@ typedef struct {
 
 /* inline values: uncompressed value bytes that fit the slot's unused key
  * area (klen + size <= YAC_STORAGE_MAX_KEY_LEN), stored after the key
- * instead of a block. word = (flag << 5) | 0x13, length in YAC_KEY_VLEN;
- * the flag is the plain zend type, compressed values always use blocks */
-#define YAC_EMBED_INLINE            0x4
-#define YAC_EMBED_INLINE_BITS       0x13
-#define YAC_EMBED_INLINE_WORD(flag) ((((uintptr_t)(flag)) << 5) | YAC_EMBED_INLINE_BITS)
-#define YAC_EMBED_INLINE_FLAG(p)    ((unsigned int)(((uintptr_t)(p)) >> 5))
-#define YAC_IS_EMBED_INLINE(p)      ((((uintptr_t)(p)) & 0x1f) == YAC_EMBED_INLINE_BITS)
+ * instead of a block. the flag is the plain zend type in bits [9..5], the
+ * length in YAC_KEY_VLEN; compressed values always use blocks */
+#define YAC_EMBED_INLINE_BIT        (((uintptr_t)1) << (sizeof(uintptr_t) * 8 - 1))
+#define YAC_EMBED_INLINE_WORD(flag) ((((uintptr_t)(flag)) << 5) | YAC_EMBED_INLINE_BIT | YAC_EMBED_SPECIAL)
+#define YAC_EMBED_INLINE_FLAG(p)    ((unsigned int)((((uintptr_t)(p)) >> 5) & 0x1f))
+#define YAC_IS_EMBED_INLINE(p)      ((((uintptr_t)(p)) & YAC_EMBED_MASK) == YAC_EMBED_SPECIAL && \
+                                     (((uintptr_t)(p)) & YAC_EMBED_INLINE_BIT) != 0)
 
 #define YAC_HASH_HOME(hash, mask)    ((hash) & (mask))
 /* odd, never zero: coprime with the power-of-two slot count, so a probe
@@ -149,8 +162,7 @@ typedef struct _yac_item_list {
 	unsigned int flag;
 	unsigned int size;
 	unsigned char embedded;
-	/* the slot's value word: tagged embed word, or block pointer. dump()
-	 * ignores it; peek() decodes the value form from it */
+	/* the slot's value word: tagged embed word, or block pointer */
 	uintptr_t val;
 	unsigned char key[YAC_STORAGE_MAX_KEY_LEN];
 	struct _yac_item_list *next;

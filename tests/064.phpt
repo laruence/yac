@@ -36,12 +36,13 @@ var_dump(property_exists($yac, "i"), property_exists($yac, "n"),
         property_exists($yac, "f"), property_exists($yac, "big"),
         property_exists($yac, "miss"));
 
-/* a double has no embedded form: a short key stores it inline (0.0 is falsy
- * and must read empty), a long key pushes it to a block that peek() cannot
- * decode, so empty() falls back to a full read there. Both must agree with PHP */
+/* a falsy double is only ever 0.0/-0.0, both float-representable, so both
+ * embed in the val word no matter the key length -- peek() settles them with
+ * no block read. a long key still stores a non-falsy precision double in a
+ * block, but that is non-empty, so peek() answers without reading it either */
 $yac->set("d0", 0.0);
 $yac->set("d1", 1.5);
-$longkey = str_repeat("K", 45);   /* > 40, so the double lands in a block */
+$longkey = str_repeat("K", 45);   /* > 40: 0.0 still embeds, but 3.14 would go to a block */
 $yac->set($longkey, 0.0);
 var_dump(empty($yac->d0), empty($yac->d1), isset($yac->d0), $yac->has("d0"));
 var_dump(empty($yac->$longkey), isset($yac->$longkey), $yac->has($longkey));

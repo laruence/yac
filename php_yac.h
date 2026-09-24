@@ -84,6 +84,24 @@ PHP_MINFO_FUNCTION(yac);
 ZEND_EXTERN_MODULE_GLOBALS(yac);
 #define YAC_G(v) ZEND_MODULE_GLOBALS_ACCESSOR(yac, v)
 
+#ifdef ZEND_PROPERTY_EXISTS
+/* ZEND_PROPERTY_EXISTS only exists since PHP 7.4 */
+#define YAC_PROPERTY_EXISTS ZEND_PROPERTY_EXISTS
+#else
+#define YAC_PROPERTY_EXISTS 0x2
+#endif
+
+#define yac_embed_long(v) \
+	((uintptr_t)((((zend_ulong)(zend_long)(v)) << 2) | YAC_EMBED_LONG))
+#define yac_embed_long_val(p) \
+	((zend_long)(((zend_long)(uintptr_t)(p)) >> 2))
+
+#define yac_embed_null()        ((uintptr_t)YAC_EMBED_NULL)
+#define yac_embed_true()        ((uintptr_t)YAC_EMBED_TRUE)
+#define yac_embed_false()       ((uintptr_t)YAC_EMBED_FALSE)
+#define yac_embed_empty_array() ((uintptr_t)YAC_EMBED_EMPTY_ARRAY)
+
+
 #endif	/* PHP_YAC_H */
 /*
  * Local variables:

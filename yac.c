@@ -46,22 +46,52 @@
 #include "compressor/lz4/lz4.h"
 #endif
 
-/* Embedded value helpers (zend-type aware; tag layout in yac_storage.h).
- * shift counts are sizeof-derived, so 32/64-bit both work; encoding
- * shifts unsigned (signed left-shift of negatives would be UB), decoding
- * relies on arithmetic right shift as every supported compiler does */
-static inline int yac_long_embedable(zend_long v) {
+zend_class_entry *yac_class_ce;
+
+static zend_object_handlers yac_obj_handlers;
+
+ZEND_DECLARE_MODULE_GLOBALS(yac);
+
+static yac_serializer_t yac_serializer;
+static yac_unserializer_t yac_unserializer;
+
+typedef struct {
+	yac_ctx ctx;
+	unsigned char prefix[YAC_STORAGE_MAX_KEY_LEN];
+	uint16_t prefix_len;
+	zend_object std;
+} yac_object;
+
+#if SIZEOF_SIZE_T == 8 && defined(ZEND_STATIC_ASSERT)
+ZEND_STATIC_ASSERT((offsetof(yac_object, prefix) % 8) == 0, "yac_object prefix must be 8-aligned");
+#endif
+
+#define Z_YACOBJ_P(zv)   (php_yac_fetch_object(Z_OBJ_P(zv)))
+
+static inline yac_object *php_yac_fetch_object(zend_object *obj) /* {{{ */ {
+	return (yac_object *)((char*)(obj) - offsetof(yac_object, std));
+}
+/* }}} */
+
+static inline int yac_long_embedable(zend_long v) /* {{{ */ {
+	/* Embedded value helpers (zend-type aware; tag layout in yac_storage.h).
+	 * shift counts are sizeof-derived, so 32/64-bit both work; encoding
+	 * shifts unsigned (signed left-shift of negatives would be UB), decoding
+	 * relies on arithmetic right shift as every supported compiler does */
 	return (((zend_ulong)(v) + ((zend_ulong)1 << (sizeof(zend_long) * 8 - 3)))
 			>> (sizeof(zend_long) * 8 - 2)) == 0;
 }
+/* }}} */
 
-static inline int yac_str_embedable(zend_string *str) {
+static inline int yac_str_embedable(zend_string *str) /* {{{ */ {
 	return ZSTR_LEN(str) <= YAC_EMBED_STR_MAX_LEN;
 }
+/* }}} */
 
-static inline int yac_arr_embedable(zend_array *arr) {
+static inline int yac_arr_embedable(zend_array *arr) /* {{{ */ {
 	return zend_hash_num_elements(arr) == 0;
 }
+/* }}} */
 
 static inline uintptr_t yac_try_inline(unsigned int key_len, unsigned int size, unsigned int flag) /* {{{ */ {
 	/* form pick for values that miss the val word: an inline word when
@@ -73,17 +103,37 @@ static inline uintptr_t yac_try_inline(unsigned int key_len, unsigned int size, 
 }
 /* }}} */
 
-#define yac_embed_long(v) \
-	((uintptr_t)((((zend_ulong)(zend_long)(v)) << 2) | YAC_EMBED_LONG))
-#define yac_embed_long_val(p) \
-	((zend_long)(((zend_long)(uintptr_t)(p)) >> 2))
+#ifdef YAC_EMBED_HAS_DOUBLE
+static inline int yac_double_embedable(double d) /* {{{ */ {
+	/* a double that survives a float round-trip fits the word's 32 payload bits */
+	return (double)(float)d == d;
+}
+/* }}} */
 
-#define yac_embed_null()        ((uintptr_t)YAC_EMBED_NULL)
-#define yac_embed_true()        ((uintptr_t)YAC_EMBED_TRUE)
-#define yac_embed_false()       ((uintptr_t)YAC_EMBED_FALSE)
-#define yac_embed_empty_array() ((uintptr_t)YAC_EMBED_EMPTY_ARRAY)
+static inline uintptr_t yac_embed_double(double d) /* {{{ */ {
+	uint32_t bits;
+	float f = (float)d;
+	memcpy(&bits, &f, sizeof(bits));
+	return (((uintptr_t)bits) << YAC_EMBED_DOUBLE_SHIFT) | YAC_EMBED_DOUBLE;
+}
+/* }}} */
 
-static inline uintptr_t yac_embed_str(const char *s, unsigned int len) {
+static inline double yac_embed_double_val(uintptr_t word) /* {{{ */ {
+	uint32_t bits = (uint32_t)((word >> YAC_EMBED_DOUBLE_SHIFT) & 0xffffffffu);
+	float f;
+	memcpy(&f, &bits, sizeof(f));
+	return (double)f;
+}
+/* }}} */
+#else
+#define yac_double_embedable(d) ((d) == 0.0)
+static inline uintptr_t yac_embed_double(double d) /* {{{ */ {
+	return signbit(d) ? YAC_EMBED_DOUBLE_NEG_ZERO : YAC_EMBED_DOUBLE_ZERO;
+}
+/* }}} */
+#endif
+
+static inline uintptr_t yac_embed_str(const char *s, unsigned int len) /* {{{ */ {
 	uintptr_t u = YAC_EMBED_STR | ((uintptr_t)len << 2);
 	unsigned int i;
 
@@ -92,10 +142,13 @@ static inline uintptr_t yac_embed_str(const char *s, unsigned int len) {
 	}
 	return u;
 }
+/* }}} */
 
-/* rebuild a zval straight from a tagged word; NULL means a corrupt tag
- * and the caller degrades the hit to a miss */
 static zval* yac_embed_to_zval(const char *data, zval *rv) /* {{{ */ {
+	/* rebuild a zval straight from a tagged word; NULL means a corrupt tag
+	 * and the caller degrades the hit to a miss. takes a non-inline embed word
+	 * only: find() materializes INLINE values into a heap buffer, since an
+	 * INLINE word and NULL share kind 0x3 (INLINE is told apart by its top bit) */
 	switch (((uintptr_t)data) & YAC_EMBED_MASK) {
 		case YAC_EMBED_LONG:
 			ZVAL_LONG(rv, yac_embed_long_val(data));
@@ -120,7 +173,7 @@ static zval* yac_embed_to_zval(const char *data, zval *rv) /* {{{ */ {
 				return rv;
 			}
 		case YAC_EMBED_SPECIAL:
-			switch ((uintptr_t)data) {
+			switch (((uintptr_t)data) & YAC_EMBED_DISC_MASK) {
 				case YAC_EMBED_NULL:
 					ZVAL_NULL(rv);
 					return rv;
@@ -137,6 +190,18 @@ static zval* yac_embed_to_zval(const char *data, zval *rv) /* {{{ */ {
 					array_init(rv);
 #endif
 					return rv;
+#ifdef YAC_EMBED_HAS_DOUBLE
+				case YAC_EMBED_DOUBLE:
+					ZVAL_DOUBLE(rv, yac_embed_double_val((uintptr_t)data));
+					return rv;
+#else
+				case YAC_EMBED_DOUBLE_ZERO:
+					ZVAL_DOUBLE(rv, 0.0);
+					return rv;
+				case YAC_EMBED_DOUBLE_NEG_ZERO:
+					ZVAL_DOUBLE(rv, -0.0);
+					return rv;
+#endif
 			}
 			return NULL;
 		default:
@@ -144,22 +209,6 @@ static zval* yac_embed_to_zval(const char *data, zval *rv) /* {{{ */ {
 	}
 }
 /* }}} */
-
-zend_class_entry *yac_class_ce;
-
-static zend_object_handlers yac_obj_handlers;
-
-typedef struct {
-	yac_ctx ctx;
-	unsigned char prefix[YAC_STORAGE_MAX_KEY_LEN];
-	uint16_t prefix_len;
-	zend_object std;
-} yac_object;
-
-ZEND_DECLARE_MODULE_GLOBALS(yac);
-
-static yac_serializer_t yac_serializer;
-static yac_unserializer_t yac_unserializer;
 
 static PHP_INI_MH(OnChangeKeysMemoryLimit) /* {{{ */ {
 	if (new_value) {
@@ -215,26 +264,6 @@ PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("yac.enable_cli", "0", PHP_INI_SYSTEM, OnUpdateBool, enable_cli, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.serializer", "php", PHP_INI_SYSTEM, OnUpdateString, serializer, zend_yac_globals, yac_globals)
 PHP_INI_END()
-/* }}} */
-
-#define Z_YACOBJ_P(zv)   (php_yac_fetch_object(Z_OBJ_P(zv)))
-
-/* property_exists() passes 2; the ZEND_PROPERTY_EXISTS name only exists as of 7.4 */
-#ifdef ZEND_PROPERTY_EXISTS
-#define YAC_PROPERTY_EXISTS ZEND_PROPERTY_EXISTS
-#else
-#define YAC_PROPERTY_EXISTS 0x2
-#endif
-
-#if SIZEOF_SIZE_T == 8 && defined(ZEND_STATIC_ASSERT)
-/* the key buffer must stay 8-aligned for yac_hash's 64-bit fast path;
- * ZEND_STATIC_ASSERT is only available as of PHP 8.3 */
-ZEND_STATIC_ASSERT((offsetof(yac_object, prefix) % 8) == 0, "yac_object prefix must be 8-aligned");
-#endif
-
-static inline yac_object *php_yac_fetch_object(zend_object *obj) /* {{{ */ {
-	return (yac_object *)((char*)(obj) - offsetof(yac_object, std));
-}
 /* }}} */
 
 static const char *yac_assemble_key(yac_object *yac, zend_string *name, size_t *len) /* {{{ */ {
@@ -321,8 +350,13 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 			}
 			break;
 		case IS_DOUBLE:
-			ret = yac_storage_update(&yac->ctx, key, key_len, (char *)&Z_DVAL_P(value), sizeof(double), flag,
+			if (yac_double_embedable(Z_DVAL_P(value))) {
+				ret = yac_storage_update(&yac->ctx, key, key_len, NULL, 0, flag,
+						yac_embed_double(Z_DVAL_P(value)), ttl, add);
+			} else {
+				ret = yac_storage_update(&yac->ctx, key, key_len, (char *)&Z_DVAL_P(value), sizeof(double), flag,
 						yac_try_inline(key_len, sizeof(double), flag), ttl, add);
+			}
 			break;
 		case IS_STRING:
 #ifdef IS_CONSTANT
@@ -725,56 +759,45 @@ static inline int yac_item_is_null(const yac_item_list *item) /* {{{ */ {
 }
 /* }}} */
 
-/* emptiness from the peeked item alone. every falsy value is embedded or
- * inline, so peek() settles it with no value read -- except a block double,
- * whose bytes live in the block: fall back to a full get() */
-static int yac_item_is_empty(yac_object *yac, zend_string *name, const yac_item_list *item) /* {{{ */ {
+/* every falsy value embeds into the val word, so anything that reached
+ * inline or block form is necessarily non-empty */
+static int yac_item_is_empty(const yac_item_list *item) /* {{{ */ {
 	uintptr_t word = item->val;
 
-	if (item->embedded) {
-		if (YAC_IS_EMBED_INLINE(word)) {
-			/* inline long is never 0, inline string is never "" or "0";
-			 * only a double can be falsy */
-			if ((item->flag & YAC_ENTRY_TYPE_MASK) == IS_DOUBLE && item->v_len == sizeof(double)) {
-				double d;
-				memcpy(&d, item->key + item->k_len, sizeof(double));
-				return d == 0.0;
-			}
-			return 0;
-		}
-		switch (word & YAC_EMBED_MASK) {
-			case YAC_EMBED_LONG:
-				return yac_embed_long_val(word) == 0;
-			case YAC_EMBED_STR:
-				{
-					unsigned int slen = YAC_EMBED_STR_LEN(word);
-					if (slen == 0) {
-						return 1; /* "" */
-					}
-					return slen == 1 && ((word >> 5) & 0xff) == '0'; /* "0" */
-				}
-			case YAC_EMBED_SPECIAL:
-				/* NULL, FALSE, empty array are empty; TRUE is not.
-				 * INLINE shares the tag but was handled above */
-				return word != YAC_EMBED_TRUE;
-		}
+	if (!item->embedded) {
 		return 0;
 	}
-
-	/* a block double is the one falsy value peek() can't see -- its bytes
-	 * live in the block, not the item -- so defer to a full get(). every
-	 * other block form is necessarily non-empty */
-	if (((item->flag & YAC_ENTRY_TYPE_MASK) == IS_DOUBLE) && !(item->flag & YAC_ENTRY_COMPRESSED)) {
-		zval rv, *v;
-		int ret;
-		if ((v = yac_get_impl(yac, name, &rv)) == NULL) {
-			return 1;
-		}
-		ret = !zend_is_true(v);
-		zval_ptr_dtor(v);
-		return ret;
+	if (YAC_IS_EMBED_INLINE(word)) {
+		return 0;
 	}
-
+	switch (word & YAC_EMBED_MASK) {
+		case YAC_EMBED_LONG:
+			return yac_embed_long_val(word) == 0;
+		case YAC_EMBED_STR:
+			{
+				unsigned int slen = YAC_EMBED_STR_LEN(word);
+				if (slen == 0) {
+					return 1;
+				}
+				return slen == 1 && ((word >> 5) & 0xff) == '0';
+			}
+		case YAC_EMBED_SPECIAL:
+			switch (word & YAC_EMBED_DISC_MASK) {
+				case YAC_EMBED_NULL:
+				case YAC_EMBED_FALSE:
+				case YAC_EMBED_EMPTY_ARRAY:
+					return 1;
+#ifdef YAC_EMBED_HAS_DOUBLE
+				case YAC_EMBED_DOUBLE:
+					return yac_embed_double_val(word) == 0.0;
+#else
+				case YAC_EMBED_DOUBLE_ZERO:
+				case YAC_EMBED_DOUBLE_NEG_ZERO:
+					return 1;
+#endif
+			}
+			return 0;
+	}
 	return 0;
 }
 /* }}} */
@@ -915,7 +938,7 @@ static int yac_has_property(void *zobj, void *name, int has_set_exists, void **c
 	if (has_set_exists == 0) {
 		return !yac_item_is_null(&item);
 	}
-	return !yac_item_is_empty(yac, member, &item);
+	return !yac_item_is_empty(&item);
 }
 /* }}} */
 
