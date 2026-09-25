@@ -41,11 +41,11 @@ var_dump(isset($first["index"]));
 var_dump(isset($first["hash"]));
 var_dump(isset($first["crc"]));
 var_dump(isset($first["atime"]));
-var_dump(isset($first["embedded"]));
+var_dump(isset($first["embed"]));
 var_dump(is_int($first["index"]));
 var_dump(is_int($first["ttl"]));
 var_dump(is_int($first["atime"]));
-var_dump(is_bool($first["embedded"]));
+var_dump(is_int($first["embed"]));
 var_dump(is_string($first["key"]));
 ?>
 --EXPECTF--

@@ -64,7 +64,7 @@ var_dump(dump_find($yac, "e")["hits"]);
 /* ... and block -> embed */
 $yac->set("b", 789);
 var_dump(dump_find($yac, "b")["hits"]);
-var_dump(dump_find($yac, "b")["embedded"]);
+var_dump(dump_find($yac, "b")["embed"]);
 
 /* expired entries start cold again */
 $yac->set("t", 1, 1);
@@ -92,7 +92,7 @@ int(%d)
 int(0)
 int(0)
 int(0)
-bool(true)
+int(1)
 bool(false)
 int(0)
 int(0)

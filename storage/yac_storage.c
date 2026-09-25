@@ -37,11 +37,7 @@ yac_storage_globals *yac_storage;
 static yac_user_alloc_t user_alloc;
 static yac_user_free_t user_free;
 
-/* hits counts one read in YAC_HITS_PER_SAMPLE and adds that much, so a hot
- * entry claims its slot a third as often. the 2^32/phi multiplier makes it
- * a Weyl sequence: samples never drift, so a key read at a fixed period is
- * counted like any other. both entry forms must scale alike, YAC_KV_HITS
- * compares them against each other */
+/* Weyl sequence (2^32/phi): samples evenly, and both entry forms must scale alike */
 #define YAC_HITS_PER_SAMPLE	3
 #define YAC_HITS_SAMPLE(ctx) \
 	((((++(ctx)->sample_clock) * 0x9E3779B1u) < (0xFFFFFFFFu / YAC_HITS_PER_SAMPLE)))
@@ -74,13 +70,11 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, yac_user_alloc_
 	user_alloc = alloc;
 	user_free = free;
 
-	/* the CRC chains probe the CPU and mount themselves, including the
-	 * interleaved large-value path (see yac_crc32_startup) */
+	/* the CRC chains probe the CPU and mount themselves */
 	yac_crc32_startup();
 
 	size = YAC_SG(first_seg).size - ((char *)YAC_SG(slots) - (char *)yac_storage);
-	/* rounds down to a power of two and never exceeds its input, so the
-	 * slot array always fits within the first segment */
+	/* rounds down to a power of two, so the slot array fits the first segment */
 	real_size = yac_storage_align_size(size / sizeof(yac_kv_key));
 
 	YAC_SG(slots_size) 	= real_size;
@@ -105,11 +99,8 @@ void yac_storage_shutdown(void) /* {{{ */ {
 
 /* {{{ MurmurHash64A (Austin Appleby, public domain).
  *
- * the 64-bit result is split for probing: low bits pick the home slot
- * (YAC_HASH_HOME), a fold of the upper half gives an odd, non-zero probe
- * stride (YAC_HASH_STRIDE) coprime with the slot count, so the walk can't
- * cycle. the empty key hashes to 0, safe because find() rejects empty
- * slots (val == NULL) before comparing hashes */
+ * low bits pick the home slot, a fold of the upper half gives the odd probe
+ * stride. the empty key hashes to 0, safe because find() rejects empty slots */
 static inline uint64_t yac_hash(const char *data, unsigned int len) {
 	const uint64_t m = 0xc6a4a7935bd1e995ULL;
 	uint64_t h = (uint64_t)len * m;
@@ -118,11 +109,10 @@ static inline uint64_t yac_hash(const char *data, unsigned int len) {
 		uint64_t k;
 
 #if SIZEOF_SIZE_T == 8
-		/* 64-bit builds: keys are 8-aligned (zend_string val sits at struct
-		 * offset 24, yac_object prefix at offset 24), a direct load is safe */
+		/* keys are 8-aligned: zend_string->val and yac_object->prefix both at 24 */
 		k = *(uint64_t*)data;
 #else
-		/* 32-bit builds only guarantee 4-alignment */
+		/* 32-bit only guarantees 4-alignment */
 		memcpy(&k, data, 8);
 #endif
 		k *= m;
@@ -156,8 +146,7 @@ static inline uint64_t yac_hash(const char *data, unsigned int len) {
 /* }}} */
 
 static inline int yac_slot_snapshot(const YAC_SLOT_V yac_kv_key *p, yac_kv_key *k) /* {{{ */ {
-	/* metadata only: k.val's block can be recycled right after this returns,
-	 * so find()'s len/crc guards stay mandatory */
+	/* metadata only: k.val's block can be recycled right after this returns */
 	unsigned int retry = 0;
 
 	for (;;) {
@@ -166,8 +155,7 @@ static inline int yac_slot_snapshot(const YAC_SLOT_V yac_kv_key *p, yac_kv_key *
 		if (!(s1 & 1)) {
 			unsigned int w;
 
-			/* not *k = *p: that may tear or be reordered around the counter
-			 * reads. memcpy because punning k's fields would alias */
+			/* not *k = *p: that may tear; memcpy because punning k would alias */
 			for (w = 0; w < (sizeof(yac_kv_key) / sizeof(uintptr_t)); w++) {
 				uintptr_t word = YAC_LOAD(&((const YAC_SLOT_V uintptr_t *)p)[w]);
 				memcpy((char *)k + w * sizeof(uintptr_t), &word, sizeof(word));
@@ -199,9 +187,7 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **dat
 	tv = ctx->tv;
 
 	if (YAC_SG(in_flush)) {
-		/* the table is being cleared: report the miss the flush is about
-		 * to make true anyway, rather than racing the sweep for an entry
-		 * that is on its way out */
+		/* report the miss the flush is about to make true anyway */
 		++ctx->miss;
 		return 0;
 	}
@@ -215,27 +201,22 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **dat
 			break;
 		}
 		if (k.val == NULL) {
-			/* empty slot: insert takes the first empty probe slot,
-			 * so the key cannot exist beyond this point */
+			/* insert takes the first empty probe slot, so the key can't be beyond */
 			break;
 		}
-		/* the next probe slot's address is already known: pull it in
-		 * while this slot's load and compare are in flight */
+		/* pull the next probe slot in while this one's compare is in flight */
 		yac_prefetch(&YAC_SG(slots)[(h + stride) & YAC_SG(slots_mask)]);
 		if (YAC_HASH_MATCH(k.h, hash) && YAC_KEY_KLEN(k) == len && !memcmp(k.key, key, len)) {
 			if (k.ttl && k.ttl <= tv) {
 				break; /* expired */
 			}
 			if (YAC_IS_EMBED(k.val)) {
-				/* atime is never sampled: it picks the victim, hits only
-				 * breaks its ties. being second-granular it claims at most
-				 * once a second per slot anyway */
+				/* atime is never sampled; being second-granular it claims at most once/sec */
 				int stale = k.u2.atime != tv;
 				int sampled = YAC_HITS_SAMPLE(ctx);
 
 				if (YAC_IS_EMBED_INLINE(k.val)) {
-					/* materialize from the snapshot; the seq check
-					 * already certified the bytes, no crc guard */
+					/* the seq check already certified these bytes, no crc guard */
 					unsigned int vlen = YAC_KEY_VLEN(k);
 					unsigned int tflag = YAC_EMBED_INLINE_FLAG(k.val);
 					char *s = user_alloc(vlen, tflag, 0);
@@ -245,16 +226,13 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **dat
 					*size = vlen;
 					*flag = tflag;
 				} else {
-					*data = (char *)k.val; /* tagged word, YAC_IS_EMBED(data) */
+					*data = (char *)k.val; /* tagged word */
 					*size = 0; /* the value word carries no metadata */
 					*flag = 0;
 				}
-				/* hits/atime live in the slot here, so touching them means
-				 * publishing -- the one read path that still claims. best
-				 * effort: a busy slot drops the count rather than wait */
+				/* touching the slot's hits/atime means publishing: the one read path that claims */
 				if ((stale || sampled) && YAC_SLOT_CLAIM(p)) {
-					/* a writer may have replaced it, and that entry's hit
-					 * count is not ours to bump */
+					/* only bump if no writer replaced the entry under us */
 					if ((yac_kv_val *)YAC_LOAD(&p->val) == k.val) {
 						if (stale) {
 							YAC_STORE(&p->u2.atime, tv);
@@ -269,13 +247,11 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **dat
 				++ctx->hits;
 				return 1;
 			} else {
-				/* snapshot the header while live — p->val may turn into a
-				 * different block (or an embedded word) behind our back */
+				/* snapshot the header while live; p->val may change behind our back */
 				yac_kv_val v = *(k.val);
 				char *s = user_alloc(YAC_KEY_VLEN(k), k.u1.flag, 0);
 
-				/* guarders: reject a block recycled behind our back.
-				 * yac_crc32_snapshot() copies and checksums in one pass */
+				/* reject a block recycled behind our back; crc32_snapshot copies+checks */
 				if (k.len == v.len && k.u2.crc == yac_crc32_snapshot(s, (char *)k.val->data, YAC_KEY_VLEN(k))) {
 					if (k.val->atime != tv) {
 						k.val->atime = tv;
@@ -283,8 +259,7 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **dat
 					*data = s;
 					*size = YAC_KEY_VLEN(k);
 					*flag = k.u1.flag;
-					/* sampled at the same rate as the embedded form above:
-					 * YAC_KV_HITS compares the two against each other */
+					/* same sample rate as the embedded form: YAC_KV_HITS compares them */
 					if (YAC_HITS_SAMPLE(ctx)) {
 						k.val->hits += YAC_HITS_PER_SAMPLE;
 					}
@@ -292,10 +267,7 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, char **dat
 					return 1;
 				}
 				user_free(s, k.u1.flag);
-				/* guarders rejected the block: recycled or corrupted
-				 * behind our back. tombstone it, but only if it is still
-				 * our entry — killing a writer's replacement loses a
-				 * live value */
+				/* recycled or corrupted: tombstone, but only if it is still our entry */
 				if (YAC_SLOT_CLAIM(p)) {
 					if ((yac_kv_val *)YAC_LOAD(&p->val) == k.val) {
 						YAC_STORE(&p->ttl, 1);
@@ -340,9 +312,7 @@ int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl)
 		}
 		yac_prefetch(&YAC_SG(slots)[(h + stride) & YAC_SG(slots_mask)]);
 		if (YAC_HASH_MATCH(k.h, hash) && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
-			/* outside the counter on purpose: a lone ttl store cannot tear
-			 * a snapshot, and at worst this expires a key another writer
-			 * just put here, which costs one entry */
+			/* outside the counter: a lone ttl store cannot tear a snapshot */
 			YAC_STORE(&p->ttl, ttl ? ttl + tv : 1);
 			return 1;
 		}
@@ -353,8 +323,6 @@ int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl)
 }
 /* }}} */
 
-/* fold a slot snapshot into the item form both dump() and peek() report;
- * the val word rides along so peek() needs no second trip into shm */
 static inline void yac_item_fill(yac_item_list *item, const yac_kv_key *k, unsigned int index) /* {{{ */ {
 	item->index = index;
 	item->h = k->h;
@@ -362,10 +330,9 @@ static inline void yac_item_fill(yac_item_list *item, const yac_kv_key *k, unsig
 	item->k_len = YAC_KEY_KLEN(*k);
 	item->v_len = YAC_KEY_VLEN(*k);
 	item->val = (uintptr_t)k->val;
-	item->embedded = YAC_IS_EMBED(k->val) != 0;
-	if (item->embedded) {
-		/* no value block: atime/hits live in the slot's unions;
-		 * only inline entries carry a flag */
+	item->embed = YAC_IS_EMBED(k->val)? (YAC_IS_EMBED_INLINE(k->val)? 2 : 1): 0;
+	if (item->embed) {
+		/* no value block: atime/hits live in the slot's unions */
 		item->atime = k->u2.atime;
 		item->hits = k->u1.hits;
 		item->crc = 0;
@@ -380,8 +347,6 @@ static inline void yac_item_fill(yac_item_list *item, const yac_kv_key *k, unsig
 	}
 	memcpy(item->key, k->key, item->k_len);
 	if (YAC_IS_EMBED_INLINE(k->val)) {
-		/* an inline value's bytes ride past k_len in the key area; copy them
-		 * too (k_len + v_len <= 48). dump() ignores the extra bytes */
 		memcpy(item->key + item->k_len, k->key + item->k_len, item->v_len);
 	}
 }
@@ -401,8 +366,7 @@ int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_item_l
 		return 0; /* the flush removes the key regardless */
 	}
 
-	/* probe only: folds the slot into item form, never reads the value
-	 * block, never touches atime/hits. an expired entry counts as absent */
+	/* read-only: never reads the value block or touches atime/hits */
 	hash = yac_hash(key, len);
 	h = YAC_HASH_HOME(hash, YAC_SG(slots_mask));
 	stride = YAC_HASH_STRIDE(hash, YAC_SG(slots_mask));
@@ -430,12 +394,7 @@ int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_item_l
 /* }}} */
 
 static inline unsigned int yac_storage_pick_victim(const yac_kv_key *snaps) /* {{{ */ {
-	/* evict the least recently used slot of a fully live probe path; ties
-	 * fall to the least hit, then the earliest probe — closer to home
-	 * means shorter future lookups.
-	 *
-	 * snapshots only: re-reading a slot here would leave the sequence
-	 * protocol and compare two versions of the same slot */
+	/* LRU; ties fall to least-hit then earliest probe. snapshots only */
 	unsigned long atime, oldest;
 	unsigned int victim, i;
 
@@ -456,9 +415,7 @@ static inline unsigned int yac_storage_pick_victim(const yac_kv_key *snaps) /* {
 
 static inline int yac_storage_fill_value(yac_ctx *ctx, yac_kv_key *k, unsigned int len, char *data, unsigned int size, unsigned int flag, uintptr_t word, uint64_t hash) /* {{{ */ {
 	unsigned long tv = ctx->tv;
-	/* fill k with the new value; the caller picked the form and assembled
-	 * word (0 = block path). every field but h/ttl/key/len is set for the
-	 * caller to commit, 0 when no value block could be allocated */
+	/* fill every field but h/ttl/key/len; word=0 means the block path */
 	if (word) {
 		if (YAC_IS_EMBED_INLINE(word)) {
 			memcpy(k->key + len, data, size);
@@ -469,10 +426,7 @@ static inline int yac_storage_fill_value(yac_ctx *ctx, yac_kv_key *k, unsigned i
 		return 1;
 	}
 	{
-		/* reuse the old block if big enough and intact, otherwise
-		 * allocate a fresh one (grown by YAC_STORAGE_FACTOR); the crc
-		 * guards against reusing a block the value pool has already
-		 * wrapped around and overwritten */
+		/* reuse the old block if big enough and intact, else allocate fresh */
 		int has_block = k->val && !YAC_IS_EMBED(k->val);
 		if (!(has_block && k->u2.size >= sizeof(yac_kv_val) + size - 1 &&
 				k->u2.crc == yac_crc32(k->val->data, YAC_KEY_VLEN(*k)))) {
@@ -513,16 +467,14 @@ int yac_storage_update(yac_ctx *ctx, const char *key, unsigned int len, char *da
 	tv = ctx->tv;
 
 	if (YAC_SG(in_flush)) {
-		/* the flush would clear this write anyway, and a writer racing the
-		 * sweep can leave a half-published slot behind it */
+		/* the flush clears this write anyway */
 		return 0;
 	}
 
 	hash = yac_hash(key, len);
 	stride = YAC_HASH_STRIDE(hash, YAC_SG(slots_mask));
 
-	/* 1. walk the key's probe path (up to 4 slots) looking for the key
-	 * itself or an empty slot; both can be taken straight away */
+	/* 1. find the key or an empty slot on the probe path */
 	h = YAC_HASH_HOME(hash, YAC_SG(slots_mask));
 	for (i = 0; i < 4; i++) {
 		paths[i] = p = &(YAC_SG(slots)[h]);
@@ -531,20 +483,19 @@ int yac_storage_update(yac_ctx *ctx, const char *key, unsigned int len, char *da
 		}
 		k = snaps[i];
 		if (k.val == NULL) {
-			goto do_update; /* an insert takes the first empty slot on the path */
+			goto do_update; /* first empty slot on the path */
 		}
 		yac_prefetch(&YAC_SG(slots)[(h + stride) & YAC_SG(slots_mask)]);
 		if (YAC_HASH_MATCH(k.h, hash) && YAC_KEY_KLEN(k) == len && !memcmp(k.key, key, len)) {
 			if (add && (!k.ttl || k.ttl > tv)) {
 				return 0; /* add() must not overwrite a live entry */
 			}
-			goto do_update; /* k holds the entry being updated */
+			goto do_update;
 		}
 		h = (h + stride) & YAC_SG(slots_mask);
 	}
 
-	/* 2. no empty slot: an expired one is recycled for free — natural
-	 * TTL expiry or a delete() tombstone, nothing live is lost */
+	/* 2. no empty slot: recycle an expired one for free */
 	for (i = 0; i < 4; i++) {
 		k = snaps[i];
 		if (k.ttl && k.ttl <= tv) {
@@ -553,26 +504,19 @@ int yac_storage_update(yac_ctx *ctx, const char *key, unsigned int len, char *da
 		}
 	}
 
-	/* 3. every slot on the path holds a live entry: displace the victim
-	 * chosen by pick_victim — a kick, the only kind of eviction the
-	 * counters track */
+	/* 3. all live: displace a victim (a kick) */
 	i = yac_storage_pick_victim(snaps);
 	p = paths[i];
 	k = snaps[i];
 	++YAC_SG(stats.kicks);
 
 do_update:
-	/* 4. fill the new value into k; only blocks can go stale (recycled
-	 * or corrupted behind our back), embedded values and empty slots are
-	 * always intact */
+	/* 4. fill the value; only blocks can go stale */
 	if (!yac_storage_fill_value(ctx, &k, len, data, size, flag, word, hash)) {
 		return 0;
 	}
 
-	/* 5. claim the slot and publish. the slot may have been replaced by a
-	 * concurrent writer since step 1, so publish the identity fields
-	 * unconditionally; per-field writes (not a whole-slot copy) keep a
-	 * step-1 snapshot from clobbering the u1/u2 unions */
+	/* 5. claim and publish per-field; a whole-slot copy would clobber the unions */
 	k.h = YAC_HASH_STORE(hash);
 	k.ttl = ttl ? tv + ttl : 0;
 	memcpy(k.key, key, len);
@@ -582,8 +526,7 @@ do_update:
 	}
 	YAC_STORE(&p->h, k.h);
 	YAC_STORE(&p->ttl, k.ttl);
-	/* the words the key spans, plus an inline value's; nothing compares
-	 * past klen, so a longer predecessor's trailing bytes may stay behind */
+	/* nothing compares past klen, so a longer predecessor's tail may stay */
 	{
 		unsigned int span = YAC_IS_EMBED_INLINE(k.val) ? len + size : len;
 		for (w = 0; w < (span + sizeof(uintptr_t) - 1) / sizeof(uintptr_t); w++) {
@@ -611,27 +554,20 @@ void yac_storage_flush(void) /* {{{ */ {
 		return;
 	}
 
-	/* writers check this and give up, so the sweep below races with fewer
-	 * of them; it cannot exclude one already past its own check */
+	/* writers check this and give up; can't exclude one already past its check */
 	YAC_ATOMIC_ADD(&YAC_SG(in_flush), 1);
 
-	/* claim the whole table and hold it: no writer can commit anywhere while
-	 * every counter is odd, so nothing lands in a slot the memset already
-	 * passed. one attempt each -- yac_slot_claim() spins YAC_MAX_SPIN
-	 * times already, and a claimer that died never publishes, so waiting on
-	 * it would hang the flush */
+	/* claim and hold the whole table: odd counters block every writer, so
+	 * nothing lands in a slot the memset already passed */
 	for (i = 0; i < YAC_SG(slots_size); i++) {
 		YAC_SLOT_V yac_kv_key *p = &(YAC_SG(slots)[i]);
 		(void)YAC_SLOT_CLAIM(p);
 	}
 
-	/* zeroing seq is even, so this both clears the entries and publishes
-	 * every slot claimed above, and it frees one wedged by a claimer that
-	 * died mid-publish -- the only thing in yac that does */
+	/* seq zero is even: clears the entries and publishes every slot claimed above */
 	memset((char *)YAC_SG(slots), 0, sizeof(yac_kv_key) * YAC_SG(slots_size));
 
-	/* full barrier (__sync_fetch_and_add / InterlockedExchangeAdd): the
-	 * memset is plain stores, this publishes them */
+	/* full barrier: the memset is plain stores, this publishes them */
 	YAC_ATOMIC_ADD(&YAC_SG(in_flush), -1);
 }
 /* }}} */
@@ -670,10 +606,7 @@ yac_storage_info * yac_storage_get_info(yac_ctx *ctx) /* {{{ */ {
 	info->start_time = YAC_SG(start_time);
 	info->slots_size = YAC_SG(slots_size);
 
-	/* count live slots directly: a value block or tagged word that is still
-	 * there and not yet expired. no snapshot — occupied is a ballpark and a
-	 * slot mid-publish may be counted or skipped, which is fine. reading val
-	 * and ttl as relaxed loads also avoids spinning on a busy writer. */
+	/* no snapshot: occupied is a ballpark, and relaxed loads avoid spinning */
 	for (i = 0; i < YAC_SG(slots_size); i++) {
 		YAC_SLOT_V yac_kv_key *p = &YAC_SG(slots)[i];
 		unsigned int ttl = YAC_LOAD(&p->ttl);

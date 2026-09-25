@@ -192,42 +192,29 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 	/* Starting from windows Vista, heap randomization occurs which might cause our mapping base to
 	   be taken (fail to map). So under Vista, we try to map into a hard coded predefined addresses
 	   in high memory. */
-	if (!YAC_G(mmap_base) || !*YAC_G(mmap_base)) {
-		do {
-			OSVERSIONINFOEX osvi;
-			SYSTEM_INFO si;
+	do {
+		OSVERSIONINFOEX osvi;
+		SYSTEM_INFO si;
 
-			ZeroMemory(&si, sizeof(SYSTEM_INFO));
-			ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
+		ZeroMemory(&si, sizeof(SYSTEM_INFO));
+		ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
 
-			osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+		osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
 
-			if (!GetVersionEx((OSVERSIONINFO *) &osvi)) {
-				osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-				if (!GetVersionEx((OSVERSIONINFO *)&osvi)) {
-					break;
-				}
+		if (!GetVersionEx((OSVERSIONINFO *) &osvi)) {
+			osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+			if (!GetVersionEx((OSVERSIONINFO *)&osvi)) {
+				break;
 			}
-
-			GetSystemInfo(&si);
-
-			/* Are we running Vista ? */
-			if (osvi.dwPlatformId == VER_PLATFORM_WIN32_NT && osvi.dwMajorVersion == 6) {
-				wanted_mapping_base = vista_mapping_base_set;
-			}
-		} while (0);
-	} else {
-		char *s = YAC_G(mmap_base);
-
-		/* skip leading 0x, %p assumes hexdeciaml format anyway */
-		if (*s == '0' && *(s + 1) == 'x') {
-			s += 2;
 		}
-		if (sscanf(s, "%p", &default_mapping_base_set[0]) != 1) {
-			*error_in = "mapping";
-			return 0;
+
+		GetSystemInfo(&si);
+
+		/* Are we running Vista ? */
+		if (osvi.dwPlatformId == VER_PLATFORM_WIN32_NT && osvi.dwMajorVersion == 6) {
+			wanted_mapping_base = vista_mapping_base_set;
 		}
-	}
+	} while (0);
 
 	if (is_reattach == 0) {
 		memfile = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, allocate_size, create_name_with_username(ACCEL_FILEMAP_NAME));
