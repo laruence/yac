@@ -558,7 +558,8 @@ static int yac_delete_multi_impl(yac_object *yac, zval *keys, int ttl) /* {{{ */
 /* }}} */
 
 static int yac_has_impl(yac_object *yac, zend_string *name) /* {{{ */ {
-	yac_item_list item;
+	yac_value val;
+	unsigned char embed;
 	const char *key;
 	size_t key_len;
 
@@ -566,25 +567,22 @@ static int yac_has_impl(yac_object *yac, zend_string *name) /* {{{ */ {
 		return 0;
 	}
 
-	return yac_storage_peek(&yac->ctx, key, key_len, &item);
+	return yac_storage_peek(&yac->ctx, key, key_len, &val, &embed) != YAC_VALUE_MISS;
 }
 /* }}} */
 
-static inline int yac_item_is_null(const yac_item_list *item) /* {{{ */ {
-	/* NULL is always a val-word FLAG, so kind+flag decide it */
-	return item->kind == YAC_VALUE_FLAG && item->value.u.flag == YAC_FLAG_NULL;
+static inline int yac_value_is_null(unsigned int kind, const yac_value *val) /* {{{ */ {
+	return kind == YAC_VALUE_FLAG && val->u.flag == YAC_FLAG_NULL;
 }
 /* }}} */
 
-static int yac_item_is_empty(const yac_item_list *item) /* {{{ */ {
-	/* every falsy value fits the val word, so a block/inline item is necessarily
-	 * non-empty and reports not-empty without reading its payload */
-	if (item->embed != YAC_EMBED_VALWORD) {
+static int yac_value_is_empty(unsigned int kind, unsigned char embed, const yac_value *val) /* {{{ */ {
+	if (embed != YAC_EMBED_VALWORD) {
 		return 0;
 	}
-	switch (item->kind) {
+	switch (kind) {
 		case YAC_VALUE_FLAG:
-			switch (item->value.u.flag) {
+			switch (val->u.flag) {
 				case YAC_FLAG_NULL:
 				case YAC_FLAG_FALSE:
 				case YAC_FLAG_EMPTY_ARRAY:
@@ -592,15 +590,14 @@ static int yac_item_is_empty(const yac_item_list *item) /* {{{ */ {
 			}
 			return 0;
 		case YAC_VALUE_LONG:
-			return item->value.u.lval == 0;
+			return val->u.lval == 0;
 		case YAC_VALUE_DOUBLE:
-			return item->value.u.dval == 0.0;
+			return val->u.dval == 0.0;
 		case YAC_VALUE_STRING:
-			/* "" or "0": item_fill kept the first byte and the length */
-			if (item->value.u.str.len == 0) {
+			if (val->u.str.len == 0) {
 				return 1;
 			}
-			return item->value.u.str.len == 1 && item->value.u.flag == '0';
+			return val->u.str.len == 1 && val->u.flag == '0';
 	}
 	return 0;
 }
@@ -708,7 +705,9 @@ static void yac_unset_property(void *zobj, void *name, void **cache_slot) /* {{{
 static int yac_has_property(void *zobj, void *name, int has_set_exists, void **cache_slot) /* {{{ */ {
 	yac_object *yac;
 	zend_string *member;
-	yac_item_list item;
+	yac_value val;
+	unsigned char embed;
+	unsigned int kind;
 	const char *key;
 	size_t key_len;
 
@@ -724,19 +723,23 @@ static int yac_has_property(void *zobj, void *name, int has_set_exists, void **c
 		return 0;
 	}
 
-	/* peek() settles all three and does not count as an access */
-	if (!yac_storage_peek(&yac->ctx, key, key_len, &item)) {
+	kind = yac_storage_peek(&yac->ctx, key, key_len, &val, &embed);
+
+	if (kind == YAC_VALUE_MISS) {
 		return 0;
 	}
 
-	/* 0 = isset, 1 = empty, 2 = property_exists */
+	if (kind == YAC_VALUE_MISS) {
+		return 0;
+	}
+
 	if (has_set_exists == YAC_PROPERTY_EXISTS) {
 		return 1;
 	}
 	if (has_set_exists == 0) {
-		return !yac_item_is_null(&item);
+		return !yac_value_is_null(kind, &val);
 	}
-	return !yac_item_is_empty(&item);
+	return !yac_value_is_empty(kind, embed, &val);
 }
 /* }}} */
 
@@ -937,12 +940,11 @@ PHP_METHOD(yac, dump) {
 				add_assoc_long(&item, "ttl", l->ttl);
 				add_assoc_long(&item, "k_len", l->k_len - prefix_len);
 				add_assoc_long(&item, "kind", l->kind);
-				if (l->value.u.blob.meta & YAC_META_COMPRESSED) {
-					/* v_len is the original, c_len the stored (compressed) length */
-					add_assoc_long(&item, "v_len", YAC_META_ORIG_LEN(l->value.u.blob.meta));
-					add_assoc_long(&item, "c_len", l->value.u.str.len);
+				if (l->meta & YAC_META_COMPRESSED) {
+					add_assoc_long(&item, "v_len", YAC_META_ORIG_LEN(l->meta));
+					add_assoc_long(&item, "c_len", l->v_len);
 				} else {
-					add_assoc_long(&item, "v_len", l->value.u.str.len);
+					add_assoc_long(&item, "v_len", l->v_len);
 				}
 				add_assoc_long(&item, "size", l->size);
 				add_assoc_long(&item, "atime", l->atime);

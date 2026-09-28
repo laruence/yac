@@ -182,12 +182,13 @@ typedef struct _yac_item_list {
 	unsigned long hits;
 	unsigned int ttl;
 	unsigned int k_len;
+	unsigned int v_len;
+	unsigned int meta;
 	unsigned int size;
 	unsigned char kind;
 	unsigned char embed;
-	yac_value value;
-	unsigned char key[YAC_STORAGE_MAX_KEY_LEN];
 	struct _yac_item_list *next;
+	unsigned char key[1];
 } yac_item_list;
 
 typedef struct {
@@ -271,7 +272,7 @@ int yac_storage_set_string(yac_ctx *ctx, const char *key, unsigned int len, cons
 int yac_storage_set_blob(yac_ctx *ctx, const char *key, unsigned int len, const char *v, unsigned int vlen, unsigned int meta, int ttl, int add);
 int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl);
 
-int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_item_list *out);
+int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_value *out, unsigned char *embed);
 void yac_storage_flush(void);
 /* fold a call context's accumulated hits/miss into the shared stats; the
  * ctx keeps counting afterwards */

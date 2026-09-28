@@ -21,6 +21,7 @@
 #endif
 
 #include <stdint.h>
+#include <stddef.h>
 #include <string.h>
 #include <time.h>
 #if defined(_WIN32)
@@ -458,15 +459,14 @@ static inline void yac_item_fill(yac_item_list *item, const yac_kv_key *k, unsig
 	item->h = k->h;
 	item->ttl = k->ttl;
 	item->k_len = YAC_KEY_KLEN(*k);
-	item->value.u.str.len = YAC_KEY_VLEN(*k); /* same offset as u.blob.len */
-	item->value.u.blob.meta = 0;
-	item->value.u.str.val = NULL; /* peek/dump report metadata, never the value buffer */
+	item->v_len = YAC_KEY_VLEN(*k);
+	item->meta = 0;
 
 	if (YAC_IS_EMBED_INLINE(word)) {
 		uintptr_t packed = YAC_VAL_INLINE_PAYLOAD(word);
 
 		item->kind = YAC_VAL_PACK_KIND(packed);
-		item->value.u.blob.meta = YAC_VAL_PACK_META(packed);
+		item->meta = YAC_VAL_PACK_META(packed);
 		item->embed = YAC_EMBED_INLINE;
 		item->atime = k->u2.atime;
 		item->hits = k->u1.hits;
@@ -479,24 +479,9 @@ static inline void yac_item_fill(yac_item_list *item, const yac_kv_key *k, unsig
 		item->hits = k->u1.hits;
 		item->crc = 0;
 		item->size = 0;
-		switch (item->kind) {
-			case YAC_VALUE_LONG:
-				item->value.u.lval = YAC_VAL_LONG_VALUE(word);
-				break;
-			case YAC_VALUE_DOUBLE:
-				item->value.u.dval = yac_val_double_unpack(word);
-				break;
-			case YAC_VALUE_STRING:
-				/* first byte only: enough for PHP's empty() on "" and "0" */
-				item->value.u.flag = (uint8_t)(YAC_VAL_STR_DATA(word) & 0xff);
-				break;
-			default: /* FLAG */
-				item->value.u.flag = YAC_VAL_FLAG_VALUE(word);
-				break;
-		}
 	} else {
 		item->kind = YAC_VAL_PACK_KIND(k->u1.flag);
-		item->value.u.blob.meta = YAC_VAL_PACK_META(k->u1.flag);
+		item->meta = YAC_VAL_PACK_META(k->u1.flag);
 		item->embed = YAC_EMBED_BLOCK;
 		item->atime = k->val->atime;
 		item->hits = k->val->hits;
@@ -507,7 +492,7 @@ static inline void yac_item_fill(yac_item_list *item, const yac_kv_key *k, unsig
 }
 /* }}} */
 
-int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_item_list *out) /* {{{ */ {
+int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_value *out, unsigned char *embed) /* {{{ */ {
 	uint64_t h, hash, stride;
 	unsigned int i;
 	yac_kv_key k;
@@ -518,33 +503,59 @@ int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_item_l
 	tv = ctx->tv;
 
 	if (YAC_SG(in_flush)) {
-		return 0; /* the flush removes the key regardless */
+		return YAC_VALUE_MISS;
 	}
 
-	/* read-only: never reads the value block or touches atime/hits */
 	hash = yac_hash(key, len);
 	h = YAC_HASH_HOME(hash, YAC_SG(slots_mask));
 	stride = YAC_HASH_STRIDE(hash, YAC_SG(slots_mask));
 	for (i = 0; i < 4; i++) {
 		p = &(YAC_SG(slots)[h]);
 		if (!yac_slot_snapshot(p, &k)) {
-			return 0;
+			return YAC_VALUE_MISS;
 		}
 		if (k.val == NULL) {
-			return 0; /* empty slot: the key was never stored */
+			return YAC_VALUE_MISS;
 		}
 		yac_prefetch(&YAC_SG(slots)[(h + stride) & YAC_SG(slots_mask)]);
 		if (YAC_HASH_MATCH(k.h, hash) && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
+			uintptr_t word = (uintptr_t)k.val;
+
 			if (k.ttl && k.ttl <= tv) {
-				return 0;
+				return YAC_VALUE_MISS;
 			}
-			yac_item_fill(out, &k, h);
-			return 1;
+			if (YAC_IS_EMBED_INLINE(word)) {
+				*embed = YAC_EMBED_INLINE;
+				return YAC_VAL_PACK_KIND(YAC_VAL_INLINE_PAYLOAD(word));
+			}
+			if (YAC_IS_EMBED(word)) {
+				unsigned int kind = yac_val_word_kind(word);
+
+				*embed = YAC_EMBED_VALWORD;
+				switch (kind) {
+					case YAC_VALUE_LONG:
+						out->u.lval = YAC_VAL_LONG_VALUE(word);
+						break;
+					case YAC_VALUE_DOUBLE:
+						out->u.dval = yac_val_double_unpack(word);
+						break;
+					case YAC_VALUE_STRING:
+						out->u.str.len = YAC_KEY_VLEN(k);
+						out->u.flag = (uint8_t)(YAC_VAL_STR_DATA(word) & 0xff);
+						break;
+					default:
+						out->u.flag = YAC_VAL_FLAG_VALUE(word);
+						break;
+				}
+				return kind;
+			}
+			*embed = YAC_EMBED_BLOCK;
+			return YAC_VAL_PACK_KIND(k.u1.flag);
 		}
 		h = (h + stride) & YAC_SG(slots_mask);
 	}
 
-	return 0;
+	return YAC_VALUE_MISS;
 }
 /* }}} */
 
@@ -876,7 +887,7 @@ yac_item_list* yac_storage_dump(unsigned int limit, unsigned int offset, unsigne
 			++skipped; /* the first offset matching entries are not reported */
 			continue;
 		}
-		item = user_alloc(sizeof(yac_item_list), 0, 1);
+		item = user_alloc(offsetof(yac_item_list, key) + YAC_KEY_KLEN(k), 0, 1);
 		yac_item_fill(item, &k, i);
 		item->next = list;
 		list = item;
