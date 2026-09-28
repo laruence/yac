@@ -47,11 +47,13 @@ check($yac, "k_int",    123,         YAC_KIND_LONG, YAC_EMBED_VALWORD);
 check($yac, "k_negint", -456,        YAC_KIND_LONG, YAC_EMBED_VALWORD);
 check($yac, "k_bigint", PHP_INT_MAX, YAC_KIND_LONG, YAC_EMBED_INLINE);
 
-/* STRING: <=7 bytes ride the val word; longer goes inline then block */
-check($yac, "k_sstr0",  "",                  YAC_KIND_STRING, YAC_EMBED_VALWORD);
-check($yac, "k_sstr7",  "abcdefg",           YAC_KIND_STRING, YAC_EMBED_VALWORD);
-check($yac, "k_mstr",   str_repeat("m", 20), YAC_KIND_STRING, YAC_EMBED_INLINE);
-check($yac, "k_lstr",   str_repeat("L", 64), YAC_KIND_STRING, YAC_EMBED_BLOCK);
+/* STRING: the val word holds (word bits - 5) / 8 bytes, 7 on 64-bit and 3 on
+ * 32-bit, so derive the boundary instead of hard-coding one platform's */
+$strmax = intdiv(PHP_INT_SIZE * 8 - 5, 8);
+check($yac, "k_sstr0", "",                            YAC_KIND_STRING, YAC_EMBED_VALWORD);
+check($yac, "k_sstrn", str_repeat("s", $strmax),      YAC_KIND_STRING, YAC_EMBED_VALWORD);
+check($yac, "k_mstr",  str_repeat("m", $strmax + 1),  YAC_KIND_STRING, YAC_EMBED_INLINE);
+check($yac, "k_lstr",  str_repeat("L", 64),           YAC_KIND_STRING, YAC_EMBED_BLOCK);
 
 /* BLOB: a serialized array/object, small enough to inline */
 check($yac, "k_arr",  array("a" => 1),     YAC_KIND_BLOB, YAC_EMBED_INLINE);
