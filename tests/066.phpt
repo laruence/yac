@@ -59,9 +59,8 @@ check($yac, "k_lstr",  str_repeat("L", 64),           YAC_KIND_STRING, YAC_EMBED
 check($yac, "k_arr",  array("a" => 1),     YAC_KIND_BLOB, YAC_EMBED_INLINE);
 check($yac, "k_obj",  (object)array("p" => 1), YAC_KIND_BLOB, YAC_EMBED_INLINE);
 
-/* DOUBLE is only ever inline or block (no float32 round-trip on 64-bit
- * builds for a full-precision double); a float-exact one may use the word.
- * Assert kind, and that it is embedded some way, not the exact form. */
+/* DOUBLE only ever sits inline or in a block: the val word holds +/-0.0 and
+ * nothing else. Assert kind, and that it is embedded some way. */
 $yac->set("k_dbl", 3.14159);
 $d = dump_find($yac, "k_dbl");
 var_dump($d["kind"] === YAC_KIND_DOUBLE, $d["embed"] > YAC_EMBED_BLOCK);

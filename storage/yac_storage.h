@@ -74,13 +74,14 @@ typedef struct {
  *   1  long, sign-extended from bit 2
  *   2  short string, length in bits [4:2], bytes from bit 5
  *   3  special: bit 2 inline (bytes live in the slot's key area), bit 3 double
- *      (float32 in bits [35:4]), neither means an 8-bit flag in bits [11:4]
+ *      (only +/-0.0, sign in bit 4), neither means an 8-bit flag in bits [11:4]
  *
  * Byte payloads (block and inline alike) carry YAC_VAL_PACK(meta, kind): a
  * YAC_VALUE_* kind in the low 3 bits, meta above it. meta is opaque here, the
  * PHP layer decides what it means; kind STRING lets the allocator hand back a
- * zend_string buffer the caller can adopt. A long or double too wide for the
- * val word (32-bit builds) takes this path too, hence kind covers all four.
+ * zend_string buffer the caller can adopt. A long too wide for the val word
+ * (32-bit builds) and any non-zero double take the byte path too, hence kind
+ * covers all four.
  */
 #define YAC_VAL_TAG_MASK          0x3
 #define YAC_VAL_TAG_LONG          0x1
@@ -111,20 +112,13 @@ typedef struct {
 #define YAC_VAL_STR_LEN(p)        ((unsigned)((((uintptr_t)(p)) >> 2) & 0x7))
 #define YAC_VAL_STR_DATA(p)       (((uintptr_t)(p)) >> 5)
 
-/* packing a float32 into the val word needs 64 bits, so it is gated below */
-#define YAC_VAL_DOUBLE_BITS(p)    ((uint32_t)((((uintptr_t)(p)) >> YAC_VAL_PAYLOAD_SHIFT) & 0xffffffffu))
-#if defined(UINTPTR_MAX) && UINTPTR_MAX > 0xffffffffu
-#define YAC_VAL_HAS_DOUBLE        1
-#define YAC_VAL_DOUBLE(bits)      ((uintptr_t)((((uint64_t)(bits)) << YAC_VAL_PAYLOAD_SHIFT) | \
-                                   YAC_VAL_DOUBLE_BIT | YAC_VAL_TAG_SPECIAL))
-#else
-/* a 32-bit word has no room for a float32, so only +/-0.0 rides it: one sign
- * bit. that is enough because every falsy double is a zero, and empty() must
- * be answerable from the word alone */
+/* A double never fits the val word except as a zero: only +/-0.0 rides it,
+ * one sign bit. that is enough because every falsy double is a zero, and
+ * empty() must be answerable from the word alone */
 #define YAC_VAL_NEG_ZERO_BIT      0x10
 #define YAC_VAL_DOUBLE_ZERO       (YAC_VAL_DOUBLE_BIT | YAC_VAL_TAG_SPECIAL)
 #define YAC_VAL_DOUBLE_NEG_ZERO   (YAC_VAL_NEG_ZERO_BIT | YAC_VAL_DOUBLE_ZERO)
-#endif
+#define YAC_VAL_DOUBLE_VALUE(p)   ((((uintptr_t)(p)) & YAC_VAL_NEG_ZERO_BIT)? -0.0: 0.0)
 
 #define YAC_VAL_KIND_BITS         3
 #define YAC_VAL_PACK(meta, kind)  ((((uint64_t)(meta)) << YAC_VAL_KIND_BITS) | (kind))
@@ -144,7 +138,7 @@ typedef struct {
 	((YAC_VAL_INLINE_META_BITS >= 32) ? 0xffffffffu : \
 	 ((1u << YAC_VAL_INLINE_META_BITS) - 1))
 
-/* what storage find returns */
+/* the kind peek and find return, and the exposed YAC_KIND_* constants */
 #define YAC_VALUE_MISS            0
 #define YAC_VALUE_FLAG            1
 #define YAC_VALUE_LONG            2
@@ -183,19 +177,31 @@ typedef struct {
 #define YAC_HASH_STORE(hash)         ((unsigned long)(hash))
 #define YAC_HASH_MATCH(h, hash)      ((unsigned long)(hash) == (h))
 
+/* Weyl sequence (2^32/phi): samples evenly, and both entry forms must scale alike */
+#define YAC_HITS_PER_SAMPLE	3
+#define YAC_HITS_SAMPLE(ctx) \
+	((((++(ctx)->sample_clock) * 0x9E3779B1u) < (0xFFFFFFFFu / YAC_HITS_PER_SAMPLE)))
+
+#define YAC_INLINE_FITS(len, size) ((len) + (size) <= YAC_STORAGE_MAX_KEY_LEN)
+
+typedef struct _yac_item {
+	unsigned char embed;
+	unsigned int  len;
+	unsigned int  meta;
+	uintptr_t     valword;
+} yac_item;
+
 typedef struct _yac_item_list {
 	unsigned int index;
 	unsigned long h;
 	unsigned long crc;
+	unsigned int k_len;
+	unsigned int size;
+	unsigned int ttl;
 	unsigned long atime;
 	unsigned long hits;
-	unsigned int ttl;
-	unsigned int k_len;
-	unsigned int v_len;
-	unsigned int meta;
-	unsigned int size;
 	unsigned char kind;
-	unsigned char embed;
+	yac_item val;
 	struct _yac_item_list *next;
 	unsigned char key[1];
 } yac_item_list;
@@ -281,7 +287,8 @@ int yac_storage_set_string(yac_ctx *ctx, const char *key, unsigned int len, cons
 int yac_storage_set_blob(yac_ctx *ctx, const char *key, unsigned int len, const char *v, unsigned int vlen, unsigned int meta, int ttl, int add);
 int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl);
 
-int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_value *out, unsigned char *embed);
+/* like find but reads no payload: returns the kind and fills valword/embed/len/meta */
+int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_item *out);
 void yac_storage_flush(void);
 /* fold a call context's accumulated hits/miss into the shared stats; the
  * ctx keeps counting afterwards */

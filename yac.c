@@ -558,8 +558,7 @@ static int yac_delete_multi_impl(yac_object *yac, zval *keys, int ttl) /* {{{ */
 /* }}} */
 
 static int yac_has_impl(yac_object *yac, zend_string *name) /* {{{ */ {
-	yac_value val;
-	unsigned char embed;
+	yac_item item;
 	const char *key;
 	size_t key_len;
 
@@ -567,37 +566,42 @@ static int yac_has_impl(yac_object *yac, zend_string *name) /* {{{ */ {
 		return 0;
 	}
 
-	return yac_storage_peek(&yac->ctx, key, key_len, &val, &embed) != YAC_VALUE_MISS;
+	return yac_storage_peek(&yac->ctx, key, key_len, &item) != YAC_VALUE_MISS;
 }
 /* }}} */
 
-static inline int yac_value_is_null(unsigned int kind, const yac_value *val) /* {{{ */ {
-	return kind == YAC_VALUE_FLAG && val->u.flag == YAC_FLAG_NULL;
+static inline int yac_item_is_null(const yac_item *item) /* {{{ */ {
+	return item->valword == YAC_VAL_FLAG(YAC_FLAG_NULL);
 }
 /* }}} */
 
-static int yac_value_is_empty(unsigned int kind, unsigned char embed, const yac_value *val) /* {{{ */ {
-	if (embed != YAC_EMBED_VALWORD) {
+static int yac_item_is_empty(const yac_item *item) /* {{{ */ {
+	/* every falsy value rides the val word, so a peek can answer empty() from it */
+	uintptr_t word = item->valword;
+
+	if (item->embed != YAC_EMBED_VALWORD) {
 		return 0;
 	}
-	switch (kind) {
-		case YAC_VALUE_FLAG:
-			switch (val->u.flag) {
+	switch (YAC_VAL_TAG(word)) {
+		case YAC_VAL_TAG_LONG:
+			return YAC_VAL_LONG_VALUE(word) == 0;
+		case YAC_VAL_TAG_STR:
+			if (YAC_VAL_STR_LEN(word) == 0) {
+				return 1;
+			}
+			return YAC_VAL_STR_LEN(word) == 1 && (YAC_VAL_STR_DATA(word) & 0xff) == '0';
+		case YAC_VAL_TAG_SPECIAL:
+			if (word & YAC_VAL_DOUBLE_BIT) {
+				/* only +/-0.0 can ride the word */
+				return 1;
+			}
+			switch (YAC_VAL_FLAG_VALUE(word)) {
 				case YAC_FLAG_NULL:
 				case YAC_FLAG_FALSE:
 				case YAC_FLAG_EMPTY_ARRAY:
 					return 1;
 			}
 			return 0;
-		case YAC_VALUE_LONG:
-			return val->u.lval == 0;
-		case YAC_VALUE_DOUBLE:
-			return val->u.dval == 0.0;
-		case YAC_VALUE_STRING:
-			if (val->u.str.len == 0) {
-				return 1;
-			}
-			return val->u.str.len == 1 && val->u.flag == '0';
 	}
 	return 0;
 }
@@ -705,8 +709,7 @@ static void yac_unset_property(void *zobj, void *name, void **cache_slot) /* {{{
 static int yac_has_property(void *zobj, void *name, int has_set_exists, void **cache_slot) /* {{{ */ {
 	yac_object *yac;
 	zend_string *member;
-	yac_value val;
-	unsigned char embed;
+	yac_item item;
 	unsigned int kind;
 	const char *key;
 	size_t key_len;
@@ -723,11 +726,7 @@ static int yac_has_property(void *zobj, void *name, int has_set_exists, void **c
 		return 0;
 	}
 
-	kind = yac_storage_peek(&yac->ctx, key, key_len, &val, &embed);
-
-	if (kind == YAC_VALUE_MISS) {
-		return 0;
-	}
+	kind = yac_storage_peek(&yac->ctx, key, key_len, &item);
 
 	if (kind == YAC_VALUE_MISS) {
 		return 0;
@@ -737,9 +736,9 @@ static int yac_has_property(void *zobj, void *name, int has_set_exists, void **c
 		return 1;
 	}
 	if (has_set_exists == 0) {
-		return !yac_value_is_null(kind, &val);
+		return !yac_item_is_null(&item);
 	}
-	return !yac_value_is_empty(kind, embed, &val);
+	return !yac_item_is_empty(&item);
 }
 /* }}} */
 
@@ -940,16 +939,16 @@ PHP_METHOD(yac, dump) {
 				add_assoc_long(&item, "ttl", l->ttl);
 				add_assoc_long(&item, "k_len", l->k_len - prefix_len);
 				add_assoc_long(&item, "kind", l->kind);
-				if (l->meta & YAC_META_COMPRESSED) {
-					add_assoc_long(&item, "v_len", YAC_META_ORIG_LEN(l->meta));
-					add_assoc_long(&item, "c_len", l->v_len);
+				if (l->val.meta & YAC_META_COMPRESSED) {
+					add_assoc_long(&item, "v_len", YAC_META_ORIG_LEN(l->val.meta));
+					add_assoc_long(&item, "c_len", l->val.len);
 				} else {
-					add_assoc_long(&item, "v_len", l->v_len);
+					add_assoc_long(&item, "v_len", l->val.len);
 				}
 				add_assoc_long(&item, "size", l->size);
 				add_assoc_long(&item, "atime", l->atime);
 				add_assoc_long(&item, "hits", l->hits);
-				add_assoc_long(&item, "embed", l->embed);
+				add_assoc_long(&item, "embed", l->val.embed);
 				add_assoc_stringl(&item, "key", (char*)l->key + prefix_len, l->k_len - prefix_len);
 				ZEND_HASH_FILL_ADD(&item);
 			}
