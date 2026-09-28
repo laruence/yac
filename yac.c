@@ -16,8 +16,6 @@
   +----------------------------------------------------------------------+
 */
 
-/* $Id$ */
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -73,133 +71,31 @@ static inline yac_object *php_yac_fetch_object(zend_object *obj) /* {{{ */ {
 }
 /* }}} */
 
-static inline int yac_long_embedable(zend_long v) /* {{{ */ {
-	/* shifts unsigned: signed left-shift of a negative is UB */
-	return (((zend_ulong)(v) + ((zend_ulong)1 << (sizeof(zend_long) * 8 - 3)))
-			>> (sizeof(zend_long) * 8 - 2)) == 0;
-}
-/* }}} */
-
-static inline int yac_str_embedable(zend_string *str) /* {{{ */ {
-	return ZSTR_LEN(str) <= YAC_ZV_STR_MAX_LEN;
-}
-/* }}} */
-
 static inline int yac_arr_embedable(zend_array *arr) /* {{{ */ {
 	return zend_hash_num_elements(arr) == 0;
 }
 /* }}} */
 
-static inline uintptr_t yac_try_inline(unsigned int key_len, unsigned int size, unsigned int flag) /* {{{ */ {
-	/* 0 means "use a block" */
-	if (key_len + size <= YAC_STORAGE_MAX_KEY_LEN) {
-		return YAC_EMBED_INLINE_WORD(flag);
-	}
-	return 0;
-}
-/* }}} */
-
-#ifdef YAC_ZV_HAS_DOUBLE
-static inline int yac_double_embedable(double d) /* {{{ */ {
-	/* only a double that survives a float round-trip fits the 32 payload bits */
-	return (double)(float)d == d;
-}
-/* }}} */
-
-static inline uintptr_t yac_embed_double(double d) /* {{{ */ {
-	uint32_t bits;
-	float f = (float)d;
-	memcpy(&bits, &f, sizeof(bits));
-	return (((uintptr_t)bits) << YAC_ZV_DOUBLE_SHIFT) | YAC_ZV_DOUBLE;
-}
-/* }}} */
-
-static inline double yac_embed_double_val(uintptr_t word) /* {{{ */ {
-	uint32_t bits = (uint32_t)((word >> YAC_ZV_DOUBLE_SHIFT) & 0xffffffffu);
-	float f;
-	memcpy(&f, &bits, sizeof(f));
-	return (double)f;
-}
-/* }}} */
-#else
-#define yac_double_embedable(d) ((d) == 0.0)
-static inline uintptr_t yac_embed_double(double d) /* {{{ */ {
-	return signbit(d) ? YAC_ZV_DOUBLE_NEG_ZERO : YAC_ZV_DOUBLE_ZERO;
-}
-/* }}} */
-#endif
-
-static inline uintptr_t yac_embed_str(const char *s, unsigned int len) /* {{{ */ {
-	uintptr_t u = YAC_ZV_TAG_STR | ((uintptr_t)len << 2);
-	unsigned int i;
-
-	for (i = 0; i < len; i++) {
-		u |= ((uintptr_t)(unsigned char)s[i]) << (5 + i * 8);
-	}
-	return u;
-}
-/* }}} */
-
-static zval* yac_embed_to_zval(const char *data, zval *rv) /* {{{ */ {
-	/* NULL return means a corrupt tag, caller degrades the hit to a miss */
-	switch (((uintptr_t)data) & YAC_ZV_TAG_MASK) {
-		case YAC_ZV_TAG_LONG:
-			ZVAL_LONG(rv, yac_embed_long_val(data));
+static zval* yac_flag_to_zval(uint8_t fval, zval *rv) /* {{{ */ {
+	switch (fval) {
+		case YAC_FLAG_NULL:
+			ZVAL_NULL(rv);
 			return rv;
-		case YAC_ZV_TAG_STR:
-			{
-				unsigned int slen = YAC_ZV_STR_LEN(data);
-				uintptr_t payload = YAC_ZV_STR_DATA(data);
-
-				if (slen == 0) {
-					ZVAL_EMPTY_STRING(rv);
-				} else {
-					zend_string *str = zend_string_alloc(slen, 0);
-					unsigned int i;
-
-					for (i = 0; i < slen; i++) {
-						ZSTR_VAL(str)[i] = (char)((payload >> (i * 8)) & 0xff);
-					}
-					ZSTR_VAL(str)[slen] = '\0';
-					ZVAL_NEW_STR(rv, str);
-				}
-				return rv;
-			}
-		case YAC_ZV_TAG_SPECIAL:
-			switch (((uintptr_t)data) & YAC_ZV_KIND_MASK) {
-				case YAC_ZV_NULL:
-					ZVAL_NULL(rv);
-					return rv;
-				case YAC_ZV_TRUE:
-					ZVAL_TRUE(rv);
-					return rv;
-				case YAC_ZV_FALSE:
-					ZVAL_FALSE(rv);
-					return rv;
-				case YAC_ZV_EMPTY_ARRAY:
+		case YAC_FLAG_TRUE:
+			ZVAL_TRUE(rv);
+			return rv;
+		case YAC_FLAG_FALSE:
+			ZVAL_FALSE(rv);
+			return rv;
+		case YAC_FLAG_EMPTY_ARRAY:
 #if PHP_VERSION_ID >= 80000
-					ZVAL_EMPTY_ARRAY(rv);
+			ZVAL_EMPTY_ARRAY(rv);
 #else
-					array_init(rv);
+			array_init(rv);
 #endif
-					return rv;
-#ifdef YAC_ZV_HAS_DOUBLE
-				case YAC_ZV_DOUBLE:
-					ZVAL_DOUBLE(rv, yac_embed_double_val((uintptr_t)data));
-					return rv;
-#else
-				case YAC_ZV_DOUBLE_ZERO:
-					ZVAL_DOUBLE(rv, 0.0);
-					return rv;
-				case YAC_ZV_DOUBLE_NEG_ZERO:
-					ZVAL_DOUBLE(rv, -0.0);
-					return rv;
-#endif
-			}
-			return NULL;
-		default:
-			return NULL;
+			return rv;
 	}
+	return NULL;
 }
 /* }}} */
 
@@ -282,12 +178,17 @@ static const char *yac_assemble_key(yac_object *yac, zend_string *name, size_t *
 }
 /* }}} */
 
+static inline int yac_flag_is_raw_string(unsigned int flag) /* {{{ */ {
+	return YAC_VAL_PACK_KIND(flag) == YAC_VALUE_STRING;
+}
+/* }}} */
+
 void *yac_alloc(unsigned int size, unsigned int flag, int interleaved) /* {{{ */ {
-	if ((flag & (YAC_ENTRY_TYPE_MASK|YAC_ENTRY_COMPRESSED)) == IS_STRING) {
+	if (yac_flag_is_raw_string(flag)) {
 		zend_string *res = zend_string_alloc(size, 0);
 		return ZSTR_VAL(res);
 	}
-	/* dump() holds many blocks at once and needs distinct memory */
+	/* dump() holds many blocks at once, so they cannot share the staging buffer */
 	if (!interleaved && size <= YAC_BUF_SIZE) {
 		return YAC_G(yac_staging_buf);
 	}
@@ -296,8 +197,7 @@ void *yac_alloc(unsigned int size, unsigned int flag, int interleaved) /* {{{ */
 /* }}} */
 
 void yac_free(void *addr, unsigned int flag) /* {{{ */ {
-	/* staging buffer is never freed */
-	if ((flag & (YAC_ENTRY_TYPE_MASK|YAC_ENTRY_COMPRESSED)) == IS_STRING) {
+	if (yac_flag_is_raw_string(flag)) {
 		efree((char*)addr - offsetof(zend_string, val));
 		return;
 	}
@@ -308,8 +208,44 @@ void yac_free(void *addr, unsigned int flag) /* {{{ */ {
 }
 /* }}} */
 
+static int yac_compress(const char *src, size_t src_len, char **out, int *out_len, unsigned int *meta) /* {{{ */ {
+	int compressed_len;
+	char *compressed;
+
+	if (UNEXPECTED(src_len > YAC_META_MAX_ORIG_LEN)) {
+		php_error_docref(NULL, E_WARNING, "Value is too long(%ld bytes) to be stored", (long)src_len);
+		return 0;
+	}
+
+	compressed = emalloc(LZ4_compressBound(src_len));
+	compressed_len = LZ4_compress_default(src, compressed, src_len, LZ4_compressBound(src_len));
+	if (UNEXPECTED(!compressed_len)) {
+		php_error_docref(NULL, E_WARNING, "Compression failed");
+		efree(compressed);
+		return 0;
+	}
+	if (UNEXPECTED((size_t)compressed_len > src_len)) {
+		php_error_docref(NULL, E_WARNING,
+				"Compression makes the value larger(%ld -> %d bytes), skipped",
+				(long)src_len, compressed_len);
+		efree(compressed);
+		return 0;
+	}
+	if (UNEXPECTED(compressed_len > YAC_STORAGE_MAX_ENTRY_LEN)) {
+		php_error_docref(NULL, E_WARNING, "Value is too long(%ld bytes) to be stored", (long)src_len);
+		efree(compressed);
+		return 0;
+	}
+
+	*out = compressed;
+	*out_len = compressed_len;
+	*meta = YAC_META_PACK_LEN(src_len);
+	return 1;
+}
+/* }}} */
+
 static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl, int add) /* {{{ */ {
-	int ret = 0, flag = Z_TYPE_P(value);
+	int ret = 0;
 	char *msg;
 	const char *key;
 	size_t key_len;
@@ -320,88 +256,46 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 
 	switch (Z_TYPE_P(value)) {
 		case IS_NULL:
-			ret = yac_storage_update(&yac->ctx, key, key_len, NULL, 0, flag, yac_embed_null(), ttl, add);
+			ret = yac_storage_set_flag(&yac->ctx, key, key_len, YAC_FLAG_NULL, ttl, add);
 			break;
 		case IS_TRUE:
-			ret = yac_storage_update(&yac->ctx, key, key_len, NULL, 0, flag, yac_embed_true(), ttl, add);
+			ret = yac_storage_set_flag(&yac->ctx, key, key_len, YAC_FLAG_TRUE, ttl, add);
 			break;
 		case IS_FALSE:
-			ret = yac_storage_update(&yac->ctx, key, key_len, NULL, 0, flag, yac_embed_false(), ttl, add);
+			ret = yac_storage_set_flag(&yac->ctx, key, key_len, YAC_FLAG_FALSE, ttl, add);
 			break;
 		case IS_LONG:
-			if (yac_long_embedable(Z_LVAL_P(value))) {
-				ret = yac_storage_update(&yac->ctx, key, key_len, NULL, 0, flag, yac_embed_long(Z_LVAL_P(value)), ttl, add);
-			} else {
-				ret = yac_storage_update(&yac->ctx, key, key_len, (char *)&Z_LVAL_P(value), sizeof(zend_long), flag,
-						yac_try_inline(key_len, sizeof(zend_long), flag), ttl, add);
-			}
+			ret = yac_storage_set_long(&yac->ctx, key, key_len, (int64_t)Z_LVAL_P(value), ttl, add);
 			break;
 		case IS_DOUBLE:
-			if (yac_double_embedable(Z_DVAL_P(value))) {
-				ret = yac_storage_update(&yac->ctx, key, key_len, NULL, 0, flag,
-						yac_embed_double(Z_DVAL_P(value)), ttl, add);
-			} else {
-				ret = yac_storage_update(&yac->ctx, key, key_len, (char *)&Z_DVAL_P(value), sizeof(double), flag,
-						yac_try_inline(key_len, sizeof(double), flag), ttl, add);
-			}
+			ret = yac_storage_set_double(&yac->ctx, key, key_len, Z_DVAL_P(value), ttl, add);
 			break;
 		case IS_STRING:
-#ifdef IS_CONSTANT
-		case IS_CONSTANT:
-#endif
 			{
-				if (yac_str_embedable(Z_STR_P(value))) {
-					ret = yac_storage_update(&yac->ctx, key, key_len, NULL,
-							(unsigned int)Z_STRLEN_P(value), flag,
-							yac_embed_str(Z_STRVAL_P(value), (unsigned int)Z_STRLEN_P(value)), ttl, add);
-				} else if (Z_STRLEN_P(value) > YAC_G(compress_threshold) || Z_STRLEN_P(value) > YAC_STORAGE_MAX_ENTRY_LEN) {
-					int compressed_len;
+				size_t slen = Z_STRLEN_P(value);
+
+				if (slen > YAC_G(compress_threshold) || slen > YAC_STORAGE_MAX_ENTRY_LEN) {
 					char *compressed;
+					int compressed_len;
+					unsigned int meta;
 
-					/* if longer than this, then we can not stored the length in flag */
-					if (UNEXPECTED(Z_STRLEN_P(value) > YAC_ENTRY_MAX_ORIG_LEN)) {
-						php_error_docref(NULL, E_WARNING, "Value is too long(%ld bytes) to be stored", Z_STRLEN_P(value));
+					if (!yac_compress(Z_STRVAL_P(value), slen, &compressed, &compressed_len, &meta)) {
 						return ret;
 					}
-
-					compressed = emalloc(LZ4_compressBound(Z_STRLEN_P(value)));
-					compressed_len = LZ4_compress_default(Z_STRVAL_P(value), compressed, Z_STRLEN_P(value), LZ4_compressBound(Z_STRLEN_P(value)));
-					if (UNEXPECTED(!compressed_len)) {
-						php_error_docref(NULL, E_WARNING, "Compression failed");
-						efree(compressed);
-						return ret;
-					}
-					if (UNEXPECTED(compressed_len > Z_STRLEN_P(value))) {
-						php_error_docref(NULL, E_WARNING,
-								"Compression makes the value larger(%ld -> %d bytes), skipped",
-								(long)Z_STRLEN_P(value), compressed_len);
-						efree(compressed);
-						return ret;
-					}
-
-					if (UNEXPECTED(compressed_len > YAC_STORAGE_MAX_ENTRY_LEN)) {
-						php_error_docref(NULL, E_WARNING, "Value is too long(%ld bytes) to be stored", Z_STRLEN_P(value));
-						efree(compressed);
-						return ret;
-					}
-
-					flag |= YAC_ENTRY_COMPRESSED;
-					flag |= (Z_STRLEN_P(value) << YAC_ENTRY_ORIG_LEN_SHIT);
-					ret = yac_storage_update(&yac->ctx, key, key_len, compressed, compressed_len, flag,
-						0 /* compressed values always use blocks */, ttl, add);
+					/* a compressed string is stored as a BLOB (COMPRESSED, not
+					 * SERIALIZED), keeping the raw STRING read path meta-free */
+					ret = yac_storage_set_blob(&yac->ctx, key, key_len,
+							compressed, compressed_len, meta | YAC_META_COMPRESSED, ttl, add);
 					efree(compressed);
 				} else {
-					ret = yac_storage_update(&yac->ctx, key, key_len, Z_STRVAL_P(value), Z_STRLEN_P(value), flag,
-						yac_try_inline(key_len, (unsigned int)Z_STRLEN_P(value), flag), ttl, add);
+					ret = yac_storage_set_string(&yac->ctx, key, key_len,
+							Z_STRVAL_P(value), (unsigned int)slen, ttl, add);
 				}
 			}
 			break;
 		case IS_ARRAY:
-#ifdef IS_CONSTANT_ARRAY
-		case IS_CONSTANT_ARRAY:
-#endif
 			if (yac_arr_embedable(Z_ARRVAL_P(value))) {
-				ret = yac_storage_update(&yac->ctx, key, key_len, NULL, 0, flag, yac_embed_empty_array(), ttl, add);
+				ret = yac_storage_set_flag(&yac->ctx, key, key_len, YAC_FLAG_EMPTY_ARRAY, ttl, add);
 				break;
 			}
 		case IS_OBJECT:
@@ -410,47 +304,20 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 
 				if (yac_serializer(value, &buf, &msg)) {
 					if (buf.s->len > YAC_G(compress_threshold) || buf.s->len > YAC_STORAGE_MAX_ENTRY_LEN) {
-						int compressed_len;
 						char *compressed;
+						int compressed_len;
+						unsigned int meta;
 
-						if (UNEXPECTED(buf.s->len > YAC_ENTRY_MAX_ORIG_LEN)) {
-							php_error_docref(NULL, E_WARNING, "Value is too big to be stored");
+						if (!yac_compress(ZSTR_VAL(buf.s), ZSTR_LEN(buf.s), &compressed, &compressed_len, &meta)) {
 							smart_str_free(&buf);
 							return ret;
 						}
-
-						compressed = emalloc(LZ4_compressBound(buf.s->len));
-						compressed_len = LZ4_compress_default(ZSTR_VAL(buf.s), compressed, ZSTR_LEN(buf.s), LZ4_compressBound(buf.s->len));
-						if (UNEXPECTED(!compressed_len)) {
-							php_error_docref(NULL, E_WARNING, "Compression failed");
-							smart_str_free(&buf);
-							efree(compressed);
-							return ret;
-						}
-						if (UNEXPECTED(compressed_len > buf.s->len)) {
-							php_error_docref(NULL, E_WARNING,
-									"Compression makes the value larger(%ld -> %d bytes), skipped",
-									(long)buf.s->len, compressed_len);
-							smart_str_free(&buf);
-							efree(compressed);
-							return ret;
-						}
-
-						if (UNEXPECTED(compressed_len > YAC_STORAGE_MAX_ENTRY_LEN)) {
-							php_error_docref(NULL, E_WARNING, "Value is too big to be stored");
-							smart_str_free(&buf);
-							efree(compressed);
-							return ret;
-						}
-
-						flag |= YAC_ENTRY_COMPRESSED;
-						flag |= (buf.s->len << YAC_ENTRY_ORIG_LEN_SHIT);
-						ret = yac_storage_update(&yac->ctx, key, key_len, compressed, compressed_len, flag,
-						0 /* compressed values always use blocks */, ttl, add);
+						ret = yac_storage_set_blob(&yac->ctx, key, key_len,
+								compressed, compressed_len, meta | YAC_META_COMPRESSED | YAC_META_SERIALIZED, ttl, add);
 						efree(compressed);
 					} else {
-						ret = yac_storage_update(&yac->ctx, key, key_len, ZSTR_VAL(buf.s), ZSTR_LEN(buf.s), flag,
-						yac_try_inline(key_len, (unsigned int)ZSTR_LEN(buf.s), flag), ttl, add);
+						ret = yac_storage_set_blob(&yac->ctx, key, key_len,
+								ZSTR_VAL(buf.s), (unsigned int)ZSTR_LEN(buf.s), YAC_META_SERIALIZED, ttl, add);
 					}
 					smart_str_free(&buf);
 				} else {
@@ -463,7 +330,7 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 			php_error_docref(NULL, E_WARNING, "Type 'IS_RESOURCE' cannot be stored");
 			break;
 		default:
-			php_error_docref(NULL, E_WARNING, "Unsupported valued type to be stored '%d'", flag);
+			php_error_docref(NULL, E_WARNING, "Unsupported valued type to be stored '%d'", Z_TYPE_P(value));
 			break;
 	}
 
@@ -505,7 +372,7 @@ static inline void yac_add_update_internal(INTERNAL_FUNCTION_PARAMETERS, int add
 	zval *keys, *value = NULL;
 	int ret;
 
-	/* set(array, ttl) and set(key, value) share arity 2, so dispatch on argc */
+	/* set(array, ttl) and set(key, value) share arity 2 */
 	switch (ZEND_NUM_ARGS()) {
 		case 1:
 			ZEND_PARSE_PARAMETERS_START(1, 1)
@@ -554,93 +421,62 @@ static inline void yac_add_update_internal(INTERNAL_FUNCTION_PARAMETERS, int add
 /* }}} */
 
 static zval* yac_get_impl(yac_object *yac, zend_string *name, zval *rv) /* {{{ */ {
-	uint32_t flag, size = 0;
-	char *data, *msg;
+	yac_value val;
 	const char *key;
+	char *msg;
 	size_t key_len;
+	unsigned int kind;
 
 	if ((key = yac_assemble_key(yac, name, &key_len)) == NULL) {
 		return NULL;
 	}
 
-	if (yac_storage_find(&yac->ctx, key, key_len, &data, &size, &flag)) {
-		if (YAC_IS_EMBED(data)) {
-			/* the value word itself, no heap buffer to free */
-			return yac_embed_to_zval(data, rv);
-		}
-		switch ((flag & YAC_ENTRY_TYPE_MASK)) {
-			case IS_LONG:
-				if (size == sizeof(zend_long)) {
-					zend_long lval;
-					memcpy(&lval, data, sizeof(zend_long));
-					ZVAL_LONG(rv, lval);
-					yac_free(data, flag);
-					return rv;
-				}
-				yac_free(data, flag);
-				break;
-			case IS_DOUBLE:
-				if (size == sizeof(double)) {
-					ZVAL_DOUBLE(rv, *(double*)data);
-					yac_free(data, flag);
-					return rv;
-				}
-				yac_free(data, flag);
-				break;
-			case IS_STRING:
-#ifdef IS_CONSTANT
-			case IS_CONSTANT:
-#endif
-				{
-					if ((flag & YAC_ENTRY_COMPRESSED)) {
-						size_t orig_len = ((uint32_t)flag >> YAC_ENTRY_ORIG_LEN_SHIT);
-						zend_string *str = zend_string_alloc(orig_len, 0);
-						int length = LZ4_decompress_safe(data, ZSTR_VAL(str), size, orig_len);
-						yac_free(data, flag);
-						if (UNEXPECTED(length != (int)orig_len)) {
-							/* damaged payload, degrade to a miss silently */
-							zend_string_free(str);
-							break;
-						}
-						ZSTR_VAL(str)[length] = '\0';
-						ZVAL_NEW_STR(rv, str);
-					} else {
-						/* yac_alloc() wrote the snapshot into this zend_string: take ownership */
-						ZVAL_NEW_STR(rv, (zend_string*)((char *)data - offsetof(zend_string, val)));
-						Z_STRVAL_P(rv)[Z_STRLEN_P(rv)] = '\0';
+	kind = yac_storage_find(&yac->ctx, key, key_len, &val);
+	switch (kind) {
+		case YAC_VALUE_FLAG:
+			/* a corrupt flag degrades to a miss (NULL) */
+			return yac_flag_to_zval(val.u.flag, rv);
+		case YAC_VALUE_LONG:
+			ZVAL_LONG(rv, (zend_long)val.u.lval);
+			return rv;
+		case YAC_VALUE_DOUBLE:
+			ZVAL_DOUBLE(rv, val.u.dval);
+			return rv;
+		case YAC_VALUE_STRING:
+			ZVAL_NEW_STR(rv, (zend_string*)((char *)val.u.str.val - offsetof(zend_string, val)));
+			Z_STRVAL_P(rv)[val.u.str.len] = '\0';
+			return rv;
+		case YAC_VALUE_BLOB:
+			{
+				char *data = val.u.blob.val;
+				unsigned int size = val.u.blob.len;
+				unsigned int packed = YAC_VAL_PACK(val.u.blob.meta, YAC_VALUE_BLOB);
+
+				if (val.u.blob.meta & YAC_META_COMPRESSED) {
+					size_t orig_len = YAC_META_ORIG_LEN(val.u.blob.meta);
+					char *origin = emalloc(orig_len);
+					int length = LZ4_decompress_safe(data, origin, size, orig_len);
+					yac_free(data, packed);
+					if (UNEXPECTED(length != (int)orig_len)) {
+						/* damaged payload, degrade to a miss silently */
+						efree(origin);
+						break;
 					}
-					return rv;
+					data = origin;
+					size = (unsigned int)length;
+					packed = 0; /* origin is a plain emalloc buffer, free as such */
 				}
-			case IS_ARRAY:
-#ifdef IS_CONSTANT_ARRAY
-			case IS_CONSTANT_ARRAY:
-#endif
-			case IS_OBJECT:
-				{
-					if ((flag & YAC_ENTRY_COMPRESSED)) {
-						size_t orig_len = ((uint32_t)flag >> YAC_ENTRY_ORIG_LEN_SHIT);
-						char *origin = emalloc(orig_len);
-						int length = LZ4_decompress_safe(data, origin, size, orig_len);
-						if (UNEXPECTED(length != (int)orig_len)) {
-							/* damaged payload, degrade to a miss silently */
-							yac_free(data, 0);
-							efree(origin);
-							break;
-						}
-						yac_free(data, 0);
-						data = origin;
-						size = length;
-					}
+				if (val.u.blob.meta & YAC_META_SERIALIZED) {
 					rv = yac_unserializer(data, size, &msg, rv);
-					yac_free(data, 0);
-					return rv;
+				} else {
+					/* a compressed raw string */
+					ZVAL_STRINGL(rv, data, size);
 				}
-			default:
-				ZEND_ASSERT(0);
-				/* a corrupt entry flag, degrade to a miss silently */
-				yac_free(data, flag);
-				break;
-		}
+				yac_free(data, packed);
+				return rv;
+			}
+		default: /* YAC_VALUE_MISS or corrupt */
+			break;
 	}
 
 	return NULL;
@@ -735,52 +571,42 @@ static int yac_has_impl(yac_object *yac, zend_string *name) /* {{{ */ {
 /* }}} */
 
 static inline int yac_item_is_null(const yac_item_list *item) /* {{{ */ {
-	return item->embed && item->val == YAC_ZV_NULL;
+	/* NULL is always a val-word FLAG, so kind+flag decide it */
+	return item->kind == YAC_VALUE_FLAG && item->value.u.flag == YAC_FLAG_NULL;
 }
 /* }}} */
 
 static int yac_item_is_empty(const yac_item_list *item) /* {{{ */ {
-	uintptr_t word = item->val;
-
-	if (!item->embed) {
+	/* every falsy value fits the val word, so a block/inline item is necessarily
+	 * non-empty and reports not-empty without reading its payload */
+	if (item->embed != YAC_EMBED_VALWORD) {
 		return 0;
 	}
-	if (YAC_IS_EMBED_INLINE(word)) {
-		return 0;
-	}
-	switch (word & YAC_ZV_TAG_MASK) {
-		case YAC_ZV_TAG_LONG:
-			return yac_embed_long_val(word) == 0;
-		case YAC_ZV_TAG_STR:
-			{
-				unsigned int slen = YAC_ZV_STR_LEN(word);
-				if (slen == 0) {
+	switch (item->kind) {
+		case YAC_VALUE_FLAG:
+			switch (item->value.u.flag) {
+				case YAC_FLAG_NULL:
+				case YAC_FLAG_FALSE:
+				case YAC_FLAG_EMPTY_ARRAY:
 					return 1;
-				}
-				return slen == 1 && ((word >> 5) & 0xff) == '0';
-			}
-		case YAC_ZV_TAG_SPECIAL:
-			switch (word & YAC_ZV_KIND_MASK) {
-				case YAC_ZV_NULL:
-				case YAC_ZV_FALSE:
-				case YAC_ZV_EMPTY_ARRAY:
-					return 1;
-#ifdef YAC_ZV_HAS_DOUBLE
-				case YAC_ZV_DOUBLE:
-					return yac_embed_double_val(word) == 0.0;
-#else
-				case YAC_ZV_DOUBLE_ZERO:
-				case YAC_ZV_DOUBLE_NEG_ZERO:
-					return 1;
-#endif
 			}
 			return 0;
+		case YAC_VALUE_LONG:
+			return item->value.u.lval == 0;
+		case YAC_VALUE_DOUBLE:
+			return item->value.u.dval == 0.0;
+		case YAC_VALUE_STRING:
+			/* "" or "0": item_fill kept the first byte and the length */
+			if (item->value.u.str.len == 0) {
+				return 1;
+			}
+			return item->value.u.str.len == 1 && item->value.u.flag == '0';
 	}
 	return 0;
 }
 /* }}} */
 
-static zend_object *yac_object_new(zend_class_entry *ce) /* {{{ */ {
+static zend_object* yac_object_new(zend_class_entry *ce) /* {{{ */ {
 	yac_object *yac = emalloc(sizeof(yac_object) + zend_object_properties_size(ce));
 
 	/* emalloc does not zero; tv=0 forces the first refresh to read the clock */
@@ -796,7 +622,6 @@ static zend_object *yac_object_new(zend_class_entry *ce) /* {{{ */ {
 /* }}} */
 
 static void yac_object_commit_stats(yac_object *yac) /* {{{ */ {
-	/* long-lived workers never run RSHUTDOWN per request, so commit on teardown */
 	if (YAC_G(enable)) {
 		yac_storage_commit_stats(&yac->ctx);
 	}
@@ -1104,18 +929,20 @@ PHP_METHOD(yac, dump) {
 			for (; l; l = l->next) {
 				zval item;
 
-				array_init_size(&item, 11 /* 11 fields, pre-allocate */);
+				array_init_size(&item, 12 /* 12 fields, pre-allocate */);
 
 				add_assoc_long(&item, "index", l->index);
 				add_assoc_long(&item, "hash", l->h);
 				add_assoc_long(&item, "crc", l->crc);
 				add_assoc_long(&item, "ttl", l->ttl);
 				add_assoc_long(&item, "k_len", l->k_len - prefix_len);
-				if ((l->flag & YAC_ENTRY_COMPRESSED)) {
-					add_assoc_long(&item, "v_len", (((uint32_t)l->flag) >> YAC_ENTRY_ORIG_LEN_SHIT));
-					add_assoc_long(&item, "c_len", l->v_len);
+				add_assoc_long(&item, "kind", l->kind);
+				if (l->value.u.blob.meta & YAC_META_COMPRESSED) {
+					/* v_len is the original, c_len the stored (compressed) length */
+					add_assoc_long(&item, "v_len", YAC_META_ORIG_LEN(l->value.u.blob.meta));
+					add_assoc_long(&item, "c_len", l->value.u.str.len);
 				} else {
-					add_assoc_long(&item, "v_len", l->v_len);
+					add_assoc_long(&item, "v_len", l->value.u.str.len);
 				}
 				add_assoc_long(&item, "size", l->size);
 				add_assoc_long(&item, "atime", l->atime);
@@ -1190,8 +1017,19 @@ PHP_MINIT_FUNCTION(yac)
 
 	REGISTER_STRINGL_CONSTANT("YAC_VERSION", PHP_YAC_VERSION, 	sizeof(PHP_YAC_VERSION) - 1, 	CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_MAX_KEY_LEN", YAC_STORAGE_MAX_KEY_LEN, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("YAC_MAX_VALUE_RAW_LEN", YAC_ENTRY_MAX_ORIG_LEN, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_MAX_VALUE_RAW_LEN", YAC_META_MAX_ORIG_LEN, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_MAX_RAW_COMPRESSED_LEN", YAC_STORAGE_MAX_ENTRY_LEN, CONST_PERSISTENT | CONST_CS);
+	/* expose dump()'s kind/embed int enums by name; MISS is part of the kind
+	 * enum though it never appears as a stored entry */
+	REGISTER_LONG_CONSTANT("YAC_KIND_MISS", YAC_VALUE_MISS, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_KIND_FLAG", YAC_VALUE_FLAG, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_KIND_LONG", YAC_VALUE_LONG, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_KIND_DOUBLE", YAC_VALUE_DOUBLE, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_KIND_STRING", YAC_VALUE_STRING, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_KIND_BLOB", YAC_VALUE_BLOB, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_EMBED_BLOCK", YAC_EMBED_BLOCK, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_EMBED_VALWORD", YAC_EMBED_VALWORD, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_EMBED_INLINE", YAC_EMBED_INLINE, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_PHP", YAC_SERIALIZER_PHP, CONST_PERSISTENT | CONST_CS);
 #if YAC_ENABLE_MSGPACK
 	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_MSGPACK", YAC_SERIALIZER_MSGPACK, CONST_PERSISTENT | CONST_CS);

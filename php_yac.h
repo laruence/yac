@@ -45,11 +45,21 @@ extern zend_module_entry yac_module_entry;
 #endif
 
 #define YAC_CLASS_PROPERTY_PREFIX  "_prefix"
-#define YAC_ENTRY_COMPRESSED	   0x0020
-#define YAC_ENTRY_TYPE_MASK        0x1f
-#define YAC_ENTRY_ORIG_LEN_SHIT    6
-#define YAC_ENTRY_MAX_ORIG_LEN     ((1U << ((sizeof(int)*8 - YAC_ENTRY_ORIG_LEN_SHIT))) - 1)
 #define YAC_MIN_COMPRESS_THRESHOLD 1024
+
+/* The PHP layer's meta, carried opaquely inside YAC_VAL_PACK(meta, kind). Only
+ * BLOB payloads use it; STRING and scalars store meta 0.
+ *
+ *   bit 0    compressed (LZ4)
+ *   bit 1    serialized: the payload is a serialized value, not a raw string
+ *   bit 2+   orig_len, meaningful only when compressed
+ */
+#define YAC_META_COMPRESSED      0x1u
+#define YAC_META_SERIALIZED      0x2u
+#define YAC_META_ORIG_SHIFT      2
+#define YAC_META_MAX_ORIG_LEN    ((1u << 26) - 1)
+#define YAC_META_ORIG_LEN(meta)  ((uint32_t)((meta) >> YAC_META_ORIG_SHIFT))
+#define YAC_META_PACK_LEN(orig)  (((uint32_t)(orig) << YAC_META_ORIG_SHIFT))
 
 #define YAC_SERIALIZER_PHP         0
 #define YAC_SERIALIZER_JSON        1
@@ -66,9 +76,6 @@ ZEND_BEGIN_MODULE_GLOBALS(yac)
 	zend_ulong compress_threshold;
 	zend_bool enable_cli;
 	char *serializer;
-	/* staging area for small non-string value snapshots: holds the copy
-	 * from shared memory just until it is consumed, then gets reused;
-	 * in YAC_G so ZTS threads each have their own */
 	char yac_staging_buf[YAC_BUF_SIZE];
 ZEND_END_MODULE_GLOBALS(yac)
 
@@ -88,57 +95,10 @@ ZEND_EXTERN_MODULE_GLOBALS(yac);
 #define YAC_PROPERTY_EXISTS 0x2
 #endif
 
-/* Embedded scalar values (zend-type aware; the storage layer only ever sees
- * the tagged word and tests it with YAC_IS_EMBED / YAC_IS_EMBED_INLINE).
- *
- * A slot's val normally points at an 8-byte aligned block, so a real pointer
- * has zero low bits; a non-zero tag in the low 2 bits marks a value carried
- * in the word itself. The all-zero word means "empty slot".
- *
- *   tag 0x1 LONG     zend_long in the high (word bits - 2) bits
- *   tag 0x2 STR      [4..2] length 0..YAC_ZV_STR_MAX_LEN, bytes from bit 5
- *   tag 0x3 SPECIAL  [4..2] kind: NULL/TRUE/FALSE/EMPTY_ARRAY/DOUBLE,
- *                    or the top bit set instead means an INLINE value
- *
- * On 64-bit DOUBLE carries a float in [62..31], so any double that survives a
- * float round-trip embeds; 32-bit has no room and carries only +/-0.0. STR max
- * is 7 bytes on 64-bit, 3 on 32. A LONG whose payload sets the top bit still
- * never reads as INLINE: INLINE is tag 0x3, LONG is tag 0x1, and the tag is
- * what YAC_IS_EMBED_INLINE matches on.
- */
-#define YAC_ZV_TAG_MASK         0x3
-#define YAC_ZV_TAG_LONG         0x1
-#define YAC_ZV_TAG_STR          0x2
-#define YAC_ZV_TAG_SPECIAL      0x3
-
-#define YAC_ZV_KIND_MASK        0x1f
-#define YAC_ZV_NULL             0x3
-#define YAC_ZV_TRUE             0x7
-#define YAC_ZV_FALSE            0xb
-#define YAC_ZV_EMPTY_ARRAY      0xf
-
-#define YAC_ZV_STR_MAX_LEN      ((unsigned int)((sizeof(void*) * 8 - 5) / 8))
-#define YAC_ZV_STR_LEN(p)       ((unsigned int)((((uintptr_t)(p)) >> 2) & 0x7))
-#define YAC_ZV_STR_DATA(p)      (((uintptr_t)(p)) >> 5)
-
-#if SIZEOF_SIZE_T == 8
-#define YAC_ZV_HAS_DOUBLE       1
-#define YAC_ZV_DOUBLE           0x13
-#define YAC_ZV_DOUBLE_SHIFT     31
-#else
-#define YAC_ZV_DOUBLE_ZERO      0x13
-#define YAC_ZV_DOUBLE_NEG_ZERO  0x17
-#endif
-
-#define yac_embed_long(v) \
-	((uintptr_t)((((zend_ulong)(zend_long)(v)) << 2) | YAC_ZV_TAG_LONG))
-#define yac_embed_long_val(p) \
-	((zend_long)(((zend_long)(uintptr_t)(p)) >> 2))
-
-#define yac_embed_null()        ((uintptr_t)YAC_ZV_NULL)
-#define yac_embed_true()        ((uintptr_t)YAC_ZV_TRUE)
-#define yac_embed_false()       ((uintptr_t)YAC_ZV_FALSE)
-#define yac_embed_empty_array() ((uintptr_t)YAC_ZV_EMPTY_ARRAY)
+#define YAC_FLAG_NULL           0x1
+#define YAC_FLAG_TRUE           0x2
+#define YAC_FLAG_FALSE          0x3
+#define YAC_FLAG_EMPTY_ARRAY    0x4
 
 #endif	/* PHP_YAC_H */
 /*
