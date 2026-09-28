@@ -4,7 +4,8 @@ Yac value still too large after compression
 Three paths around the compression branch:
 1) a barely compressible string (chained hashes) whose LZ4 output still
    exceeds YAC_STORAGE_MAX_ENTRY_LEN (1MB) -> "Value is too long";
-2) the same payload serialized as an array -> "Value is too big";
+2) the same payload serialized as an array -> "Value is too long" too, the
+   string and blob paths share one compress helper and one message;
 3) an incompressible serialized payload -> compression is skipped.
 The plain-string "compression grows the value" case is covered in 035.
 --SKIPIF--
@@ -47,7 +48,7 @@ Warning: Yac::set(): Value is too long(%d bytes) to be stored in %s048.php on li
 bool(false)
 bool(false)
 
-Warning: Yac::set(): Value is too big to be stored in %s048.php on line %d
+Warning: Yac::set(): Value is too long(%d bytes) to be stored in %s048.php on line %d
 bool(false)
 bool(false)
 
