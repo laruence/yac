@@ -89,8 +89,7 @@ Otherwise `new Yac()` will throw an exception.
 
 ## Note
 
-1. Yac is a lockless cache, you should try to avoid or reduce the probability of multiple processes setting the same key simultaneously.
-2. Yac checks every stored value with a full CRC-32C, so a corrupted or overwritten entry is detected and reported as a miss rather than returned.
+Yac checks every stored value with a full CRC-32C, so a corrupted or overwritten entry is detected and reported as a miss rather than returned.
 
 ## Restrictions
 
