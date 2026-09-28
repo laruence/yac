@@ -99,7 +99,9 @@ typedef struct {
                                    (((uintptr_t)(p)) & YAC_VAL_DOUBLE_BIT) != 0)
 
 #define YAC_VAL_LONG(v)           ((uintptr_t)((((uint64_t)(v)) << 2) | YAC_VAL_TAG_LONG))
-#define YAC_VAL_LONG_VALUE(p)     ((int64_t)(((int64_t)(uintptr_t)(p)) >> 2))
+/* the shift must happen at the word width, where the value is signed: going
+ * through uint64 first would zero-extend and lose the sign on a 32-bit build */
+#define YAC_VAL_LONG_VALUE(p)     ((int64_t)((intptr_t)(p) >> 2))
 
 #define YAC_VAL_FLAG_MAX          0xff
 #define YAC_VAL_FLAG(f)           ((uintptr_t)((((uint64_t)(f)) << YAC_VAL_PAYLOAD_SHIFT) | YAC_VAL_TAG_SPECIAL))
@@ -115,6 +117,13 @@ typedef struct {
 #define YAC_VAL_HAS_DOUBLE        1
 #define YAC_VAL_DOUBLE(bits)      ((uintptr_t)((((uint64_t)(bits)) << YAC_VAL_PAYLOAD_SHIFT) | \
                                    YAC_VAL_DOUBLE_BIT | YAC_VAL_TAG_SPECIAL))
+#else
+/* a 32-bit word has no room for a float32, so only +/-0.0 rides it: one sign
+ * bit. that is enough because every falsy double is a zero, and empty() must
+ * be answerable from the word alone */
+#define YAC_VAL_NEG_ZERO_BIT      0x10
+#define YAC_VAL_DOUBLE_ZERO       (YAC_VAL_DOUBLE_BIT | YAC_VAL_TAG_SPECIAL)
+#define YAC_VAL_DOUBLE_NEG_ZERO   (YAC_VAL_NEG_ZERO_BIT | YAC_VAL_DOUBLE_ZERO)
 #endif
 
 #define YAC_VAL_KIND_BITS         3

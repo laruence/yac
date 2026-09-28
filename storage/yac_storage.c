@@ -24,6 +24,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 #if defined(_WIN32)
 #include <windows.h>
 #endif
@@ -230,17 +231,27 @@ static inline uintptr_t yac_val_double_pack(double d, int *fits) {
 	*fits = 1;
 	return YAC_VAL_DOUBLE(bits);
 #else
-	*fits = 0;
-	return 0;
+	/* no room for a float32: only +/-0.0 rides the word, every other double
+	 * takes the block path */
+	if (d != 0.0) {
+		*fits = 0;
+		return 0;
+	}
+	*fits = 1;
+	return signbit(d)? YAC_VAL_DOUBLE_NEG_ZERO: YAC_VAL_DOUBLE_ZERO;
 #endif
 }
 
 static inline double yac_val_double_unpack(uintptr_t word) {
+#ifdef YAC_VAL_HAS_DOUBLE
 	uint32_t bits = YAC_VAL_DOUBLE_BITS(word);
 	float f;
 
 	memcpy(&f, &bits, sizeof(f));
 	return (double)f;
+#else
+	return (word & YAC_VAL_NEG_ZERO_BIT)? -0.0: 0.0;
+#endif
 }
 /* }}} */
 
