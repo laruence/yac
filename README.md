@@ -12,10 +12,12 @@ It can be used to replace APC or local memcached.
 
 Yac is a **lockless, shared memory cache**. It lives in the same process space as PHP (no network round-trip) and avoids coarse-grained locks — which means:
 
-- **Best for**: single-node deployments chasing maximum read throughput — configuration, routing tables, precomputed data, HTML fragments, anything you read far more often than you write. The cache lives in shared memory inherited by every PHP worker on the machine: no network round-trip, no cache server to run, and throughput **scales with the worker count** (see [Benchmarks](#benchmarks)).
-- **Watch out for**: deployments that need to **share one cache across nodes** — multiple hosts behind a load balancer must see the same entries. Yac's shared memory is per-machine: workers on different hosts each hold their own copy and never see one another's writes. Use Redis or Memcached when the cache has to span machines.
+- **Best for**: single-node PHP apps chasing extreme cache performance (see [Benchmarks](#benchmarks)).
+- **Watch out for**: deployments that must **share one cache across nodes** — use Memcached or Redis there.
 
 It is built for raw speed: `get()` is essentially a hash lookup in shared memory — microsecond-level latency.
+
+> **Note**: for *configuration* — credentials, feature flags, routing tables — [Yaconf](https://github.com/laruence/yaconf) beats Yac.
 
 ## Benchmarks
 
