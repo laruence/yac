@@ -183,10 +183,14 @@ static inline int yac_flag_is_raw_string(unsigned int flag) /* {{{ */ {
 }
 /* }}} */
 
-void *yac_alloc(unsigned int size, unsigned int flag) /* {{{ */ {
+void *yac_alloc(unsigned int size, unsigned int flag, int interleaved) /* {{{ */ {
 	if (yac_flag_is_raw_string(flag)) {
 		zend_string *res = zend_string_alloc(size, 0);
 		return ZSTR_VAL(res);
+	}
+	/* dump() holds many blocks at once, so they cannot share the staging buffer */
+	if (!interleaved && size <= YAC_BUF_SIZE) {
+		return YAC_G(yac_staging_buf);
 	}
 	return emalloc(size);
 }
@@ -197,7 +201,9 @@ void yac_free(void *addr, unsigned int flag) /* {{{ */ {
 		efree((char*)addr - offsetof(zend_string, val));
 		return;
 	}
-	efree(addr);
+	if (addr != (void *)YAC_G(yac_staging_buf)) {
+		efree(addr);
+	}
 	return;
 }
 /* }}} */
