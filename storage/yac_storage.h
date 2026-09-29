@@ -267,7 +267,7 @@ typedef struct {
 extern yac_storage_globals *yac_storage;
 
 /* user side allocator */
-typedef void* (*yac_user_alloc_t)(unsigned int size, unsigned int flag, int single);
+typedef void* (*yac_user_alloc_t)(unsigned int size, unsigned int flag);
 typedef void (*yac_user_free_t)(void *address, unsigned int flag);
 
 #define YAC_SG(element) (yac_storage->element)

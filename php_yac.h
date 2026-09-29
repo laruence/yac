@@ -66,8 +66,6 @@ extern zend_module_entry yac_module_entry;
 #define YAC_SERIALIZER_MSGPACK     2
 #define YAC_SERIALIZER_IGBINARY    3
 
-#define YAC_BUF_SIZE               1024
-
 ZEND_BEGIN_MODULE_GLOBALS(yac)
 	zend_bool enable;
 	zend_bool debug;
@@ -76,7 +74,6 @@ ZEND_BEGIN_MODULE_GLOBALS(yac)
 	zend_ulong compress_threshold;
 	zend_bool enable_cli;
 	char *serializer;
-	char yac_staging_buf[YAC_BUF_SIZE];
 ZEND_END_MODULE_GLOBALS(yac)
 
 PHP_MINIT_FUNCTION(yac);

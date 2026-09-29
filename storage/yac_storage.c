@@ -227,14 +227,14 @@ static inline unsigned yac_val_decode(const yac_kv_key *k, yac_value *out) /* {{
 		const char *src = (const char *)k->key + YAC_KEY_KLEN(*k);
 
 		if (kind == YAC_VALUE_BLOB) {
-			char *s = user_alloc(vlen, (unsigned int)packed, 0);
+			char *s = user_alloc(vlen, (unsigned int)packed);
 
 			memcpy(s, src, vlen);
 			out->u.blob.val = s;
 			out->u.blob.len = vlen;
 			out->u.blob.meta = YAC_VAL_PACK_META(packed);
 		} else if (kind == YAC_VALUE_STRING) {
-			char *s = user_alloc(vlen, (unsigned int)packed, 0);
+			char *s = user_alloc(vlen, (unsigned int)packed);
 
 			memcpy(s, src, vlen);
 			out->u.str.val = s;
@@ -252,7 +252,7 @@ static inline unsigned yac_val_decode(const yac_kv_key *k, yac_value *out) /* {{
 			out->u.lval = YAC_VAL_LONG_VALUE(word);
 			return YAC_VALUE_LONG;
 		case YAC_VAL_TAG_STR: {
-			char *s = user_alloc(vlen, YAC_VAL_PACK(0, YAC_VALUE_STRING), 0);
+			char *s = user_alloc(vlen, YAC_VAL_PACK(0, YAC_VALUE_STRING));
 
 			yac_val_str_unpack(word, s);
 			out->u.str.val = s;
@@ -338,7 +338,7 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, yac_value 
 				int heap = (kind == YAC_VALUE_STRING || kind == YAC_VALUE_BLOB);
 
 				if (heap) {
-					s = user_alloc(vlen, packed, 0);
+					s = user_alloc(vlen, packed);
 				} else {
 					/* a scalar is snapshot on the stack; the CRC length is what the
 					 * setter used, not sizeof(out->u) (the union is wider) */
@@ -782,7 +782,7 @@ yac_storage_info* yac_storage_get_info(yac_ctx *ctx) /* {{{ */ {
 	yac_ctx_refresh_tv(ctx);
 	tv = ctx->tv;
 
-	info = user_alloc(sizeof(yac_storage_info), 0, 0);
+	info = user_alloc(sizeof(yac_storage_info), 0);
 
 	info->k_msize = (unsigned long)YAC_SG(first_seg).size;
 	info->v_msize = (unsigned long)YAC_SG(segments)[0]->size * (unsigned long)YAC_SG(segments_num);
@@ -840,7 +840,7 @@ yac_item_list* yac_storage_dump(unsigned int limit, unsigned int offset, unsigne
 			++skipped; /* the first offset matching entries are not reported */
 			continue;
 		}
-		item = user_alloc(offsetof(yac_item_list, key) + YAC_KEY_KLEN(k), 0, 1);
+		item = user_alloc(offsetof(yac_item_list, key) + YAC_KEY_KLEN(k), 0);
 		yac_item_fill(item, &k, i);
 		item->next = list;
 		list = item;
