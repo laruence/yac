@@ -21,8 +21,15 @@ It is built for raw speed: `get()` is essentially a hash lookup in shared memory
 
 ## Benchmarks
 
+PHP caches mostly hold small values. On a typical WordPress blog, cached
+entries average a few hundred bytes each — options, transients, rendered
+fragments. Yac is designed specifically for this PHP workload: entries
+small enough to live directly in shared memory, with no network
+round-trip. The numbers below reflect exactly that scenario, with small
+values dominating:
+
 16 worker processes sharing one cache, mixed reads/writes at a 100:1
-ratio, compression off, 160M shared memory for both Yac and APCu.
+ratio, 160M shared memory for both Yac and APCu.
 Numbers are aggregate ops/s across all workers, one value size per run:
 
 | Value size | Yac          | APCu 5.1.28 | Memcached 3.4.0 | Yac / APCu | Yac / Memcached |
