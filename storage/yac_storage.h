@@ -289,7 +289,7 @@ int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl)
 
 /* like find but reads no payload: returns the kind and fills valword/embed/len/meta */
 int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_item *out);
-void yac_storage_flush(void);
+int yac_storage_flush(void);
 /* fold a call context's accumulated hits/miss into the shared stats; the
  * ctx keeps counting afterwards */
 void yac_storage_commit_stats(yac_ctx *ctx);

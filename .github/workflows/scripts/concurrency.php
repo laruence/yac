@@ -52,13 +52,11 @@
  * reproducible in shape (not in scheduling) with the same seed: the
  * per-worker op stream is mt_srand(seed + worker * 7919).
  *
- * YAC_HAMMER_FLUSH (0 disables) injects rare flush() calls. flush() takes
- * every slot before clearing the table, but it clears a slot it could not
- * take, and the clear releases the locks as it goes — so it stays the one
- * operation that can pull a slot out from under a writer mid-publish. That
- * damage does not surface as a wrong read: a slot left in a permanently
- * "being written" state simply misses on every read and rejects every
- * write, forever. The post-run liveness sweep below is what catches it.
+ * YAC_HAMMER_FLUSH (0 disables) injects rare flush() calls. A flush closes
+ * the writer gate and claims every slot before clearing the table. If any
+ * slot cannot be claimed, it gives up without clearing the table. The
+ * post-run liveness sweep catches any slot that
+ * would otherwise remain permanently unusable after a publish race.
  *
  * YAC_HAMMER_SECONDS > 0 overrides the op budget with a wall-clock
  * deadline — what CI wants, since runner speed varies: the run takes
