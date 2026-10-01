@@ -863,10 +863,7 @@ PHP_METHOD(yac, has) {
 /** {{{ proto public Yac::flush(void)
 */
 PHP_METHOD(yac, flush) {
-
-	yac_storage_flush();
-
-	RETURN_TRUE;
+	RETURN_BOOL(yac_storage_flush());
 }
 /* }}} */
 

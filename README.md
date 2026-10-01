@@ -376,6 +376,8 @@ Yac::flush(): bool
 
 Immediately invalidates **all existing items across all Yac instances**. This does not actually free any resources — it only marks all items as invalid. The operation is global and affects the entire shared memory pool, regardless of which instance (or prefix) calls it.
 
+Returns `false` if a concurrent cache operation prevents the flush from safely acquiring every slot; the flush then leaves the cache untouched.
+
 ### Yac::info
 
 ```php

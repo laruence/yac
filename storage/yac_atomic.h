@@ -137,8 +137,8 @@ static inline unsigned int yac_seq_load(const volatile unsigned int *seq) {
 
 /* versioned slot: seq even means stable, odd means a writer is publishing.
  * readers never write it, so a hot key costs no cache line ownership. zero
- * is even, hence a zeroed slot array reads as stable and flush() stays one
- * memset */
+ * is even, hence a zeroed slot array reads as stable. flush() holds each
+ * sequence odd while clearing the rest of the slot, then publishes it. */
 
 /* only the claimer advances an odd counter, so publishing needs no RMW.
  * returns 0 after YAC_MAX_SPIN attempts, as the old mutex did */

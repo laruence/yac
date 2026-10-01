@@ -39,6 +39,10 @@ yac_storage_globals *yac_storage;
 static yac_user_alloc_t user_alloc;
 static yac_user_free_t user_free;
 
+static inline int yac_storage_is_flushing(void) {
+	return YAC_ATOMIC_ADD(&YAC_SG(in_flush), 0) != 0;
+}
+
 static inline void yac_ctx_refresh_tv(yac_ctx *ctx) /* {{{ */ {
 	unsigned long now = (unsigned long)time(NULL);
 	if (ctx->tv != now) {
@@ -282,8 +286,8 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, yac_value 
 	yac_ctx_refresh_tv(ctx);
 	tv = ctx->tv;
 
-	if (YAC_SG(in_flush)) {
-		/* report the miss the flush is about to make true anyway */
+	if (yac_storage_is_flushing()) {
+		/* report a transient miss instead of racing a table-wide clear */
 		++ctx->miss;
 		return YAC_VALUE_MISS;
 	}
@@ -397,8 +401,8 @@ int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl)
 	yac_ctx_refresh_tv(ctx);
 	tv = ctx->tv;
 
-	if (YAC_SG(in_flush)) {
-		return 0; /* the flush removes the key regardless */
+	if (yac_storage_is_flushing()) {
+		return 0; /* do not modify the table while a flush owns the gate */
 	}
 
 	hash = yac_hash(key, len);
@@ -414,9 +418,17 @@ int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl)
 		}
 		yac_prefetch(&YAC_SG(slots)[(h + stride) & YAC_SG(slots_mask)]);
 		if (YAC_HASH_MATCH(k.h, hash) && YAC_KEY_KLEN(k) == len && !memcmp((char *)k.key, key, len)) {
-			/* outside the counter: a lone ttl store cannot tear a snapshot */
-			YAC_STORE(&p->ttl, ttl ? ttl + tv : 1);
-			return 1;
+			if (!YAC_SLOT_CLAIM(p)) {
+				return 0;
+			}
+			if (YAC_LOAD(&p->val) == k.val && YAC_LOAD(&p->h) == k.h &&
+					YAC_LOAD(&p->len) == k.len && !memcmp((const unsigned char *)p->key, key, len)) {
+				YAC_STORE(&p->ttl, ttl ? ttl + tv : 1);
+				YAC_SLOT_PUBLISH(p);
+				return 1;
+			}
+			YAC_SLOT_PUBLISH(p);
+			return 0;
 		}
 		h = (h + stride) & YAC_SG(slots_mask);
 	}
@@ -474,7 +486,7 @@ int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_item *
 	yac_ctx_refresh_tv(ctx);
 	tv = ctx->tv;
 
-	if (YAC_SG(in_flush)) {
+	if (yac_storage_is_flushing()) {
 		return YAC_VALUE_MISS;
 	}
 
@@ -594,8 +606,8 @@ static int yac_storage_store(yac_ctx *ctx, const char *key, unsigned int len, co
 	yac_ctx_refresh_tv(ctx);
 	tv = ctx->tv;
 
-	if (YAC_SG(in_flush)) {
-		/* the flush clears this write anyway */
+	if (yac_storage_is_flushing()) {
+		/* do not start a write while a flush owns the gate */
 		return 0;
 	}
 
@@ -737,28 +749,47 @@ int yac_storage_set_blob(yac_ctx *ctx, const char *key, unsigned int len, const 
 }
 /* }}} */
 
-void yac_storage_flush(void) /* {{{ */ {
+int yac_storage_flush(void) /* {{{ */ {
 	unsigned int i;
 
-	if (YAC_SG(in_flush)) {
-		return;
+	/* A flush owns the table-wide gate. A concurrent flush must not clear
+	 * slots while this one is still acquiring them. */
+	if (!YAC_CAS(&YAC_SG(in_flush), 0, 1)) {
+		return 0;
 	}
-
-	/* writers check this and give up; can't exclude one already past its check */
-	YAC_ATOMIC_ADD(&YAC_SG(in_flush), 1);
-
-	/* claim and hold the whole table: odd counters block every writer, so
-	 * nothing lands in a slot the memset already passed */
+	/* If any claim times out, release the prefix we acquired and leave the
+	 * cache intact; clearing an unclaimed slot races its publisher. */
 	for (i = 0; i < YAC_SG(slots_size); i++) {
 		YAC_SLOT_V yac_kv_key *p = &(YAC_SG(slots)[i]);
-		(void)YAC_SLOT_CLAIM(p);
+		if (!YAC_SLOT_CLAIM(p)) {
+			unsigned int j;
+			for (j = 0; j < i; j++) {
+				YAC_SLOT_PUBLISH(&(YAC_SG(slots)[j]));
+			}
+			YAC_ATOMIC_ADD(&YAC_SG(in_flush), -1);
+			return 0;
+		}
 	}
 
-	/* seq zero is even: clears the entries and publishes every slot claimed above */
-	memset((char *)YAC_SG(slots), 0, sizeof(yac_kv_key) * YAC_SG(slots_size));
+	/* Keep sequence counters odd while clearing. A reader already waiting on a
+	 * slot claim can only acquire it after publish, when its old val pointer no
+	 * longer matches the cleared slot. */
+	for (i = 0; i < YAC_SG(slots_size); i++) {
+		YAC_SLOT_V yac_kv_key *p = &(YAC_SG(slots)[i]);
+		YAC_STORE(&p->h, 0UL);
+		YAC_STORE(&p->len, 0U);
+		YAC_STORE(&p->ttl, 0U);
+		YAC_STORE(&p->u1.flag, 0U);
+		YAC_STORE(&p->u2.crc, 0U);
+		YAC_STORE(&p->u2.size, 0U);
+		YAC_STORE(&p->val, (yac_kv_val *)NULL);
+		memset((unsigned char *)p->key, 0, sizeof(p->key));
+		YAC_SLOT_PUBLISH(p);
+	}
 
-	/* full barrier: the memset is plain stores, this publishes them */
+	/* release the gate only after every cleared slot is published. */
 	YAC_ATOMIC_ADD(&YAC_SG(in_flush), -1);
+	return 1;
 }
 /* }}} */
 
@@ -822,7 +853,7 @@ yac_item_list* yac_storage_dump(unsigned int limit, unsigned int offset, unsigne
 	unsigned int size = YAC_SG(slots_size);
 	unsigned int i = 0, n = 0, skipped = 0, max = limit;
 
-	if (YAC_SG(in_flush)) {
+	if (yac_storage_is_flushing()) {
 		return NULL;
 	}
 
