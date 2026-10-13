@@ -19,6 +19,7 @@
 #ifndef YAC_ALLOCATOR_H
 #define YAC_ALLOCATOR_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef HAVE_CONFIG_H
@@ -27,15 +28,50 @@
 
 #define YAC_SMM_ALIGNMENT           8
 #define YAC_SMM_ALIGNMENT_LOG2      3
+#define YAC_SMM_CACHE_LINE_SIZE     64
 #define YAC_SMM_ALIGNMENT_MASK      ~(YAC_SMM_ALIGNMENT - 1)
+#define YAC_SMM_CACHE_LINE_MASK     ~(YAC_SMM_CACHE_LINE_SIZE - 1)
 #define YAC_SMM_BLOCK_HEADER_SIZE   YAC_SMM_ALIGNED_SIZE(sizeof(yac_shared_block_header))
 
 #define YAC_SMM_MAIN_SEG_SIZE       (4*1024*1024)
 #define YAC_SMM_SEGMENT_MAX_SIZE    (32*1024*1024)
 #define YAC_SMM_SEGMENT_MIN_SIZE    (4*1024*1024)
+#define YAC_SMM_SEGMENT_MAX_NUM     16
 #define YAC_SMM_MIN_BLOCK_SIZE      64
 #define YAC_SMM_ALIGNED_SIZE(x)     (((x) + YAC_SMM_ALIGNMENT - 1) & YAC_SMM_ALIGNMENT_MASK)
+#define YAC_SMM_CACHE_ALIGNED_SIZE(x) (((x) + YAC_SMM_CACHE_LINE_SIZE - 1) & YAC_SMM_CACHE_LINE_MASK)
 #define YAC_SMM_TRUE_SIZE(x)        ((x < YAC_SMM_MIN_BLOCK_SIZE)? (YAC_SMM_MIN_BLOCK_SIZE) : (YAC_SMM_ALIGNED_SIZE(x)))
+
+static inline yac_segment_control *yac_allocator_segment_control(yac_shared_segment *segment) {
+	yac_value_segment *value_segment = (yac_value_segment *)((char *)segment - offsetof(yac_value_segment, segment));
+	return &value_segment->control;
+}
+
+static inline void *yac_allocator_segment_payload(yac_shared_segment *segment) {
+	return segment->p;
+}
+
+static inline unsigned int yac_allocator_target_segments(unsigned long value_size) {
+	unsigned int segments = 1;
+
+	while (segments < YAC_SMM_SEGMENT_MAX_NUM &&
+			value_size / (segments << 1) >= YAC_SMM_SEGMENT_MIN_SIZE) {
+		segments <<= 1;
+	}
+	return segments;
+}
+
+static inline unsigned long yac_allocator_key_size(unsigned long size,
+		unsigned int segments_num) {
+	unsigned long metadata = YAC_SMM_CACHE_ALIGNED_SIZE(sizeof(yac_storage_globals));
+
+	metadata = YAC_SMM_CACHE_ALIGNED_SIZE(metadata +
+			sizeof(void *) * segments_num);
+	metadata = YAC_SMM_CACHE_ALIGNED_SIZE(metadata +
+			sizeof(yac_value_segment) * segments_num);
+	metadata += sizeof(yac_kv_key) * 4;
+	return YAC_SMM_CACHE_ALIGNED_SIZE(size > metadata ? size : metadata);
+}
 
 #ifdef PHP_WIN32
 #  define USE_FILE_MAPPING	1
@@ -69,25 +105,17 @@ typedef struct {
 
 int yac_allocator_startup(unsigned long first_seg_size, unsigned long size, char **err);
 void yac_allocator_shutdown(void);
-int  yac_allocator_free(void *p);
+int  yac_allocator_alloc(unsigned int real_size, uint64_t hash, yac_alloc_ref *alloc);
+int  yac_allocator_hold(void *value, uint64_t hash, unsigned int epoch, yac_alloc_ref *alloc);
+void yac_allocator_release(yac_alloc_ref *alloc);
+int  yac_allocator_resolve(void *value, unsigned long hash, yac_seg_pos *segpos);
 
 static inline unsigned int yac_allocator_real_size(unsigned int size) {
 	unsigned int real_size = YAC_SMM_TRUE_SIZE(size);
-	if (real_size > YAC_SG(segments)[0]->size) {
-		return 0;
-	}
-	return real_size;
+
+	return real_size <= YAC_SG(max_segment_size) ? real_size : 0;
 }
 
-void *yac_allocator_alloc(unsigned int real_size, uint64_t hash);
-
-static inline void* yac_allocator_safe_alloc(unsigned int size, uint64_t hash) {
-    unsigned int real_size = yac_allocator_real_size(size);
-    if (!real_size) {
-        return (void *)0;
-    }
-    return yac_allocator_alloc(real_size, hash);
-}
 
 #if defined(USE_MMAP)
 extern yac_shared_memory_handlers yac_alloc_mmap_handlers;

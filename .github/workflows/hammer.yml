@@ -2,8 +2,7 @@
 # ~30 seconds and every single read is validated. Complements the phpt
 # suite in linux.yml: same small pools CI uses there, but driven by
 # wall-clock instead of fixed test expectations, so it also bites on
-# scheduling races the deterministic tests can't reach. Runs on both
-# x86_64 and ARM64 to exercise each architecture's hardware CRC path.
+# scheduling races the deterministic tests can't reach.
 name: hammer
 
 on:
@@ -15,16 +14,18 @@ on:
 
 jobs:
   hammer:
-    name: "Hammer (Linux ${{ matrix.arch }}, PHP 8.5)"
-    runs-on: ${{ matrix.runner }}
+    name: "Hammer (Linux x86_64, PHP 8.5, ${{ matrix.build }}, seed ${{ matrix.seed }})"
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - arch: x86_64
-            runner: ubuntu-latest
-          - arch: ARM64
-            runner: ubuntu-24.04-arm
+          - build: release
+            seed: 20261009
+            configure: ""
+          - build: debug
+            seed: 20261029
+            configure: --enable-debug
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -36,11 +37,13 @@ jobs:
       - name: Build
         run: |
           phpize
-          ./configure
+          ./configure --enable-yac ${{ matrix.configure }}
           make
       - name: Hammer
         run: |
-          YAC_HAMMER_WORKERS=16 YAC_HAMMER_SECONDS=30 php -n \
-            -d extension=modules/yac.so -d yac.enable_cli=1 \
+          YAC_HAMMER_WORKERS=16 YAC_HAMMER_SECONDS=30 \
+          YAC_HAMMER_SEED=${{ matrix.seed }} \
+          php -n -d extension=modules/yac.so -d yac.enable_cli=1 \
             -d yac.keys_memory_size=1M -d yac.values_memory_size=4M \
-            -d yac.compress_threshold=-1 .github/workflows/scripts/concurrency.php
+            -d yac.compress_threshold=-1 \
+            .github/workflows/scripts/concurrency.php

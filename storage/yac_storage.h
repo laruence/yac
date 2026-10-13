@@ -21,6 +21,10 @@
 #ifndef YAC_STORAGE_H
 #define YAC_STORAGE_H
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <stdint.h>
 
 #ifndef MIN
@@ -40,6 +44,7 @@ typedef struct {
 	unsigned int len;
 	unsigned int hits;
 	unsigned long atime;
+	unsigned int capacity;
 	char data[1];
 } yac_kv_val;
 
@@ -55,7 +60,7 @@ typedef struct {
 	union {
 		struct {
 			unsigned int crc;
-			unsigned int size;
+			unsigned int epoch;
 		};
 		unsigned long atime;
 	} u2;
@@ -63,26 +68,15 @@ typedef struct {
 	unsigned char key[YAC_STORAGE_MAX_KEY_LEN];
 } yac_kv_key;
 
-/* hits/atime live in the slot's unions for embedded entries, in the block otherwise */
+#if UINTPTR_MAX > 0xffffffffU
+typedef char yac_kv_key_must_be_88_bytes[(sizeof(yac_kv_key) == 88) ? 1 : -1];
+#endif
+
+/* Embedded entries keep hits/atime in the slot. */
 #define YAC_KV_HITS(k)  (YAC_IS_EMBED((k).val) ? (k).u1.hits : (k).val->hits)
 #define YAC_KV_ATIME(k) (YAC_IS_EMBED((k).val) ? (k).u2.atime : (k).val->atime)
 
-/* The slot's val word. bits [1:0] are a tag; a block pointer is 8-aligned, so
- * tag 0 means "real pointer" and the all-zero word means an empty slot.
- *
- *   0  block pointer; kind and meta live in the slot's u1.flag
- *   1  long, sign-extended from bit 2
- *   2  short string, length in bits [4:2], bytes from bit 5
- *   3  special: bit 2 inline (bytes live in the slot's key area), bit 3 double
- *      (only +/-0.0, sign in bit 4), neither means an 8-bit flag in bits [11:4]
- *
- * Byte payloads (block and inline alike) carry YAC_VAL_PACK(meta, kind): a
- * YAC_VALUE_* kind in the low 3 bits, meta above it. meta is opaque here, the
- * PHP layer decides what it means; kind STRING lets the allocator hand back a
- * zend_string buffer the caller can adopt. A long too wide for the val word
- * (32-bit builds) and any non-zero double take the byte path too, hence kind
- * covers all four.
- */
+/* val is an aligned block pointer or a tagged embedded value. */
 #define YAC_VAL_TAG_MASK          0x3
 #define YAC_VAL_TAG_LONG          0x1
 #define YAC_VAL_TAG_STR           0x2
@@ -100,8 +94,7 @@ typedef struct {
                                    (((uintptr_t)(p)) & YAC_VAL_DOUBLE_BIT) != 0)
 
 #define YAC_VAL_LONG(v)           ((uintptr_t)((((uint64_t)(v)) << 2) | YAC_VAL_TAG_LONG))
-/* the shift must happen at the word width, where the value is signed: going
- * through uint64 first would zero-extend and lose the sign on a 32-bit build */
+/* Shift at word width to preserve the 32-bit sign. */
 #define YAC_VAL_LONG_VALUE(p)     ((int64_t)((intptr_t)(p) >> 2))
 
 #define YAC_VAL_FLAG_MAX          0xff
@@ -112,9 +105,7 @@ typedef struct {
 #define YAC_VAL_STR_LEN(p)        ((unsigned)((((uintptr_t)(p)) >> 2) & 0x7))
 #define YAC_VAL_STR_DATA(p)       (((uintptr_t)(p)) >> 5)
 
-/* A double never fits the val word except as a zero: only +/-0.0 rides it,
- * one sign bit. that is enough because every falsy double is a zero, and
- * empty() must be answerable from the word alone */
+/* Only +/-0.0 fit in the val word. */
 #define YAC_VAL_NEG_ZERO_BIT      0x10
 #define YAC_VAL_DOUBLE_ZERO       (YAC_VAL_DOUBLE_BIT | YAC_VAL_TAG_SPECIAL)
 #define YAC_VAL_DOUBLE_NEG_ZERO   (YAC_VAL_NEG_ZERO_BIT | YAC_VAL_DOUBLE_ZERO)
@@ -130,8 +121,7 @@ typedef struct {
 	YAC_VAL_INLINE_BIT | YAC_VAL_TAG_SPECIAL))
 #define YAC_VAL_INLINE_PAYLOAD(p) (((uintptr_t)(p)) >> YAC_VAL_PAYLOAD_SHIFT)
 
-/* the inline word's payload area is narrow on a 32-bit build (25 meta bits),
- * so a setter must check meta against this before choosing the inline form */
+/* Inline metadata is narrower on 32-bit builds. */
 #define YAC_VAL_INLINE_META_BITS \
 	((unsigned)(sizeof(uintptr_t) * 8 - YAC_VAL_PAYLOAD_SHIFT - YAC_VAL_KIND_BITS))
 #define YAC_VAL_INLINE_META_MAX \
@@ -169,15 +159,13 @@ typedef struct {
 } yac_value;
 
 #define YAC_HASH_HOME(hash, mask)    ((hash) & (mask))
-/* odd, never zero: coprime with the power-of-two slot count, so a probe
- * walk visits distinct slots */
+/* Odd stride visits distinct power-of-two slots. */
 #define YAC_HASH_STRIDE(hash, mask)  (((((hash) >> 32) ^ ((hash) >> 16) ^ (hash)) & (mask)) | 1)
-/* slot.h is an unsigned long (32-bit on 32-bit builds): store and
- * compare the low bits explicitly; the key memcmp stays authoritative */
+/* The key comparison remains authoritative. */
 #define YAC_HASH_STORE(hash)         ((unsigned long)(hash))
 #define YAC_HASH_MATCH(h, hash)      ((unsigned long)(hash) == (h))
 
-/* Weyl sequence (2^32/phi): samples evenly, and both entry forms must scale alike */
+/* Sample embedded and block entries alike. */
 #define YAC_HITS_PER_SAMPLE	3
 #define YAC_HITS_SAMPLE(ctx) \
 	((((++(ctx)->sample_clock) * 0x9E3779B1u) < (0xFFFFFFFFu / YAC_HITS_PER_SAMPLE)))
@@ -206,13 +194,47 @@ typedef struct _yac_item_list {
 	unsigned char key[1];
 } yac_item_list;
 
+/* Backend mapping descriptor. */
 typedef struct {
-	volatile unsigned int pos;
 	unsigned int size;
 	void *p;
-	/* reserved for the allocator implementation */
 	unsigned int reserved;
 } yac_shared_segment;
+
+/* Value concurrency state lives in the key segment. */
+typedef struct {
+	volatile unsigned int pos;
+	unsigned int epoch;
+	unsigned int gate;
+	volatile unsigned int writers;
+	unsigned char pad[64 - sizeof(unsigned int) * 4];
+} yac_segment_control;
+
+typedef char yac_segment_control_must_be_64_bytes[(sizeof(yac_segment_control) == 64) ? 1 : -1];
+
+#define YAC_EPOCH_SAFE_BIT  0x80000000u
+#define YAC_EPOCH_VALUE(e)  ((e) & ~YAC_EPOCH_SAFE_BIT)
+#define YAC_EPOCH_SAFE(e)   ((e) & YAC_EPOCH_SAFE_BIT)
+
+typedef struct {
+	yac_segment_control control;
+	yac_shared_segment segment;
+	unsigned char pad[64 - sizeof(yac_shared_segment)];
+} yac_value_segment;
+
+typedef char yac_value_segment_must_be_two_cache_lines[(sizeof(yac_value_segment) == 128) ? 1 : -1];
+
+typedef struct {
+	void *value;
+	unsigned int epoch;
+	yac_segment_control *control;
+} yac_alloc_ref;
+
+typedef struct {
+	unsigned int epoch;
+	unsigned int pos;
+	unsigned int offset;
+} yac_seg_pos;
 
 typedef struct {
 	unsigned long k_msize;
@@ -227,6 +249,13 @@ typedef struct {
 	unsigned int slots_size;
 	unsigned int fails;
 	unsigned int recycles;
+#ifdef YAC_DEBUG
+	unsigned int fast_reads;
+	unsigned int crc_fallbacks;
+	unsigned int frontier_invalidations;
+	unsigned int fresh_allocs;
+	unsigned int writer_retries;
+#endif
 } yac_storage_info;
 
 typedef struct {
@@ -234,7 +263,13 @@ typedef struct {
 	unsigned int miss;
 	unsigned int kicks;
 	unsigned int fails;
-	unsigned int recycles;
+#ifdef YAC_DEBUG
+	unsigned int fast_reads;
+	unsigned int crc_fallbacks;
+	unsigned int frontier_invalidations;
+	unsigned int fresh_allocs;
+	unsigned int writer_retries;
+#endif
 } yac_storage_stats;
 
 /* per-call context, passed from the caller layer */
@@ -257,6 +292,7 @@ typedef struct {
 	unsigned int slots_size;
 	unsigned int segments_num;
 	unsigned int segments_num_mask;
+	unsigned int max_segment_size;
 	unsigned int in_flush;
 	unsigned long start_time;
 	yac_shared_segment **segments;

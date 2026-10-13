@@ -1,6 +1,7 @@
 // vim:ft=javascript
 
 ARG_ENABLE("yac", "enable yac support", "no");
+ARG_ENABLE("yac-debug", "enable Yac debug instrumentation", "no");
 ARG_ENABLE("json", "use json as yac serializer", "no");
 ARG_ENABLE("msgpack", "use msgpack as yac serializer", "no");
 ARG_ENABLE("igbinary", "use igbinary as yac serializer", "no");
@@ -21,6 +22,9 @@ if (PHP_YAC != "no") {
 		ADD_SOURCES(configure_module_dirname + "\\storage\\allocator\\allocators", "createfilemapping.c", "yac");
 
 		AC_DEFINE('HAVE_YAC', 1, 'Have yac library');
+		if (PHP_YAC_DEBUG != "no") {
+			AC_DEFINE("YAC_DEBUG", 1, "Enable Yac internal debug instrumentation");
+		}
 
 		// SSE4.2 CRC32C: MSVC needs no extra flag for the _mm_crc32
 		// intrinsics, and yac_crc32.c probes the CPU via __cpuid at

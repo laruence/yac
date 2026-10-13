@@ -39,54 +39,47 @@
  * the segment that owns it, so detach_segment() munmaps exactly once */
 
 static int create_segments(unsigned long k_size, unsigned long v_size, yac_shared_segment **shared_segments_p, int *shared_segments_count, char **error_in) /* {{{ */ {
-	unsigned long allocate_size, occupied_size =  0;
-	unsigned int i, segment_size, segments_num = 1024;
+	unsigned long allocate_size, occupied_size, remaining;
+	unsigned int i, segment_size, segments_num;
+	void *mapping;
 	yac_shared_segment first_segment;
 
-	k_size = YAC_SMM_ALIGNED_SIZE(k_size);
 	v_size = YAC_SMM_ALIGNED_SIZE(v_size);
-	/* don't shift segments_num to 0, v_size / 0 hangs on ARM */
-	while (segments_num > 1 && (v_size / segments_num) < YAC_SMM_SEGMENT_MIN_SIZE) {
-		segments_num >>= 1;
-	}
-
-	segment_size = v_size / segments_num;
-	++segments_num;
-
+	segments_num = yac_allocator_target_segments(v_size);
+	k_size = yac_allocator_key_size(k_size, segments_num);
+	segment_size = (v_size / segments_num) & YAC_SMM_CACHE_LINE_MASK;
 	allocate_size = k_size + v_size;
 
-	first_segment.p = mmap(0, allocate_size, PROT_READ | PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
-	if (first_segment.p == MAP_FAILED) {
+	mapping = mmap(0, allocate_size, PROT_READ | PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+	if (mapping == MAP_FAILED) {
 		*error_in = "mmap";
 		return 0;
 	}
+	first_segment.p = mapping;
 	first_segment.reserved = allocate_size;
 	first_segment.size = k_size;
-	first_segment.pos = 0;
 
-	*shared_segments_p = (yac_shared_segment *)calloc(1, segments_num * sizeof(yac_shared_segment));
+	*shared_segments_p = (yac_shared_segment *)calloc(1, (segments_num + 1) * sizeof(yac_shared_segment));
 	if (!*shared_segments_p) {
-		munmap(first_segment.p, allocate_size);
+		munmap(mapping, allocate_size);
 		*error_in = "calloc";
 		return 0;
-	} else {
-		(*shared_segments_p)[0] = first_segment;
 	}
-	*shared_segments_count = segments_num;
+	(*shared_segments_p)[0] = first_segment;
+	*shared_segments_count = segments_num + 1;
 
 	occupied_size = k_size;
-	for (i = 1; i < segments_num; i++) {
-		/* slices of the first mapping, they own nothing to unmap */
-		(*shared_segments_p)[i].reserved = 0;
-		(*shared_segments_p)[i].pos = 0;
-		(*shared_segments_p)[i].p = (char *)first_segment.p + occupied_size;
-		if ((allocate_size - occupied_size) >= YAC_SMM_ALIGNED_SIZE(segment_size)) {
-			(*shared_segments_p)[i].size = YAC_SMM_ALIGNED_SIZE(segment_size);
-			occupied_size += YAC_SMM_ALIGNED_SIZE(segment_size);
-		} else {
-			(*shared_segments_p)[i].size = (allocate_size - occupied_size);
-			break;
-		}
+	remaining = v_size;
+	for (i = 0; i < segments_num; i++) {
+		unsigned int payload_size = i + 1 == segments_num ? remaining : segment_size;
+		yac_shared_segment *segment = &(*shared_segments_p)[i + 1];
+
+		/* Slices share the first mapping; only first_segment owns its unmap. */
+		segment->reserved = 0;
+		segment->p = (char *)mapping + occupied_size;
+		segment->size = payload_size;
+		occupied_size += payload_size;
+		remaining -= payload_size;
 	}
 
 	return 1;

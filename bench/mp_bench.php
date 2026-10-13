@@ -227,7 +227,7 @@ function run_backend(string $name, int $procs, int $seconds, int $ratio,
     @rmdir($tmp);
 
     $total = $totReads + $totWrites;
-    return [
+    $result = [
         'wall'      => $wall,
         'total_ops' => $total,
         'ops'       => $total / $wall,
@@ -235,6 +235,7 @@ function run_backend(string $name, int $procs, int $seconds, int $ratio,
         'writes_s'  => $totWrites / $wall,
         'hit_rate'  => $totReads > 0 ? $totHits / $totReads : 0.0,
     ];
+    return $result;
 }
 
 /* --------------------------- run the backends --------------------------- */

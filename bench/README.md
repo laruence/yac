@@ -35,8 +35,8 @@ shared extension.
 Which backends run follows from which extensions get loaded: the apcu
 and memcached backends only run when their `.so` was passed (and the
 memcached server is reachable at `--mc-host`/`--mc-port`).
-`--value-size=N` makes every value exactly N bytes; the table below
-comes from three runs with 6, 256 and 2048. Other tunables: `--procs`,
+`--value-size=N` makes every value exactly N bytes. The reference table
+uses 4, 64, 1024, 16384, and 262144 bytes. Other tunables: `--procs`,
 `--seconds`, `--ratio`, `--keys`.
 
 Shared memory is fixed at 160M for Yac (`keys_memory_size=32M` +
@@ -57,16 +57,19 @@ mechanics.
 MacBook Pro (macOS 26.5, Apple M5 Pro, 15-core CPU), PHP 8.5,
 APCu 5.1.28, php-memcached 3.4.0, Memcached server 1.6.45 on
 127.0.0.1:11211. Yac built from the current `master`.
-`--keys=20000` shared keys. Results are stable across repeated runs.
+`--keys=20000` for 4 B through 1 KB, `6000` for 16 KB, and `200` for
+256 KB, keeping each warmed key set within the 160M shared-memory budget.
 
 Reference numbers (16 workers, 5s, 100:1 read:write, compression off,
 160M shared memory):
 
 | Value size | Yac          | APCu       | Memcached  | Yac / APCu | Yac / Memcached |
 |-----------:|-------------:|-----------:|-----------:|-----------:|----------------:|
-| 6 B        | **77.1M**    | 1.10M      | 0.11M      | 69.8x      | 726.7x          |
-| 256 B      | **60.5M**    | 1.12M      | 0.11M      | 54.0x      | 574.3x          |
-| 2048 B     | **17.2M**    | 1.28M      | 0.10M      | 13.4x      | 169.6x          |
+| 4 B        | **63.8M**    | 1.19M      | 0.108M     | 53.8x      | 592.6x          |
+| 64 B       | **69.9M**    | 1.20M      | 0.107M     | 58.4x      | 650.6x          |
+| 1 KB       | **44.7M**    | 1.29M      | 0.106M     | 34.7x      | 419.9x          |
+| 16 KB      | **9.18M**    | 1.37M      | 0.093M     | 6.7x       | 98.5x           |
+| 256 KB     | **0.879M**   | 0.625M     | 0.045M     | 1.4x       | 19.3x           |
 
 ## Disclaimer
 

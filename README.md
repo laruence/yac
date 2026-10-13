@@ -33,10 +33,11 @@ ratio, 160M shared memory for both Yac and APCu.
 Numbers are aggregate ops/s across all workers, one value size per run:
 
 | Value size | Yac          | APCu 5.1.28 | Memcached 3.4.0 | Yac / APCu | Yac / Memcached |
-|-----------:|-------------:|------------:|----------------:|-----------:|----------------:|
-| 6 B        | **77.1M**    | 1.10M       | 0.11M           | 69.8x      | 726.7x          |
-| 256 B      | **60.5M**    | 1.12M       | 0.11M           | 54.0x      | 574.3x          |
-| 2048 B     | **17.2M**    | 1.28M       | 0.10M           | 13.4x      | 169.6x          |
+|-----------:|-------------:|------------:|---------------:|-----------:|----------------:|
+| 4 B        | **63.8M**    | 1.19M       | 0.108M         | 53.8x      | 592.6x          |
+| 64 B       | **69.9M**    | 1.20M       | 0.107M         | 58.4x      | 650.6x          |
+| 1 KB       | **44.7M**    | 1.29M       | 0.106M         | 34.7x      | 419.9x          |
+| 16 KB      | **9.18M**    | 1.37M       | 0.093M         | 6.7x       | 98.5x           |
 
 Yac built from the current `master`. Measures throughput, not
 consistency.
@@ -98,6 +99,8 @@ Otherwise `new Yac()` will throw an exception.
 
 Yac checks every stored value with a full CRC-32C, so a corrupted or overwritten entry is detected and reported as a miss rather than returned.
 
+When Yac is built with a PHP debug build, it enables concurrency instrumentation and exposes the `YAC_DEBUG` constant. This cannot be enabled at runtime.
+
 ## Restrictions
 
 1. Cache key cannot be longer than 48 (`YAC_MAX_KEY_LEN`) bytes.
@@ -108,9 +111,6 @@ Yac checks every stored value with a full CRC-32C, so a corrupted or overwritten
 
 ```ini
 yac.enable = 1
-
-yac.debug = 0  ; enable debug mode (PHP_INI_ALL).
-               ; Currently reserved for future use.
 
 yac.keys_memory_size = 8M  ; 8M can hold ~64K key slots, scaling roughly linearly
 

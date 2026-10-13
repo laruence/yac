@@ -34,7 +34,7 @@ extern zend_module_entry yac_module_entry;
 #include "TSRM.h"
 #endif
 
-#define PHP_YAC_VERSION "2.5.0-dev"
+#define PHP_YAC_VERSION "3.0.0"
 
 #if PHP_VERSION_ID < 70400
 #define YAC_WHANDLER            void
@@ -70,7 +70,6 @@ extern zend_module_entry yac_module_entry;
 
 ZEND_BEGIN_MODULE_GLOBALS(yac)
 	zend_bool enable;
-	zend_bool debug;
 	size_t k_msize;
 	size_t v_msize;
 	zend_ulong compress_threshold;

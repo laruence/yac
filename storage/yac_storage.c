@@ -27,6 +27,8 @@
 #include <math.h>
 #if defined(_WIN32)
 #include <windows.h>
+#else
+#include <unistd.h>
 #endif
 
 #include "yac_atomic.h"
@@ -38,6 +40,9 @@ yac_storage_globals *yac_storage;
 
 static yac_user_alloc_t user_alloc;
 static yac_user_free_t user_free;
+#ifdef YAC_DEBUG
+#define YAC_DEBUG_PAUSE_AFTER_RESERVE_US 1000u
+#endif
 
 static inline void yac_ctx_refresh_tv(yac_ctx *ctx) /* {{{ */ {
 	unsigned long now = (unsigned long)time(NULL);
@@ -79,7 +84,7 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, yac_user_alloc_
 	YAC_SG(stats.fails) = 0;
 	YAC_SG(stats.hits)  = 0;
 	YAC_SG(stats.miss)  = 0;
-	YAC_SG(stats.kicks) = 0;
+	memset(&YAC_SG(stats), 0, sizeof(YAC_SG(stats)));
 	YAC_SG(in_flush)    = 0;
 	YAC_SG(start_time)  = time(NULL);
 
@@ -93,6 +98,16 @@ void yac_storage_shutdown(void) /* {{{ */ {
 	yac_allocator_shutdown();
 }
 /* }}} */
+
+#ifdef YAC_DEBUG
+static void yac_storage_debug_pause_after_reserve(void) {
+#if defined(_WIN32)
+	Sleep((YAC_DEBUG_PAUSE_AFTER_RESERVE_US + 999) / 1000);
+#else
+	usleep(YAC_DEBUG_PAUSE_AFTER_RESERVE_US);
+#endif
+}
+#endif
 
 /* {{{ MurmurHash64A (Austin Appleby, public domain).
  *
@@ -162,6 +177,7 @@ static inline int yac_slot_snapshot(const YAC_SLOT_V yac_kv_key *p, yac_kv_key *
 			YAC_READ_BARRIER();
 			s2 = YAC_LOAD(&p->seq);
 			if (s1 == s2) {
+				k->seq = s1;
 				return 1; /* counter even and unchanged: every word is one version */
 			}
 		}
@@ -272,6 +288,11 @@ static inline unsigned yac_val_decode(const yac_kv_key *k, yac_value *out) /* {{
 }
 /* }}} */
 
+static inline int yac_storage_epoch_safe(const yac_kv_key *k, const yac_seg_pos *segpos) /* {{{ */ {
+	return segpos->epoch == YAC_EPOCH_VALUE(k->u2.epoch);
+}
+/* }}} */
+
 int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, yac_value *out) /* {{{ */ {
 	uint64_t h, hash, stride;
 	unsigned int i;
@@ -307,49 +328,63 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, yac_value 
 				break; /* expired */
 			}
 			if (YAC_IS_EMBED(k.val)) {
-				/* atime is never sampled; being second-granular it claims at most once/sec */
-				int stale = k.u2.atime != tv;
 				int sampled = YAC_HITS_SAMPLE(ctx);
 				unsigned int kind = yac_val_decode(&k, out);
 
-				/* touching the slot's hits/atime means publishing: the one read path that claims */
-				if ((stale || sampled) && YAC_SLOT_CLAIM(p)) {
-					/* only bump if no writer replaced the entry under us */
+				if (sampled && YAC_SLOT_TRY_CLAIM(p)) {
 					if ((yac_kv_val *)YAC_LOAD(&p->val) == k.val) {
-						if (stale) {
+						if (YAC_LOAD(&p->u2.atime) != tv) {
 							YAC_STORE(&p->u2.atime, tv);
 						}
-						if (sampled) {
-							YAC_STORE(&p->u1.hits,
-									YAC_LOAD(&p->u1.hits) + YAC_HITS_PER_SAMPLE);
-						}
+						YAC_STORE(&p->u1.hits, YAC_LOAD(&p->u1.hits) + YAC_HITS_PER_SAMPLE);
 					}
 					YAC_SLOT_PUBLISH(p);
 				}
 				++ctx->hits;
 				return kind;
 			} else {
-				/* snapshot the header while live; p->val may change behind our back */
-				yac_kv_val v = *(k.val);
+				yac_seg_pos oldpos, newpos;
 				unsigned int packed = k.u1.flag;
 				unsigned int kind = YAC_VAL_PACK_KIND(packed);
 				unsigned int vlen = YAC_KEY_VLEN(k);
+				unsigned int epoch = YAC_EPOCH_VALUE(k.u2.epoch);
 				char *s;
 				int heap = (kind == YAC_VALUE_STRING || kind == YAC_VALUE_BLOB);
+				int first = 0, second, fast, valid;
 
+				if (!YAC_EPOCH_SAFE(k.u2.epoch)) {
+					first = yac_allocator_resolve(k.val, k.h, &oldpos);
+				}
 				if (heap) {
 					s = user_alloc(vlen, packed, 0);
 				} else {
-					/* a scalar is snapshot on the stack; the CRC length is what the
-					 * setter used, not sizeof(out->u) (the union is wider) */
+					/* Block scalar snapshot. */
 					s = (char *)&out->u;
 					vlen = (unsigned int)sizeof(int64_t);
 				}
 
-				/* reject a block recycled behind our back; crc32_snapshot copies+checks */
-				if (k.len == v.len && k.u2.crc == yac_crc32_snapshot(s, (char *)k.val->data, vlen)) {
-					if (k.val->atime != tv) {
-						k.val->atime = tv;
+				memcpy(s, k.val->data, vlen);
+				YAC_READ_BARRIER();
+				second = yac_allocator_resolve(k.val, k.h, &newpos);
+				fast = second && YAC_EPOCH_SAFE(k.u2.epoch) && newpos.epoch == epoch;
+				valid = fast || k.u2.crc == yac_crc32(s, vlen);
+				if (valid && YAC_SEQ_LOAD(&p->seq) == k.seq) {
+#ifdef YAC_DEBUG
+					if (fast) {
+						YAC_ATOMIC_ADD(&YAC_SG(stats.fast_reads), 1);
+					} else {
+						YAC_ATOMIC_ADD(&YAC_SG(stats.crc_fallbacks), 1);
+					}
+#endif
+					if (!fast && first && second && oldpos.epoch == epoch &&
+							newpos.epoch == epoch && newpos.pos > newpos.offset &&
+							YAC_SLOT_CLAIM(p)) {
+						if (YAC_LOAD(&p->seq) == k.seq + 1 &&
+								YAC_LOAD(&p->val) == k.val &&
+								YAC_LOAD(&p->u2.epoch) == k.u2.epoch) {
+							YAC_STORE(&p->u2.epoch, epoch | YAC_EPOCH_SAFE_BIT);
+						}
+						YAC_SLOT_PUBLISH(p);
 					}
 					if (kind == YAC_VALUE_BLOB) {
 						out->u.blob.val = s;
@@ -359,22 +394,14 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, yac_value 
 						out->u.str.val = s;
 						out->u.str.len = YAC_KEY_VLEN(k);
 					}
-					/* same sample rate as the embedded form: YAC_KV_HITS compares them */
-					if (YAC_HITS_SAMPLE(ctx)) {
-						k.val->hits += YAC_HITS_PER_SAMPLE;
-					}
 					++ctx->hits;
 					return kind;
 				}
+#ifdef YAC_DEBUG
+				YAC_ATOMIC_ADD(&YAC_SG(stats.frontier_invalidations), 1);
+#endif
 				if (heap) {
 					user_free(s, packed);
-				}
-				/* recycled or corrupted: tombstone, but only if it is still our entry */
-				if (YAC_SLOT_CLAIM(p)) {
-					if ((yac_kv_val *)YAC_LOAD(&p->val) == k.val) {
-						YAC_STORE(&p->ttl, 1);
-					}
-					YAC_SLOT_PUBLISH(p);
 				}
 			}
 		}
@@ -425,8 +452,9 @@ int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl)
 }
 /* }}} */
 
-static inline void yac_item_fill(yac_item_list *item, const yac_kv_key *k, unsigned int index) /* {{{ */ {
+static inline int yac_item_fill(yac_item_list *item, const yac_kv_key *k, unsigned int index) /* {{{ */ {
 	uintptr_t word = (uintptr_t)k->val;
+	yac_seg_pos segpos;
 
 	item->index = index;
 	item->h = k->h;
@@ -452,15 +480,20 @@ static inline void yac_item_fill(yac_item_list *item, const yac_kv_key *k, unsig
 		item->crc = 0;
 		item->size = 0;
 	} else {
+		if (!yac_allocator_resolve(k->val, k->h, &segpos) ||
+				!yac_storage_epoch_safe(k, &segpos)) {
+			return 0;
+		}
 		item->kind = YAC_VAL_PACK_KIND(k->u1.flag);
 		item->val.meta = YAC_VAL_PACK_META(k->u1.flag);
 		item->val.embed = YAC_EMBED_BLOCK;
 		item->atime = k->val->atime;
 		item->hits = k->val->hits;
 		item->crc = k->u2.crc;
-		item->size = k->u2.size;
+		item->size = k->val->capacity;
 	}
 	memcpy(item->key, k->key, item->k_len);
+	return 1;
 }
 /* }}} */
 
@@ -521,19 +554,40 @@ int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_item *
 }
 /* }}} */
 
-static inline unsigned int yac_storage_pick_victim(const yac_kv_key *snaps) /* {{{ */ {
-	/* LRU; ties fall to least-hit then earliest probe. snapshots only */
-	unsigned long atime, oldest;
-	unsigned int victim, i;
+static inline int yac_storage_entry_metrics(const yac_kv_key *k, unsigned long *atime, unsigned int *hits) /* {{{ */ {
+	yac_seg_pos segpos;
 
-	victim = 0;
-	oldest = YAC_KV_ATIME(snaps[victim]);
-	for (i = 1; i < 4; i++) {
-		atime = YAC_KV_ATIME(snaps[i]);
-		if (atime < oldest ||
-				(atime == oldest && YAC_KV_HITS(snaps[i]) < YAC_KV_HITS(snaps[victim]))) {
+	if (YAC_IS_EMBED(k->val)) {
+		*atime = k->u2.atime;
+		*hits = k->u1.hits;
+		return 1;
+	}
+	if (!yac_allocator_resolve(k->val, k->h, &segpos) ||
+			!yac_storage_epoch_safe(k, &segpos)) {
+		return 0;
+	}
+	*atime = k->val->atime;
+	*hits = k->val->hits;
+	return 1;
+}
+/* }}} */
+
+static inline unsigned int yac_storage_pick_victim(const yac_kv_key *snaps) /* {{{ */ {
+	/* Keep the earliest safe LRU candidate. */
+	unsigned long atime, oldest = 0;
+	unsigned int hits, least_hits = 0, victim = 0, i;
+	int have_victim = 0;
+
+	for (i = 0; i < 4; i++) {
+		if (!yac_storage_entry_metrics(&snaps[i], &atime, &hits)) {
+			continue;
+		}
+		if (!have_victim || atime < oldest ||
+				(atime == oldest && hits < least_hits)) {
 			oldest = atime;
+			least_hits = hits;
 			victim = i;
+			have_victim = 1;
 		}
 	}
 
@@ -541,9 +595,11 @@ static inline unsigned int yac_storage_pick_victim(const yac_kv_key *snaps) /* {
 }
 /* }}} */
 
-static inline int yac_storage_fill_value(yac_ctx *ctx, yac_kv_key *k, unsigned int len, const char *data, unsigned int size, unsigned int kind, unsigned int meta, uintptr_t word, uint64_t hash) /* {{{ */ {
+static inline int yac_storage_fill_value(yac_ctx *ctx, yac_kv_key *k, unsigned int len, const char *data, unsigned int size, unsigned int kind, unsigned int meta, uintptr_t word, uint64_t hash, yac_alloc_ref *alloc) /* {{{ */ {
 	unsigned long tv = ctx->tv;
-	/* fill every field but h/ttl/key/len; word=0 means the block path */
+
+	/* h/ttl/key/len are filled by the caller. */
+	memset(alloc, 0, sizeof(*alloc));
 	if (word) {
 		if (YAC_IS_EMBED_INLINE(word)) {
 			memcpy(k->key + len, data, size);
@@ -553,33 +609,42 @@ static inline int yac_storage_fill_value(yac_ctx *ctx, yac_kv_key *k, unsigned i
 		k->u1.hits = 0;
 		return 1;
 	}
+
 	{
-		/* reuse the old block if big enough and intact, else allocate fresh */
-		int has_block = k->val && !YAC_IS_EMBED(k->val);
-		if (!(has_block && k->u2.size >= sizeof(yac_kv_val) + size - 1 &&
-				k->u2.crc == yac_crc32(k->val->data, YAC_KEY_VLEN(*k)))) {
-			unsigned int real_size = yac_allocator_real_size(sizeof(yac_kv_val) + (size * YAC_STORAGE_FACTOR) - 1);
-			yac_kv_val *val;
+		unsigned int epoch = YAC_EPOCH_VALUE(k->u2.epoch);
+		unsigned int need = sizeof(yac_kv_val) + size - 1;
+		int reuse = k->val && !YAC_IS_EMBED(k->val) &&
+			yac_allocator_hold(k->val, hash, epoch, alloc);
 
-			if (!real_size) {
+		if (reuse && k->val->capacity >= need &&
+				k->u2.crc == yac_crc32(k->val->data, YAC_KEY_VLEN(*k))) {
+			/* Clear the old safe epoch. */
+			k->u2.epoch = epoch;
+		} else {
+			unsigned int real_size;
+
+			if (reuse) {
+				yac_allocator_release(alloc);
+			}
+			real_size = yac_allocator_real_size(sizeof(yac_kv_val) +
+					(size * YAC_STORAGE_FACTOR) - 1);
+			if (!real_size || !yac_allocator_alloc(real_size, hash, alloc)) {
 				++YAC_SG(stats.fails);
 				return 0;
 			}
-
-			val = yac_allocator_alloc(real_size, hash);
-			if (val == NULL) {
-				++YAC_SG(stats.fails);
-				return 0;
-			}
-			k->val = val;
-			k->u2.size = real_size;
+			k->val = alloc->value;
+			k->val->capacity = real_size;
+			k->u2.epoch = alloc->epoch;
+#ifdef YAC_DEBUG
+			YAC_ATOMIC_ADD(&YAC_SG(stats.fresh_allocs), 1);
+#endif
 		}
-		k->val->atime = tv;
-		k->val->hits = 0; /* every (re)write starts cold */
-		YAC_KEY_SET_LEN(*k->val, len, size);
-		k->u2.crc = yac_crc32_snapshot(k->val->data, data, size);
-		k->u1.flag = YAC_VAL_PACK(meta, kind);
 	}
+	k->val->atime = tv;
+	k->val->hits = 0; /* every (re)write starts cold */
+	YAC_KEY_SET_LEN(*k->val, len, size);
+	k->u2.crc = yac_crc32_snapshot(k->val->data, data, size);
+	k->u1.flag = YAC_VAL_PACK(meta, kind);
 	return 1;
 }
 /* }}} */
@@ -588,6 +653,7 @@ static int yac_storage_store(yac_ctx *ctx, const char *key, unsigned int len, co
 	unsigned int i, w;
 	uint64_t h, hash, stride;
 	yac_kv_key k, snaps[4];
+	yac_alloc_ref alloc;
 	YAC_SLOT_V yac_kv_key *p, *paths[4];
 	unsigned long tv;
 
@@ -602,7 +668,6 @@ static int yac_storage_store(yac_ctx *ctx, const char *key, unsigned int len, co
 	hash = yac_hash(key, len);
 	stride = YAC_HASH_STRIDE(hash, YAC_SG(slots_mask));
 
-	/* 1. find the key or an empty slot on the probe path */
 	h = YAC_HASH_HOME(hash, YAC_SG(slots_mask));
 	for (i = 0; i < 4; i++) {
 		paths[i] = p = &(YAC_SG(slots)[h]);
@@ -623,7 +688,6 @@ static int yac_storage_store(yac_ctx *ctx, const char *key, unsigned int len, co
 		h = (h + stride) & YAC_SG(slots_mask);
 	}
 
-	/* 2. no empty slot: recycle an expired one for free */
 	for (i = 0; i < 4; i++) {
 		k = snaps[i];
 		if (k.ttl && k.ttl <= tv) {
@@ -632,29 +696,38 @@ static int yac_storage_store(yac_ctx *ctx, const char *key, unsigned int len, co
 		}
 	}
 
-	/* 3. all live: displace a victim (a kick) */
 	i = yac_storage_pick_victim(snaps);
 	p = paths[i];
 	k = snaps[i];
 	++YAC_SG(stats.kicks);
 
 do_update:
-	/* 4. fill the value; only blocks can go stale */
-	if (!yac_storage_fill_value(ctx, &k, len, data, size, kind, meta, word, hash)) {
+	/* Claim the selected slot before replacing its block. */
+	if (!YAC_SLOT_CLAIM(p)) {
 		return 0;
 	}
+	if (YAC_LOAD(&p->seq) != k.seq + 1) {
+		YAC_SLOT_PUBLISH(p);
+		return 0;
+	}
+	if (!yac_storage_fill_value(ctx, &k, len, data, size, kind, meta, word, hash, &alloc)) {
+		YAC_SLOT_PUBLISH(p);
+		return 0;
+	}
+#ifdef YAC_DEBUG
+	if (alloc.value) {
+		yac_storage_debug_pause_after_reserve();
+	}
+#endif
 
-	/* 5. claim and publish per-field; a whole-slot copy would clobber the unions */
+	/* Publish fields without clobbering the unions. */
 	k.h = YAC_HASH_STORE(hash);
 	k.ttl = ttl ? tv + ttl : 0;
 	memcpy(k.key, key, len);
 	YAC_KEY_SET_LEN(k, len, size);
-	if (!YAC_SLOT_CLAIM(p)) {
-		return 0;
-	}
 	YAC_STORE(&p->h, k.h);
 	YAC_STORE(&p->ttl, k.ttl);
-	/* nothing compares past klen, so a longer predecessor's tail may stay */
+	/* The key tail beyond klen may remain. */
 	{
 		unsigned int span = YAC_IS_EMBED_INLINE(k.val) ? len + size : len;
 		for (w = 0; w < (span + sizeof(uintptr_t) - 1) / sizeof(uintptr_t); w++) {
@@ -667,9 +740,10 @@ do_update:
 	YAC_STORE(&p->len, k.len);
 	YAC_STORE(&p->u1.flag, k.u1.flag);
 	YAC_STORE(&p->u2.crc, k.u2.crc);
-	YAC_STORE(&p->u2.size, k.u2.size);
+	YAC_STORE(&p->u2.epoch, k.u2.epoch);
 	YAC_STORE(&p->val, k.val);
 	YAC_SLOT_PUBLISH(p);
+	yac_allocator_release(&alloc);
 
 	return 1;
 }
@@ -777,22 +851,40 @@ void yac_storage_commit_stats(yac_ctx *ctx) /* {{{ */ {
 yac_storage_info* yac_storage_get_info(yac_ctx *ctx) /* {{{ */ {
 	yac_storage_info *info;
 	unsigned int i, occupied = 0;
-	unsigned long tv;
+	unsigned long values_size = 0, recycles = 0, tv;
 
 	yac_ctx_refresh_tv(ctx);
 	tv = ctx->tv;
 
 	info = user_alloc(sizeof(yac_storage_info), 0, 0);
 
+	for (i = 0; i < YAC_SG(segments_num); i++) {
+		yac_shared_segment *segment = YAC_SG(segments)[i];
+		yac_segment_control *control = yac_allocator_segment_control(segment);
+		unsigned int epoch = YAC_LOAD(&control->epoch);
+
+		values_size += segment->size;
+		/* epoch starts at one, so it is also this segment's recycle count. */
+		if (epoch) {
+			recycles += epoch - 1;
+		}
+	}
 	info->k_msize = (unsigned long)YAC_SG(first_seg).size;
-	info->v_msize = (unsigned long)YAC_SG(segments)[0]->size * (unsigned long)YAC_SG(segments_num);
-	info->segment_size = YAC_SG(segments)[0]->size;
+	info->v_msize = values_size;
+	info->segment_size = YAC_SG(max_segment_size);
 	info->segments_num = YAC_SG(segments_num);
 	info->hits = YAC_SG(stats.hits);
 	info->miss = YAC_SG(stats.miss);
 	info->fails = YAC_SG(stats.fails);
 	info->kicks = YAC_SG(stats.kicks);
-	info->recycles = YAC_SG(stats.recycles);
+	info->recycles = (unsigned int)recycles;
+#ifdef YAC_DEBUG
+	info->fast_reads = YAC_LOAD(&YAC_SG(stats.fast_reads));
+	info->crc_fallbacks = YAC_LOAD(&YAC_SG(stats.crc_fallbacks));
+	info->frontier_invalidations = YAC_LOAD(&YAC_SG(stats.frontier_invalidations));
+	info->fresh_allocs = YAC_LOAD(&YAC_SG(stats.fresh_allocs));
+	info->writer_retries = YAC_LOAD(&YAC_SG(stats.writer_retries));
+#endif
 	info->start_time = YAC_SG(start_time);
 	info->slots_size = YAC_SG(slots_size);
 
@@ -841,7 +933,10 @@ yac_item_list* yac_storage_dump(unsigned int limit, unsigned int offset, unsigne
 			continue;
 		}
 		item = user_alloc(offsetof(yac_item_list, key) + YAC_KEY_KLEN(k), 0, 1);
-		yac_item_fill(item, &k, i);
+		if (!yac_item_fill(item, &k, i)) {
+			user_free(item, 0);
+			continue;
+		}
 		item->next = list;
 		list = item;
 		++n;

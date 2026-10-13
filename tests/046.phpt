@@ -25,10 +25,13 @@ var_dump(strpos($out, "Version => ") !== false);
 var_dump(strpos($out, "Shared Memory => ") !== false);
 var_dump(strpos($out, "Serializer => ") !== false);
 
-/* INI entries are listed */
+/* INI entries are listed; the internal debug pause is never configurable. */
 var_dump(strpos($out, "yac.enable") !== false);
 var_dump(strpos($out, "yac.keys_memory_size") !== false);
 var_dump(strpos($out, "yac.compress_threshold") !== false);
+var_dump(strpos($out, "yac.debug") === false);
+var_dump(strpos($out, "yac.test_pause_after_reserve_us") === false);
+var_dump(defined("YAC_DEBUG") || strpos($out, "Debug Frontier Retries") === false);
 
 /* cache info table with live counters */
 var_dump(strpos($out, "Total Shared Memory Usage(memory_size)") !== false);
@@ -36,6 +39,9 @@ var_dump(strpos($out, "Size of Shared Memory Segment(segment_size)") !== false);
 var_dump((bool)preg_match("/Total Used Slots\(slots_num\) => [1-9][0-9]*/", $out));
 ?>
 --EXPECT--
+bool(true)
+bool(true)
+bool(true)
 bool(true)
 bool(true)
 bool(true)

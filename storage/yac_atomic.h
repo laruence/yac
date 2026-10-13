@@ -23,10 +23,7 @@
 #include "config.h"
 #endif
 
-/* two independent axes: which builtins exist (compiler) and which
- * instructions exist (isa). mingw is both _WIN32 and GNU, so the compiler
- * axis must not be spelled _WIN32 -- it would send mingw down the MSVC
- * path, where none of the _M_* isa macros match */
+/* Compiler and ISA detection. */
 #if defined(__GNUC__) || defined(__clang__)
 # define YAC_CC_GNU     1
 #else
@@ -50,18 +47,17 @@
 # define YAC_ARCH_ARM64 0
 #endif
 
-/* clang-cl sets both compiler macros; every chain below tries GNU first, so
- * it gets the builtins rather than the volatile fallback */
+/* clang-cl uses the GNU builtin path. */
 #if YAC_CC_MSVC
 #include <intrin.h>
 #endif
 
-/* shared by every retry loop here and in yac_storage.c: a claimer that died
- * never publishes, so no loop may wait forever */
+/* A claimer may not publish, so every retry loop is bounded. */
 #define YAC_MAX_SPIN 30
 
-/* cpu hints: cuts the power and pipeline cost of spinning on x86 and yields
- * the SMT sibling's issue slots; a no-op where there is no hint instruction */
+/* The segment gate only coordinates epoch/pos changes. */
+
+/* CPU pause/yield hint. */
 static inline void yac_cpu_relax(void) {
 #if YAC_CC_GNU && YAC_ARCH_X86
 	__asm__ volatile ("pause" ::: "memory");
@@ -76,8 +72,6 @@ static inline void yac_cpu_relax(void) {
 
 static inline void yac_prefetch(const void *p) {
 #if YAC_CC_GNU
-	/* locality 3 (keep in all levels): the block header is read within a
-	 * few instructions, so it must land in L1 to be useful */
 	__builtin_prefetch(p, 0, 3);
 #elif YAC_CC_MSVC && YAC_ARCH_ARM64
 	__prefetch(p);
@@ -86,10 +80,7 @@ static inline void yac_prefetch(const void *p) {
 #endif
 }
 
-/* shared-memory access, one chain per compiler. YAC_LOAD/YAC_STORE must be
- * plain: an access that cannot be elided or merged, but takes no cache line
- * ownership -- never use an RMW there. configure rejects a toolchain that
- * cannot provide all of this */
+/* Shared-memory access. */
 #if YAC_CC_GNU && defined(__ATOMIC_RELAXED)
 # define YAC_SLOT_V                    /* type-generic builtins need none */
 # define YAC_LOAD(p)           __atomic_load_n((p), __ATOMIC_RELAXED)
@@ -102,19 +93,16 @@ static inline void yac_prefetch(const void *p) {
 # define YAC_ATOMIC_ADD(p, val)  __sync_fetch_and_add((p), (val))
 
 #elif YAC_CC_MSVC
-/* no generic load/store builtin and no inline asm on x64/ARM64, but a
- * volatile access already emits the plain MOV/LDR and may not be merged.
- * qualifying the slot pointer once lets the fields keep their own widths */
+/* MSVC has no generic atomic load/store builtin. */
 # define YAC_SLOT_V            volatile
 # define YAC_LOAD(p)           (*(p))
 # define YAC_STORE(p, v)       (*(p) = (v))
 # if YAC_ARCH_ARM64
-/* /volatile:iso is the default here, so the barriers are real dmb */
+/* /volatile:iso emits the required dmb. */
 #  define YAC_READ_BARRIER()   __dmb(_ARM64_BARRIER_ISHLD)
 #  define YAC_WRITE_BARRIER()  __dmb(_ARM64_BARRIER_ISH)
 # else
-/* TSO keeps load-load and store-store in order, so only the compiler needs
- * holding back; this does not rely on /volatile:ms */
+/* TSO only needs compiler barriers here. */
 #  define YAC_READ_BARRIER()   _ReadWriteBarrier()
 #  define YAC_WRITE_BARRIER()  _ReadWriteBarrier()
 # endif
@@ -135,25 +123,19 @@ static inline unsigned int yac_seq_load(const volatile unsigned int *seq) {
 #error No atomic support: yac needs the GNU __atomic/__sync builtins or MSVC
 #endif
 
-/* versioned slot: seq even means stable, odd means a writer is publishing.
- * readers never write it, so a hot key costs no cache line ownership. zero
- * is even, hence a zeroed slot array reads as stable and flush() stays one
- * memset */
+/* Even seq is stable; odd seq is being published. */
 
-/* only the claimer advances an odd counter, so publishing needs no RMW.
- * returns 0 after YAC_MAX_SPIN attempts, as the old mutex did */
-static inline int yac_slot_claim(YAC_SLOT_V unsigned int *seq) {
+/* Claim the next odd sequence. */
+static inline int yac_slot_claim(YAC_SLOT_V unsigned int *seq, int spin) {
 	int retry = 0;
 
 	for (;;) {
 		unsigned int s = YAC_LOAD(seq);
 
-		/* cast away the qualifier: the CAS is the atomicity, and MSVC's
-		 * Interlocked path needs its own parameter type */
 		if (!(s & 1) && YAC_CAS((unsigned int *)seq, s, s + 1)) {
 			return 1;
 		}
-		if (++retry == YAC_MAX_SPIN) {
+		if (!spin || ++retry == YAC_MAX_SPIN) {
 			return 0;
 		}
 		yac_cpu_relax();
@@ -161,12 +143,15 @@ static inline int yac_slot_claim(YAC_SLOT_V unsigned int *seq) {
 }
 
 static inline void yac_slot_publish(YAC_SLOT_V unsigned int *seq) {
-	/* rounds up rather than adds one: flush()'s memset can turn the counter
-	 * even underneath the claimer, and +1 would then wedge the slot odd */
+	/* flush() may reset seq; always publish an even value. */
 	YAC_SEQ_STORE(seq, (YAC_LOAD(seq) | 1) + 1);
 }
 
-#define YAC_SLOT_CLAIM(p)     yac_slot_claim(&(p)->seq)
-#define YAC_SLOT_PUBLISH(p)   yac_slot_publish(&(p)->seq)
+#define YAC_SLOT_CLAIM(p)      yac_slot_claim(&(p)->seq, 1)
+#define YAC_SLOT_TRY_CLAIM(p)  yac_slot_claim(&(p)->seq, 0)
+#define YAC_SLOT_PUBLISH(p)    yac_slot_publish(&(p)->seq)
+
+#define YAC_SEG_CLAIM(s)      YAC_CAS((unsigned int *)(s), 0, 1)
+#define YAC_SEG_PUBLISH(s)    YAC_SEQ_STORE((s), 0)
 
 #endif /* YAC_ATOMIC_H */

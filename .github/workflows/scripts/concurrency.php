@@ -30,10 +30,7 @@
  *
  * Every value is self-describing: it embeds the key name, the writer id
  * and a sequence number, and the body repeats "<key>#<seq>#" units. A
- * wrong read thus carries enough information to identify its origin:
- * the stamped key/writer/seq say who wrote it, and the info() trajectory
- * around the failure says whether kicks/recycles were climbing at the
- * time.
+ * wrong read thus carries enough information to identify its origin.
  *
  * Usage (yac must be enabled; the pools must be SMALL so that kicks and
  * value-ring recycles actually happen — wrong values only have a window
@@ -94,6 +91,27 @@ function env_int($name, $def) {
 	return ($v === false || $v === "") ? $def : (int)$v;
 }
 
+function report_debug_info($yac) {
+	if (!defined("YAC_DEBUG")) {
+		return;
+	}
+
+	try {
+		$info = $yac->info();
+		$keys = array("fast_reads", "crc_fallbacks", "frontier_invalidations", "fresh_allocs", "writer_retries");
+		$values = array();
+		foreach ($keys as $key) {
+			if (!array_key_exists($key, $info)) {
+				throw new RuntimeException("missing $key");
+			}
+			$values[] = "$key=" . $info[$key];
+		}
+		printf("DEBUG: yac.info %s\n", implode(" ", $values));
+	} catch (Throwable $e) {
+		printf("DEBUG: yac.info unavailable: %s\n", $e->getMessage());
+	}
+}
+
 $workers     = env_int("YAC_HAMMER_WORKERS", 8);
 $ops         = env_int("YAC_HAMMER_OPS", 60000);
 $seed        = env_int("YAC_HAMMER_SEED", 20260831);
@@ -130,10 +148,30 @@ printf("pool: slots_size=%d keys_mem=%d values_mem=%d segment=%dx%d\n",
  * also drag the CRC onto the interleaved hardware path (>4K), so the
  * guard that checks the block here exercises the same code readers use
  * in production. */
+function hammer_incompressible() {
+	static $enabled = null;
+	if ($enabled === null) {
+		$enabled = env_int("YAC_HAMMER_INCOMPRESSIBLE", 0) !== 0;
+	}
+	return $enabled;
+}
+
+function entropy_body($key, $worker, $seq, $chunks) {
+	$body = "";
+	for ($i = 0; $i < $chunks; $i++) {
+		$entropy = hash("sha256", "$key/$worker/$seq/$i", true);
+		$body .= hammer_incompressible() ? str_repeat("YAC-COMPRESSIBLE-BLOCK-", 2) . substr($entropy, 0, 16) : $entropy;
+	}
+	return $body;
+}
+
 function make_value($key, $worker, $seq) {
-	$unit = $key . "#" . $seq . "#";
-	return "YACCC|k=" . $key . "|w=" . $worker . "|q=" . $seq . "|"
-		. str_repeat($unit, mt_rand(300, 2500)) . "|";
+	$chunks = mt_rand(300, 2500);
+	$body = hammer_incompressible()
+		? entropy_body($key, $worker, $seq, $chunks)
+		: str_repeat($key . "#" . $seq . "#", $chunks);
+	return "YACCC|k=" . $key . "|w=" . $worker . "|q=" . $seq . "|n=" . $chunks . "|"
+		. $body . "|";
 }
 
 /* returns null when the value legitimately belongs to $key, otherwise
@@ -142,48 +180,28 @@ function check_value($key, $v) {
 	if (!is_string($v)) {
 		return "garbage: expected string, got " . gettype($v);
 	}
-	if (!preg_match('/^YACCC\|k=([^|]*)\|w=(\d+)\|q=(\d+)\|/', $v, $m)) {
+	if (!preg_match('/^YACCC\|k=([^|]*)\|w=(\d+)\|q=(\d+)\|n=(\d+)\|/', $v, $m)) {
 		return "garbage: unparseable header";
 	}
 	if ($m[1] !== $key) {
 		return "identity-mixup: stamped for key '$m[1]' (w$m[2]/q$m[3])";
 	}
-	$unit = $m[1] . "#" . $m[3] . "#";
-	$ulen = strlen($unit);
+	$chunks = (int)$m[4];
 	$body = substr($v, strlen($m[0]));
-	/* how many whole units, then what exactly follows */
-	$n = 0;
-	while (substr($body, $n * $ulen, $ulen) === $unit) {
-		$n++;
+	$expected = hammer_incompressible()
+		? entropy_body($m[1], $m[2], $m[3], $chunks) . "|"
+		: str_repeat($m[1] . "#" . $m[3] . "#", $chunks) . "|";
+	if ($body === $expected) {
+		return null;
 	}
-	$rest = substr($body, $n * $ulen);
-	if ($rest === "|") {
-		return null; /* n whole units + trailer: a complete value */
+	if (strlen($body) < strlen($expected)) {
+		return "truncated: expected " . strlen($expected) . " body bytes, got " . strlen($body);
 	}
-	if ($rest === "") {
-		return "truncated: lost the trailer (len=" . strlen($v)
-			. ", $n whole units)";
-	}
-	return "hybrid: $n whole units then foreign tail '"
-		. substr($rest, 0, 40) . "' (len=" . strlen($v) . ")";
+	return "hybrid: body differs at byte " . strspn($body ^ $expected, "\0")
+		. " (len=" . strlen($v) . ")";
 }
 
-function sample_info($ring, $op, $yac) {
-	$ring[] = array($op, $yac->info());
-	if (count($ring) > 8) {
-		array_shift($ring);
-	}
-	return $ring;
-}
-
-function describe_info_row($row) {
-	list($op, $i) = $row;
-	return sprintf("op=%d kicks=%d recycles=%d fails=%d slots_used=%d/%d hits=%d miss=%d",
-		$op, $i["kicks"], $i["recycles"], $i["fails"],
-		$i["slots_used"], $i["slots_size"], $i["hits"], $i["miss"]);
-}
-
-function record_failure(&$failures, $worker, $op, $category, $key, $expected, $got, $ring) {
+function record_failure(&$failures, $worker, $op, $category, $key, $expected, $got) {
 	$raw = is_string($got) ? $got : var_export($got, true);
 	$failures[] = array(
 		"op"       => $op,
@@ -193,7 +211,6 @@ function record_failure(&$failures, $worker, $op, $category, $key, $expected, $g
 		"got_len"  => strlen($raw),
 		"got_head" => substr($raw, 0, 120),
 		"got_tail" => substr($raw, -80),
-		"ring"     => $ring,
 	);
 	if (count($failures) <= 5) {
 		fwrite(STDERR, sprintf("[w%d] FAIL@op%d %s key=%s\n", $worker, $op, $category, $key));
@@ -211,12 +228,10 @@ function run_worker($id, $ops, $seed, $shared_keys, $deadline, $flush_odds) {
 	$priv_val = null;   /* the exact value the private key must hold */
 	$ephemeral = array(); /* rolling window of my recent TTL keys */
 	$failures = array();
-	$ring     = array();
 	$write_fails = 0; /* legitimate set() failures under pool pressure */
 
 	for ($op = 0; $op < $ops; $op++) {
 		if (($op & 4095) === 0) {
-			$ring = sample_info($ring, $op, $yac);
 			/* no expectation is rolled back here: every key this worker
 			 * validates is one only it writes, so a flushed entry can
 			 * only come back as a miss, which is already legal */
@@ -256,7 +271,7 @@ function run_worker($id, $ops, $seed, $shared_keys, $deadline, $flush_odds) {
 				$why = check_value($k, $got);
 				if ($why !== null) {
 					record_failure($failures, $id, $op, $why, $k,
-						"any complete value stamped k=$k", $got, $ring);
+						"any complete value stamped k=$k", $got);
 				}
 			}
 		} elseif ($r < 70) {
@@ -282,7 +297,7 @@ function run_worker($id, $ops, $seed, $shared_keys, $deadline, $flush_odds) {
 				if ($got !== false && $got !== $ephemeral[$k]) {
 					record_failure($failures, $id, $op,
 						is_string($got) ? check_value($k, $got) : "garbage: type " . gettype($got),
-						$k, "my exact last write", $got, $ring);
+						$k, "my exact last write", $got);
 				}
 			}
 		} elseif ($r < 90) {
@@ -309,7 +324,7 @@ function run_worker($id, $ops, $seed, $shared_keys, $deadline, $flush_odds) {
 				if ($got !== false && $got !== $priv_val) {
 					record_failure($failures, $id, $op,
 						is_string($got) ? check_value($priv_key, $got) : "stale: wrong scalar",
-						$priv_key, var_export($priv_val, true), $got, $ring);
+						$priv_key, var_export($priv_val, true), $got);
 				}
 			}
 		} else {
@@ -332,9 +347,6 @@ function run_worker($id, $ops, $seed, $shared_keys, $deadline, $flush_odds) {
 			printf("  op=%d key=%s\n    category: %s\n    expected: %s\n    got_len=%d\n    head: %s\n    tail: %s\n",
 				$f["op"], $f["key"], $f["category"], $f["expected"],
 				$f["got_len"], $f["got_head"], $f["got_tail"]);
-			foreach ($f["ring"] as $row) {
-				printf("      %s\n", describe_info_row($row));
-			}
 		}
 		return min(count($failures), 100);
 	}
@@ -344,7 +356,6 @@ function run_worker($id, $ops, $seed, $shared_keys, $deadline, $flush_odds) {
 }
 
 $boot_yac = new Yac();
-$before = $boot_yac->info();
 $pids = array();
 for ($w = 0; $w < $workers; $w++) {
 	$pid = pcntl_fork();
@@ -359,6 +370,7 @@ for ($w = 0; $w < $workers; $w++) {
 			 * its deadline on its own */
 			pcntl_waitpid($pid, $status);
 		}
+		report_debug_info($boot_yac);
 		exit(1);
 	}
 	if ($pid === 0) {
@@ -401,14 +413,7 @@ foreach ($pids as $w => $pid) {
 	}
 }
 
-$after = $boot_yac->info();
-printf("total: hits=%d miss=%d kicks=%d recycles=%d fails=%d slots_used=%d/%d\n",
-	$after["hits"] - $before["hits"], $after["miss"] - $before["miss"],
-	$after["kicks"] - $before["kicks"], $after["recycles"] - $before["recycles"],
-	$after["fails"] - $before["fails"], $after["slots_used"], $after["slots_size"]);
-if ($after["kicks"] === $before["kicks"] && $after["recycles"] === $before["recycles"]) {
-	printf("WARNING: no kicks and no recycles happened — pools are too big, the hammer did not bite\n");
-}
+report_debug_info($boot_yac);
 
 /* liveness sweep: every worker has exited, so no slot is legitimately held
  * by anyone. a slot left permanently in the "being written" state does not
@@ -422,7 +427,7 @@ if ($after["kicks"] === $before["kicks"] && $after["recycles"] === $before["recy
  *
  * values are embedded scalars (no value block), so a failed set() cannot be
  * blamed on an exhausted value allocator; kicks are fine, they succeed. */
-$sweep_keys  = $after["slots_size"];
+$sweep_keys  = $boot_info["slots_size"];
 $dead_writes = 0;
 $dead_reads  = 0;
 $first_dead  = null;

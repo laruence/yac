@@ -15,6 +15,10 @@
 #               [--procs=16 --seconds=5 --ratio=100 --keys=20000] \
 #               [--value-size=6]
 #
+# Run the same command at --value-size=6, 2048, and 204800 for Yac and
+# APCu. Small values exercise Yac's embedded forms; larger values exercise
+# block allocation and the up-to-16-segment value geometry.
+#
 # Which backends run is decided by which extensions get loaded: the apcu
 # and memcached backends only run when their .so was passed. yac always
 # runs (--yac overrides the default locally built ../modules/yac.so).

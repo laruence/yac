@@ -60,6 +60,7 @@ typedef struct {
 	zend_object std;
 } yac_object;
 
+/* The 64-bit hash path reads prefix through a uint64_t pointer. */
 #if SIZEOF_SIZE_T == 8 && defined(ZEND_STATIC_ASSERT)
 ZEND_STATIC_ASSERT((offsetof(yac_object, prefix) % 8) == 0, "yac_object prefix must be 8-aligned");
 #endif
@@ -146,7 +147,6 @@ static PHP_INI_MH(OnChangeCompressThreshold) /* {{{ */ {
  */
 PHP_INI_BEGIN()
     STD_PHP_INI_BOOLEAN("yac.enable", "1", PHP_INI_SYSTEM, OnUpdateBool, enable, zend_yac_globals, yac_globals)
-    STD_PHP_INI_BOOLEAN("yac.debug", "0", PHP_INI_ALL, OnUpdateBool, debug, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.keys_memory_size", "8M", PHP_INI_SYSTEM, OnChangeKeysMemoryLimit, k_msize, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.values_memory_size", "64M", PHP_INI_SYSTEM, OnChangeValsMemoryLimit, v_msize, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.compress_threshold", "4K", PHP_INI_SYSTEM, OnChangeCompressThreshold, compress_threshold, zend_yac_globals, yac_globals)
@@ -454,17 +454,32 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, zval *rv) /* {{{ *
 
 				if (val.u.blob.meta & YAC_META_COMPRESSED) {
 					size_t orig_len = YAC_META_ORIG_LEN(val.u.blob.meta);
-					char *origin = emalloc(orig_len);
-					int length = LZ4_decompress_safe(data, origin, size, orig_len);
-					yac_free(data, packed);
-					if (UNEXPECTED(length != (int)orig_len)) {
-						/* damaged payload, degrade to a miss silently */
-						efree(origin);
-						break;
+
+					if (!(val.u.blob.meta & YAC_META_SERIALIZED)) {
+						zend_string *origin = zend_string_alloc(orig_len, 0);
+						int length = LZ4_decompress_safe(data, ZSTR_VAL(origin), size, orig_len);
+						yac_free(data, packed);
+						if (UNEXPECTED(length != (int)orig_len)) {
+							/* damaged payload, degrade to a miss silently */
+							zend_string_release(origin);
+							break;
+						}
+						ZSTR_VAL(origin)[orig_len] = '\0';
+						ZVAL_NEW_STR(rv, origin);
+						return rv;
+					} else {
+						char *origin = emalloc(orig_len);
+						int length = LZ4_decompress_safe(data, origin, size, orig_len);
+						yac_free(data, packed);
+						if (UNEXPECTED(length != (int)orig_len)) {
+							/* damaged payload, degrade to a miss silently */
+							efree(origin);
+							break;
+						}
+						data = origin;
+						size = (unsigned int)length;
+						packed = 0; /* origin is a plain emalloc buffer, free as such */
 					}
-					data = origin;
-					size = (unsigned int)length;
-					packed = 0; /* origin is a plain emalloc buffer, free as such */
 				}
 				if (val.u.blob.meta & YAC_META_SERIALIZED) {
 					rv = yac_unserializer(data, size, &msg, rv);
@@ -894,6 +909,13 @@ PHP_METHOD(yac, info) {
 	add_assoc_long(return_value, "start_time", inf->start_time);
 	add_assoc_long(return_value, "slots_size", inf->slots_size);
 	add_assoc_long(return_value, "slots_used", inf->occupied);
+#ifdef YAC_DEBUG
+	add_assoc_long(return_value, "fast_reads", inf->fast_reads);
+	add_assoc_long(return_value, "crc_fallbacks", inf->crc_fallbacks);
+	add_assoc_long(return_value, "frontier_invalidations", inf->frontier_invalidations);
+	add_assoc_long(return_value, "fresh_allocs", inf->fresh_allocs);
+	add_assoc_long(return_value, "writer_retries", inf->writer_retries);
+#endif
 
 	yac_storage_free_info(inf);
 	return;
@@ -1031,6 +1053,9 @@ PHP_MINIT_FUNCTION(yac)
 	REGISTER_LONG_CONSTANT("YAC_EMBED_BLOCK", YAC_EMBED_BLOCK, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_EMBED_VALWORD", YAC_EMBED_VALWORD, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_EMBED_INLINE", YAC_EMBED_INLINE, CONST_PERSISTENT | CONST_CS);
+#ifdef YAC_DEBUG
+	REGISTER_BOOL_CONSTANT("YAC_DEBUG", 1, CONST_PERSISTENT | CONST_CS);
+#endif
 	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_PHP", YAC_SERIALIZER_PHP, CONST_PERSISTENT | CONST_CS);
 #if YAC_ENABLE_MSGPACK
 	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_MSGPACK", YAC_SERIALIZER_MSGPACK, CONST_PERSISTENT | CONST_CS);
@@ -1152,6 +1177,10 @@ PHP_MINFO_FUNCTION(yac)
 		php_info_print_table_row(2, "Total Slots Number(slots_size)", buf);
 		snprintf(buf, sizeof(buf), "%d", inf->occupied);
 		php_info_print_table_row(2, "Total Used Slots(slots_num)", buf);
+#ifdef YAC_DEBUG
+		snprintf(buf, sizeof(buf), "%u", inf->frontier_invalidations);
+		php_info_print_table_row(2, "Debug Frontier Invalidations", buf);
+#endif
 		php_info_print_table_end();
 
 		yac_storage_free_info(inf);

@@ -3,6 +3,10 @@ dnl config.m4 for extension yac
 PHP_ARG_ENABLE([yac], [whether to enable yac support],
   [AS_HELP_STRING([--enable-yac], [Enable yac support])])
 
+AC_ARG_ENABLE([debug],
+  [AS_HELP_STRING([--enable-debug], [Enable Yac debug instrumentation])],
+  [yac_debug=$enableval], [yac_debug=no])
+
 PHP_ARG_WITH([system-lz4], [whether to use system LZ4 library],
   [AS_HELP_STRING([--with-system-lz4], [Use system LZ4 library])], [no], [no])
 
@@ -75,6 +79,10 @@ AC_DEFUN([YAC_CHECK_SERIALIZER],
 fi])
 
 if test "$PHP_YAC" != "no"; then
+
+if test "$yac_debug" = "yes"; then
+  AC_DEFINE([YAC_DEBUG], [1], [Define to 1 to enable Yac internal debug instrumentation.])
+fi
 
 dnl ---------------------------------------------------------------------
 dnl Shared memory backend (same probes as ext/opcache)

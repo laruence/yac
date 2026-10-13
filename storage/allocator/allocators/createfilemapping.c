@@ -13,7 +13,7 @@
    | license@php.net so we can mail you a copy immediately.               |
    +----------------------------------------------------------------------+
    | Authors: Xinchen Hui <laruence@php.net>                              |
-   |          Dmitry Stogov <dmitry@zend.com>                             | 
+   |          Dmitry Stogov <dmitry@zend.com>                             |
    |          Wei Dai <demon@php.net>                                     |
    +----------------------------------------------------------------------+
 */
@@ -76,12 +76,12 @@ static int yac_shared_alloc_reattach(size_t requested_size, char **error_in) /* 
 	char *mmap_base_file = get_mmap_base_file();
 	FILE *fp = fopen(mmap_base_file, "r");
 	MEMORY_BASIC_INFORMATION info;
-	
+
 	if (!fp) {
 		*error_in = "fopen";
 		return ALLOC_FAILURE;
 	}
-	
+
 	if (!fscanf(fp, "%p", &wanted_mapping_base)) {
 		*error_in = "read mapping base";
 		fclose(fp);
@@ -117,13 +117,13 @@ static int yac_shared_alloc_reattach(size_t requested_size, char **error_in) /* 
 
 static int create_segments(unsigned long k_size, unsigned long v_size, yac_shared_segment **shared_segments_p, int *shared_segments_count, char **error_in) /* {{{ */ {
 	int ret;
-	unsigned long allocate_size, occupied_size = 0;
-	unsigned int i, segment_size, segments_num = 1024, is_reattach = 0;
+	unsigned long allocate_size, occupied_size, remaining;
+	unsigned int i, segment_size, segments_num, is_reattach = 0;
 	int map_retries = 0;
 	yac_shared_segment first_segment;
 	void *default_mapping_base_set[] = {0, 0};
-	/* TODO: 
-	  improve fixed addresses on x64. It still makes no sense to do it as Windows addresses are virtual per se and can or should be randomized anyway 
+	/* TODO:
+	  improve fixed addresses on x64. It still makes no sense to do it as Windows addresses are virtual per se and can or should be randomized anyway
 	  through Address Space Layout Radomization (ASLR). We can still let the OS do its job and be sure that each process gets the same address if
 	  desired. Not done yet, @zend refused but did not remember the exact reason, pls add info here if one of you know why :)
 	*/
@@ -133,18 +133,12 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 	void *vista_mapping_base_set[] = { (void *) 0x20000000, (void *) 0x21000000, (void *) 0x30000000, (void *) 0x31000000, (void *) 0x50000000, 0 };
 #endif
 	void **wanted_mapping_base = default_mapping_base_set;
- 
 
-	k_size = YAC_SMM_ALIGNED_SIZE(k_size);
+
 	v_size = YAC_SMM_ALIGNED_SIZE(v_size);
-	/* don't shift segments_num to 0, v_size / 0 hangs on ARM */
-	while (segments_num > 1 && (v_size / segments_num) < YAC_SMM_SEGMENT_MIN_SIZE) {
-		segments_num >>= 1;
-	}
-
-	segment_size = v_size / segments_num;
-	++segments_num;
-
+	segments_num = yac_allocator_target_segments(v_size);
+	k_size = yac_allocator_key_size(k_size, segments_num);
+	segment_size = (v_size / segments_num) & YAC_SMM_CACHE_LINE_MASK;
 	allocate_size = k_size + v_size;
 
 	/* Mapping retries: When Apache2 restarts, the parent process startup routine
@@ -157,7 +151,7 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 			break;
 		}
 
-		ret = yac_shared_alloc_reattach((size_t)k_size, error_in);
+		ret = yac_shared_alloc_reattach((size_t)allocate_size, error_in);
 		if (ret == ALLOC_FAIL_MAPPING) {
 			/* Mapping failed, wait for mapping object to get freed and retry */
 			CloseHandle(memfile);
@@ -182,12 +176,12 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 		return 0;
 	}
 
-	*shared_segments_p = (yac_shared_segment *)calloc(1, segments_num * sizeof(yac_shared_segment));
+	*shared_segments_p = (yac_shared_segment *)calloc(1, (segments_num + 1) * sizeof(yac_shared_segment));
 	if (!*shared_segments_p) {
 		*error_in = "calloc";
 		return 0;
 	}
-	*shared_segments_count = segments_num;
+	*shared_segments_count = segments_num + 1;
 
 	/* Starting from windows Vista, heap randomization occurs which might cause our mapping base to
 	   be taken (fail to map). So under Vista, we try to map into a hard coded predefined addresses
@@ -250,23 +244,21 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 	first_segment.p = mapping_base;
 	first_segment.reserved = allocate_size;
 	first_segment.size = k_size;
-	first_segment.pos = 0;
 
 	(*shared_segments_p)[0] = first_segment;
 
 	occupied_size = k_size;
-	for (i = 1; i < segments_num; i++) {
-		/* slices of the first mapping, they own nothing to unmap */
-		(*shared_segments_p)[i].reserved = 0;
-		(*shared_segments_p)[i].pos = 0;
-		(*shared_segments_p)[i].p = (void *)((char *)first_segment.p + occupied_size);
-		if ((allocate_size - occupied_size) >= YAC_SMM_ALIGNED_SIZE(segment_size)) {
-			(*shared_segments_p)[i].size = YAC_SMM_ALIGNED_SIZE(segment_size);
-			occupied_size += YAC_SMM_ALIGNED_SIZE(segment_size);
-		} else {
-			(*shared_segments_p)[i].size = (allocate_size - occupied_size);
-			break;
-		}
+	remaining = v_size;
+	for (i = 0; i < segments_num; i++) {
+		unsigned int payload_size = i + 1 == segments_num ? remaining : segment_size;
+		yac_shared_segment *segment = &(*shared_segments_p)[i + 1];
+
+		/* Slices share the mapping; only first_segment owns its unmap. */
+		segment->reserved = 0;
+		segment->p = (char *)mapping_base + occupied_size;
+		segment->size = payload_size;
+		occupied_size += payload_size;
+		remaining -= payload_size;
 	}
 
 	return 1;
@@ -274,7 +266,7 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 /* }}} */
 
 static int detach_segment(yac_shared_segment *shared_segment) /* {{{ */ {
-	if (mapping_base && shared_segment->p == mapping_base) {
+	if (mapping_base && shared_segment->reserved && shared_segment->p == mapping_base) {
 		UnmapViewOfFile(mapping_base);
 		CloseHandle(memfile);
 	}
