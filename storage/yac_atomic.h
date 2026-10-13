@@ -126,7 +126,7 @@ static inline unsigned int yac_seq_load(const volatile unsigned int *seq) {
 /* Even seq is stable; odd seq is being published. */
 
 /* Claim the next odd sequence. */
-static inline int yac_slot_claim(YAC_SLOT_V unsigned int *seq, int spin) {
+static inline int yac_slot_claim(YAC_SLOT_V unsigned int *seq) {
 	int retry = 0;
 
 	for (;;) {
@@ -135,7 +135,7 @@ static inline int yac_slot_claim(YAC_SLOT_V unsigned int *seq, int spin) {
 		if (!(s & 1) && YAC_CAS((unsigned int *)seq, s, s + 1)) {
 			return 1;
 		}
-		if (!spin || ++retry == YAC_MAX_SPIN) {
+		if (++retry == YAC_MAX_SPIN) {
 			return 0;
 		}
 		yac_cpu_relax();
@@ -147,8 +147,7 @@ static inline void yac_slot_publish(YAC_SLOT_V unsigned int *seq) {
 	YAC_SEQ_STORE(seq, (YAC_LOAD(seq) | 1) + 1);
 }
 
-#define YAC_SLOT_CLAIM(p)      yac_slot_claim(&(p)->seq, 1)
-#define YAC_SLOT_TRY_CLAIM(p)  yac_slot_claim(&(p)->seq, 0)
+#define YAC_SLOT_CLAIM(p)      yac_slot_claim(&(p)->seq)
 #define YAC_SLOT_PUBLISH(p)    yac_slot_publish(&(p)->seq)
 
 #define YAC_SEG_CLAIM(s)      YAC_CAS((unsigned int *)(s), 0, 1)

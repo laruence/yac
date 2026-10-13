@@ -331,7 +331,7 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, yac_value 
 				int sampled = YAC_HITS_SAMPLE(ctx);
 				unsigned int kind = yac_val_decode(&k, out);
 
-				if (sampled && YAC_SLOT_TRY_CLAIM(p)) {
+				if (sampled && YAC_SLOT_CLAIM(p)) {
 					if ((yac_kv_val *)YAC_LOAD(&p->val) == k.val) {
 						if (YAC_LOAD(&p->u2.atime) != tv) {
 							YAC_STORE(&p->u2.atime, tv);
