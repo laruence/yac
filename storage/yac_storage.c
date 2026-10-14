@@ -212,15 +212,6 @@ static inline uintptr_t yac_val_str_pack(const char *s, unsigned int len) {
 	return u;
 }
 
-static inline void yac_val_str_unpack(uintptr_t word, char *dst) {
-	uintptr_t payload = YAC_VAL_STR_DATA(word);
-	unsigned int i, len = YAC_VAL_STR_LEN(word);
-
-	for (i = 0; i < len; i++) {
-		dst[i] = (char)((payload >> (i * 8)) & 0xff);
-	}
-}
-
 /* the word holds (word bits - 2) signed bits, so a 32-bit build cannot fit
  * every long and the caller must fall back to the byte path */
 static inline int yac_val_long_fits(int64_t v) {
@@ -267,14 +258,10 @@ static inline unsigned yac_val_decode(const yac_kv_key *k, yac_value *out) /* {{
 		case YAC_VAL_TAG_LONG:
 			out->u.lval = YAC_VAL_LONG_VALUE(word);
 			return YAC_VALUE_LONG;
-		case YAC_VAL_TAG_STR: {
-			char *s = user_alloc(vlen, YAC_VAL_PACK(0, YAC_VALUE_STRING), 0);
-
-			yac_val_str_unpack(word, s);
-			out->u.str.val = s;
-			out->u.str.len = vlen;
-			return YAC_VALUE_STRING;
-		}
+		case YAC_VAL_TAG_STR:
+			out->u.str.val = (char *)word;
+			out->u.str.len = YAC_VAL_STR_LEN(word);
+			return YAC_VALUE_STR;
 		case YAC_VAL_TAG_SPECIAL:
 			if (word & YAC_VAL_DOUBLE_BIT) {
 				out->u.dval = YAC_VAL_DOUBLE_VALUE(word);

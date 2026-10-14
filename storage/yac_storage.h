@@ -133,8 +133,9 @@ typedef char yac_kv_key_must_be_88_bytes[(sizeof(yac_kv_key) == 88) ? 1 : -1];
 #define YAC_VALUE_FLAG            1
 #define YAC_VALUE_LONG            2
 #define YAC_VALUE_DOUBLE          3
-#define YAC_VALUE_STRING          4
-#define YAC_VALUE_BLOB            5
+#define YAC_VALUE_STR             4
+#define YAC_VALUE_STRING          5
+#define YAC_VALUE_BLOB            6
 
 /* where the value physically lives */
 #define YAC_EMBED_BLOCK           0

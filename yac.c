@@ -442,6 +442,18 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, zval *rv) /* {{{ *
 		case YAC_VALUE_DOUBLE:
 			ZVAL_DOUBLE(rv, val.u.dval);
 			return rv;
+		case YAC_VALUE_STR:
+			{
+				unsigned int i, len = val.u.str.len;
+				uintptr_t data = YAC_VAL_STR_DATA((uintptr_t)val.u.str.val);
+				zend_string *str = zend_string_alloc(len, 0);
+				for (i = 0; i < len; i++) {
+					ZSTR_VAL(str)[i] = (char)((data >> (i * 8)) & 0xff);
+				}
+				ZSTR_VAL(str)[len] = '\0';
+				ZVAL_NEW_STR(rv, str);
+				return rv;
+			}
 		case YAC_VALUE_STRING:
 			ZVAL_NEW_STR(rv, (zend_string*)((char *)val.u.str.val - offsetof(zend_string, val)));
 			Z_STRVAL_P(rv)[val.u.str.len] = '\0';
