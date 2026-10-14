@@ -1039,10 +1039,10 @@ PHP_MINIT_FUNCTION(yac)
 	}
 
 	if (YAC_G(enable)) {
-		if (YAC_G(v_msize) < YAC_SMM_SEGMENT_MIN_SIZE) {
+		if (YAC_G(v_msize) < YAC_SMM_SEGMENT_SIZE) {
 			php_error(E_WARNING,
-					"yac.values_memory_size(%lu) is below the segment minimum(%d), a single segment will be used",
-					(unsigned long)YAC_G(v_msize), YAC_SMM_SEGMENT_MIN_SIZE);
+					"yac.values_memory_size(%lu) is below the segment size(%d), a single segment will be used",
+					(unsigned long)YAC_G(v_msize), YAC_SMM_SEGMENT_SIZE);
 		}
 		if (!yac_storage_startup(YAC_G(k_msize), YAC_G(v_msize), yac_alloc, yac_free, &msg)) {
 			php_error(E_ERROR, "Shared memory allocator startup failed at '%s': %s", msg, strerror(errno));

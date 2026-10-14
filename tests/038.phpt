@@ -1,10 +1,10 @@
 --TEST--
-Yac values_memory_size below segment minimum (4M) must not hang startup
+Yac values_memory_size below the 4M segment size rounds up to one segment
 --DESCRIPTION--
-create_segments() halved segments_num while (v_size / segments_num) < 4M.
-With v_size < 4M, segments_num reached 0 and v_size / 0 hung forever on
-archs where integer division by zero does not trap (ARM), and crashed with
-SIGFPE elsewhere. Now it falls back to a single segment.
+With every value segment fixed at 4M, a values_memory_size below that still
+yields a single 4M segment (the old create_segments() hang regressed here,
+when segments_num was halved to zero and divided by). Fill past 4M to prove
+the segment recycles, and that post-recycle data reads back intact.
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--
@@ -18,18 +18,18 @@ yac.compress_threshold=-1
 <?php
 $yac = new Yac();
 
-/* basic round-trip with a sub-minimum values memory */
+/* basic round-trip with a sub-segment values memory */
 $yac->set("foo", "dummy");
 var_dump($yac->get("foo"));
 
-/* fill past the single 1M segment to force recycles; all sets must succeed
+/* fill past the single 4M segment to force recycles; all sets must succeed
    and data written after a recycle must read back intact */
 $ok = 0;
-for ($i = 0; $i < 20; $i++) {
+for ($i = 0; $i < 50; $i++) {
     $ok += $yac->set("k$i", str_repeat("x", 100000)) ? 1 : 0;
 }
 var_dump($ok);
-var_dump($yac->get("k19") === str_repeat("x", 100000));
+var_dump($yac->get("k49") === str_repeat("x", 100000));
 var_dump($yac->info()["recycles"] > 0);
 
 /* an incompressible value fails cleanly (compression would grow it),
@@ -39,9 +39,9 @@ $yac->set("sanity", "ok");
 var_dump($yac->get("sanity"));
 ?>
 --EXPECTF--
-PHP Warning:  yac.values_memory_size(1048576) is below the segment minimum(4194304), a single segment will be used in Unknown on line 0%A
+PHP Warning:  yac.values_memory_size(1048576) is below the segment size(4194304), a single segment will be used in Unknown on line 0%A
 string(5) "dummy"
-int(20)
+int(50)
 bool(true)
 bool(true)
 

@@ -39,7 +39,7 @@
  * the segment that owns it, so detach_segment() munmaps exactly once */
 
 static int create_segments(unsigned long k_size, unsigned long v_size, yac_shared_segment **shared_segments_p, int *shared_segments_count, char **error_in) /* {{{ */ {
-	unsigned long allocate_size, occupied_size, remaining;
+	unsigned long allocate_size, occupied_size;
 	unsigned int i, segment_size, segments_num;
 	void *mapping;
 	yac_shared_segment first_segment;
@@ -47,8 +47,8 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 	v_size = YAC_SMM_ALIGNED_SIZE(v_size);
 	segments_num = yac_allocator_target_segments(v_size);
 	k_size = yac_allocator_key_size(k_size, segments_num);
-	segment_size = (v_size / segments_num) & YAC_SMM_CACHE_LINE_MASK;
-	allocate_size = k_size + v_size;
+	segment_size = YAC_SMM_SEGMENT_SIZE;
+	allocate_size = k_size + (unsigned long)segments_num * segment_size;
 
 	mapping = mmap(0, allocate_size, PROT_READ | PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
 	if (mapping == MAP_FAILED) {
@@ -69,17 +69,14 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 	*shared_segments_count = segments_num + 1;
 
 	occupied_size = k_size;
-	remaining = v_size;
 	for (i = 0; i < segments_num; i++) {
-		unsigned int payload_size = i + 1 == segments_num ? remaining : segment_size;
 		yac_shared_segment *segment = &(*shared_segments_p)[i + 1];
 
 		/* Slices share the first mapping; only first_segment owns its unmap. */
 		segment->reserved = 0;
 		segment->p = (char *)mapping + occupied_size;
-		segment->size = payload_size;
-		occupied_size += payload_size;
-		remaining -= payload_size;
+		segment->size = segment_size;
+		occupied_size += segment_size;
 	}
 
 	return 1;

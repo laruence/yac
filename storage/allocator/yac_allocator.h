@@ -33,10 +33,7 @@
 #define YAC_SMM_CACHE_LINE_MASK     ~(YAC_SMM_CACHE_LINE_SIZE - 1)
 #define YAC_SMM_BLOCK_HEADER_SIZE   YAC_SMM_ALIGNED_SIZE(sizeof(yac_shared_block_header))
 
-#define YAC_SMM_MAIN_SEG_SIZE       (4*1024*1024)
-#define YAC_SMM_SEGMENT_MAX_SIZE    (32*1024*1024)
-#define YAC_SMM_SEGMENT_MIN_SIZE    (4*1024*1024)
-#define YAC_SMM_SEGMENT_MAX_NUM     16
+#define YAC_SMM_SEGMENT_SIZE        (4*1024*1024)
 #define YAC_SMM_MIN_BLOCK_SIZE      64
 #define YAC_SMM_ALIGNED_SIZE(x)     (((x) + YAC_SMM_ALIGNMENT - 1) & YAC_SMM_ALIGNMENT_MASK)
 #define YAC_SMM_CACHE_ALIGNED_SIZE(x) (((x) + YAC_SMM_CACHE_LINE_SIZE - 1) & YAC_SMM_CACHE_LINE_MASK)
@@ -52,13 +49,15 @@ static inline void *yac_allocator_segment_payload(yac_shared_segment *segment) {
 }
 
 static inline unsigned int yac_allocator_target_segments(unsigned long value_size) {
-	unsigned int segments = 1;
+	unsigned long segments = 1;
 
-	while (segments < YAC_SMM_SEGMENT_MAX_NUM &&
-			value_size / (segments << 1) >= YAC_SMM_SEGMENT_MIN_SIZE) {
+	/* one value segment is 4M; value_size is only a suggested cap, so round
+	 * the count up to the next power of two and never cap it. Stop at 2^31:
+	 * segments_num_mask would overflow past that. */
+	while (segments * YAC_SMM_SEGMENT_SIZE < value_size && segments < 0x80000000UL) {
 		segments <<= 1;
 	}
-	return segments;
+	return (unsigned int)segments;
 }
 
 static inline unsigned long yac_allocator_key_size(unsigned long size,

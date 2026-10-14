@@ -54,25 +54,19 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 	struct shmid_ds sds;
 	int shm_id, shmget_flags;
 	yac_shared_segment first_segment;
-	unsigned long attachment_size, key_attachment_size, payload_size, remaining;
-	unsigned int i, segment_count, target_segments;
+	unsigned long attachment_size, key_attachment_size, payload_size;
+	unsigned int i, segment_count;
 
 	shmget_flags = IPC_CREAT|SHM_R|SHM_W|IPC_EXCL;
 	v_size = YAC_SMM_ALIGNED_SIZE(v_size);
-	target_segments = yac_allocator_target_segments(v_size);
-	for (segment_count = target_segments;; segment_count <<= 1) {
-		payload_size = (v_size + segment_count - 1) / segment_count;
-		attachment_size = YAC_SMM_ALIGNED_SIZE(payload_size);
-		shm_id = shmget(IPC_PRIVATE, attachment_size, shmget_flags);
-		if (shm_id >= 0) {
-			break;
-		}
-		if (segment_count == YAC_SMM_SEGMENT_MAX_NUM) {
-			*error_in = "shmget";
-			return 0;
-		}
+	segment_count = yac_allocator_target_segments(v_size);
+	payload_size = YAC_SMM_SEGMENT_SIZE;
+	attachment_size = YAC_SMM_SEGMENT_SIZE;
+	shm_id = shmget(IPC_PRIVATE, attachment_size, shmget_flags);
+	if (shm_id < 0) {
+		*error_in = "shmget";
+		return 0;
 	}
-	payload_size = attachment_size;
 	k_size = yac_allocator_key_size(k_size, segment_count);
 
 	key_attachment_size = k_size > attachment_size ? k_size : attachment_size;
@@ -104,7 +98,6 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 		return 0;
 	}
 	(*shared_segments_p)[0] = first_segment;
-	remaining = v_size;
 	for (i = 0; i < segment_count; i++) {
 		yac_shared_segment *segment = &(*shared_segments_p)[i + 1];
 		void *attachment;
@@ -126,8 +119,7 @@ static int create_segments(unsigned long k_size, unsigned long v_size, yac_share
 		}
 		segment->reserved = attachment_size;
 		segment->p = attachment;
-		segment->size = remaining > payload_size ? payload_size : remaining;
-		remaining -= segment->size;
+		segment->size = payload_size;
 	}
 	*shared_segments_count = segment_count + 1;
 

@@ -60,10 +60,9 @@ int yac_allocator_startup(unsigned long k_size, unsigned long size, char **msg) 
 		return 0;
 	}
 
-	if (segments_num < 2 || segments_num > YAC_SMM_SEGMENT_MAX_NUM + 1 ||
-			((segments_num - 1) & (segments_num - 2))) {
+	if (segments_num < 2 || ((segments_num - 1) & (segments_num - 2))) {
 		if (msg) {
-			*msg = "Yac requires 1, 2, 4, 8, or 16 value segments";
+			*msg = "Yac requires a power-of-two number of value segments";
 		}
 		for (i = 0; i < segments_num; i++) {
 			he->detach_segment(&segments[i]);
