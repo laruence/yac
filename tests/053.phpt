@@ -1,10 +1,9 @@
 --TEST--
-Yac per-entry hit counters (block values, embedded scalars, carry on overwrite)
+Yac per-entry hit counters across val-word, inline, and block values
 --DESCRIPTION--
-find() bumps a per-entry counter: block values keep it in the value
-block, embedded scalars keep it in the slot's flag union bytes.
-Overwriting a live entry carries the count forward; expired and
-deleted entries start cold again. dump() exposes the count.
+find() bumps a per-entry counter in the slot LRU state for both block
+and embedded values. Overwriting, expiry, and deletion start it cold again.
+dump() exposes the count.
 
 The counter is sampled (one read in YAC_HITS_PER_SAMPLE adds that
 much), so a count that followed reads is an estimate and only matched
@@ -42,11 +41,19 @@ $yac->get("e");
 var_dump($yac->info()["hits"] - $hits0);
 var_dump(dump_find($yac, "e")["hits"]);
 
-/* block values: the count lives in the value block */
+/* inline values update the same slot LRU */
+$yac->set("i", str_repeat("i", 8));
+for ($n = 0; $n < 128; $n++) {
+	$yac->get("i");
+}
+var_dump(dump_find($yac, "i")["hits"] > 0);
+
+/* block values update the same slot LRU */
 $yac->set("b", str_repeat("x", 64));
-$yac->get("b");
-$yac->get("b");
-var_dump(dump_find($yac, "b")["hits"]);
+for ($n = 0; $n < 128; $n++) {
+	$yac->get("b");
+}
+var_dump(dump_find($yac, "b")["hits"] > 0);
 
 /* overwriting a live block resets the count */
 $yac->set("b", str_repeat("y", 64));
@@ -86,7 +93,8 @@ var_dump(dump_find($yac, "d")["hits"]);
 int(0)
 int(3)
 int(%d)
-int(%d)
+bool(true)
+bool(true)
 int(0)
 int(%d)
 int(0)

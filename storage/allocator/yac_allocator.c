@@ -29,11 +29,12 @@
 #include "storage/yac_atomic.h"
 #include "yac_allocator.h"
 
-static inline void yac_alloc_ref_clear(yac_alloc_ref *alloc) {
+static inline void yac_alloc_ref_clear(yac_alloc_ref *alloc) /* {{{ */ {
 	alloc->value = NULL;
 	alloc->epoch = 0;
 	alloc->control = NULL;
 }
+/* }}} */
 
 int yac_allocator_startup(unsigned long k_size, unsigned long size, char **msg) /* {{{ */ {
 	char *p;
@@ -99,9 +100,10 @@ int yac_allocator_startup(unsigned long k_size, unsigned long size, char **msg) 
 		p += sizeof(*value_segment);
 	}
 	p = (char *)YAC_SMM_CACHE_ALIGNED_SIZE((uintptr_t)p);
-	YAC_SG(slots) = (yac_kv_key *)p;
+	YAC_SG(keys) = (yac_kv_key *)p;
 
-	if ((unsigned long)(p - (char *)yac_storage) + sizeof(yac_kv_key) > YAC_SG(first_seg).size) {
+	if ((unsigned long)(p - (char *)yac_storage) + sizeof(yac_kv_key) +
+			sizeof(yac_kv_meta) + sizeof(yac_kv_lru) > YAC_SG(first_seg).size) {
 		if (msg) {
 			*msg = "Yac key segment is too small for allocator metadata";
 		}

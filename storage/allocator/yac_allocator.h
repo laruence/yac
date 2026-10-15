@@ -68,7 +68,8 @@ static inline unsigned long yac_allocator_key_size(unsigned long size,
 			sizeof(void *) * segments_num);
 	metadata = YAC_SMM_CACHE_ALIGNED_SIZE(metadata +
 			sizeof(yac_value_segment) * segments_num);
-	metadata += sizeof(yac_kv_key) * 4;
+	metadata += (sizeof(yac_kv_key) + sizeof(yac_kv_meta) +
+			sizeof(yac_kv_lru)) * 4;
 	return YAC_SMM_CACHE_ALIGNED_SIZE(size > metadata ? size : metadata);
 }
 

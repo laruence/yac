@@ -41,40 +41,38 @@
 #define YAC_KEY_SET_LEN(k, kl, vl)	((k).len = (vl << YAC_KEY_VLEN_BITS) | (kl & YAC_KEY_KLEN_MASK))
 
 typedef struct {
-	unsigned int len;
-	unsigned int hits;
-	unsigned long atime;
 	unsigned int capacity;
 	char data[1];
 } yac_kv_val;
 
+/* Immutable to readers between meta.seq transitions. */
 typedef struct {
 	unsigned long h;
 	unsigned int len;
 	unsigned int ttl;
-	unsigned int seq; /* even: stable, odd: writing */
-	union {
-		unsigned int flag;
-		unsigned int hits;
-	} u1;
-	union {
-		struct {
-			unsigned int crc;
-			unsigned int epoch;
-		};
-		unsigned long atime;
-	} u2;
 	yac_kv_val *val;
 	unsigned char key[YAC_STORAGE_MAX_KEY_LEN];
 } yac_kv_key;
 
-#if UINTPTR_MAX > 0xffffffffU
-typedef char yac_kv_key_must_be_88_bytes[(sizeof(yac_kv_key) == 88) ? 1 : -1];
-#endif
+/* Versioned metadata for the matching key slot. */
+typedef struct {
+	unsigned int seq; /* even: stable, odd: writing */
+	unsigned int flag;
+	unsigned int crc;
+	unsigned int epoch;
+} yac_kv_meta;
 
-/* Embedded entries keep hits/atime in the slot. */
-#define YAC_KV_HITS(k)  (YAC_IS_EMBED((k).val) ? (k).u1.hits : (k).val->hits)
-#define YAC_KV_ATIME(k) (YAC_IS_EMBED((k).val) ? (k).u2.atime : (k).val->atime)
+/* Approximate LRU state, independently updated by readers. */
+typedef struct {
+	unsigned long atime;
+	unsigned long hits;
+} yac_kv_lru;
+
+#if UINTPTR_MAX > 0xffffffffU
+typedef char yac_kv_key_must_be_72_bytes[(sizeof(yac_kv_key) == 72) ? 1 : -1];
+typedef char yac_kv_meta_must_be_16_bytes[(sizeof(yac_kv_meta) == 16) ? 1 : -1];
+typedef char yac_kv_lru_must_hold_two_longs[(sizeof(yac_kv_lru) == sizeof(unsigned long) * 2) ? 1 : -1];
+#endif
 
 /* val is an aligned block pointer or a tagged embedded value. */
 #define YAC_VAL_TAG_MASK          0x3
@@ -288,7 +286,9 @@ typedef struct {
 
 typedef struct {
 	/* read-only after startup */
-	yac_kv_key  *slots;
+	yac_kv_key  *keys;
+	yac_kv_meta *metas;
+	volatile yac_kv_lru *lrus;
 	unsigned int slots_mask;
 	unsigned int slots_size;
 	unsigned int segments_num;

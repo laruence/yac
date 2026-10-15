@@ -82,7 +82,7 @@ static inline void yac_prefetch(const void *p) {
 
 /* Shared-memory access. */
 #if YAC_CC_GNU && defined(__ATOMIC_RELAXED)
-# define YAC_SLOT_V                    /* type-generic builtins need none */
+# define YAC_SLOT_V            /* type-generic builtins need none */
 # define YAC_LOAD(p)           __atomic_load_n((p), __ATOMIC_RELAXED)
 # define YAC_STORE(p, v)       __atomic_store_n((p), (v), __ATOMIC_RELAXED)
 # define YAC_SEQ_LOAD(p)       __atomic_load_n((p), __ATOMIC_ACQUIRE)

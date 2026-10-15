@@ -48,23 +48,35 @@ var_dump(empty($yac->d0), empty($yac->d1), isset($yac->d0), $yac->has("d0"));
 var_dump(empty($yac->$longkey), isset($yac->$longkey), $yac->has($longkey));
 
 /* none of the four may count as an access: hits and atime stay put */
-$hits = function ($yac, $key) {
+$lru = function ($yac, $key) {
 	foreach ($yac->dump(1000) as $i) {
 		if ($i["key"] === $key) {
-			return $i["hits"];
+			return ["atime" => $i["atime"], "hits" => $i["hits"]];
 		}
 	}
-	return -1;
+	return NULL;
 };
-$yac->set("h", str_repeat("y", 64));   /* block, so it carries a hit counter */
-$before = $hits($yac, "h");
+$yac->set("lv", 123);                   /* val-word */
+$yac->set("li", str_repeat("i", 8));   /* key-inline */
+$yac->set("lb", str_repeat("y", 64));  /* block */
+$before_v = $lru($yac, "lv");
+$before_i = $lru($yac, "li");
+$before_b = $lru($yac, "lb");
+sleep(2);
 for ($n = 0; $n < 100; $n++) {
-	$yac->has("h");
-	isset($yac->h);
-	empty($yac->h);
-	property_exists($yac, "h");
+	foreach (["lv", "li", "lb"] as $key) {
+		$yac->has($key);
+		isset($yac->$key);
+		empty($yac->$key);
+		property_exists($yac, $key);
+	}
 }
-var_dump($before, $hits($yac, "h"));
+$after_v = $lru($yac, "lv");
+$after_i = $lru($yac, "li");
+$after_b = $lru($yac, "lb");
+var_dump($before_v["hits"] === $after_v["hits"], $before_v["atime"] === $after_v["atime"]);
+var_dump($before_i["hits"] === $after_i["hits"], $before_i["atime"] === $after_i["atime"]);
+var_dump($before_b["hits"] === $after_b["hits"], $before_b["atime"] === $after_b["atime"]);
 
 /* an expired or deleted key is absent to all three */
 $yac->set("t", 1, 1);
@@ -105,8 +117,12 @@ bool(true)
 bool(true)
 bool(true)
 bool(true)
-int(0)
-int(0)
+bool(true)
+bool(true)
+bool(true)
+bool(true)
+bool(true)
+bool(true)
 bool(false)
 bool(false)
 bool(false)

@@ -40,7 +40,7 @@
 /* segment->reserved keeps the owned attachment size. segment->p always
  * addresses usable payload; controls live in the key shared segment. */
 
-static void detach_created_segments(yac_shared_segment *segments, unsigned int count) {
+static void detach_created_segments(yac_shared_segment *segments, unsigned int count) /* {{{ */ {
 	unsigned int i;
 
 	for (i = 0; i < count; i++) {
@@ -49,6 +49,7 @@ static void detach_created_segments(yac_shared_segment *segments, unsigned int c
 		}
 	}
 }
+/* }}} */
 
 static int create_segments(unsigned long k_size, unsigned long v_size, yac_shared_segment **shared_segments_p, int *shared_segments_count, char **error_in) /* {{{ */ {
 	struct shmid_ds sds;
