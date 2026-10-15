@@ -32,7 +32,7 @@ pointer word — its fastest storage path.
 ratio, 160M shared memory for both Yac and APCu.
 Numbers are aggregate ops/s across all workers, one value size per run:
 
-| Value size | Yac          | APCu 5.1.28 | Memcached 3.4.0 | Yac / APCu | Yac / Memcached |
+| Value size | Yac(master)  | APCu 5.1.28 | Memcached 3.4.0 | Yac / APCu | Yac / Memcached |
 |-----------:|-------------:|------------:|---------------:|-----------:|----------------:|
 | 6 B        | **129.5M**   | 1.19M       | 0.105M         | 108.4x     | 1237.9x         |
 | 64 B       | **99.1M**    | 1.23M       | 0.103M         | 80.6x      | 964.8x          |
