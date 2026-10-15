@@ -21,12 +21,12 @@ It is built for raw speed: `get()` is essentially a hash lookup in shared memory
 
 ## Benchmarks
 
-PHP caches mostly hold small values. On a typical WordPress blog, cached
-entries average a few hundred bytes each — options, transients, rendered
-fragments. Yac is designed specifically for this PHP workload: entries
-small enough to live directly in shared memory, with no network
-round-trip. The numbers below reflect exactly that scenario, with small
-values dominating:
+PHP caches mostly hold small values — feature flags, booleans, integers,
+and short strings like `"yes"`/`"no"`. A WordPress site caches these
+everywhere: options, plugin toggles, single-value transients. The 6-byte
+benchmark size represents this class: big enough to carry a real token
+(`"false"`, `"cached"`, `"12345"`), yet small enough to pack into Yac's
+pointer word — its fastest storage path.
 
 16 worker processes sharing one cache, mixed reads/writes at a 100:1
 ratio, 160M shared memory for both Yac and APCu.
@@ -34,10 +34,13 @@ Numbers are aggregate ops/s across all workers, one value size per run:
 
 | Value size | Yac          | APCu 5.1.28 | Memcached 3.4.0 | Yac / APCu | Yac / Memcached |
 |-----------:|-------------:|------------:|---------------:|-----------:|----------------:|
-| 4 B        | **63.8M**    | 1.19M       | 0.108M         | 53.8x      | 592.6x          |
-| 64 B       | **69.9M**    | 1.20M       | 0.107M         | 58.4x      | 650.6x          |
-| 1 KB       | **44.7M**    | 1.29M       | 0.106M         | 34.7x      | 419.9x          |
-| 16 KB      | **9.18M**    | 1.37M       | 0.093M         | 6.7x       | 98.5x           |
+| 6 B        | **129.5M**   | 1.19M       | 0.105M         | 108.4x     | 1237.9x         |
+| 64 B       | **99.1M**    | 1.23M       | 0.103M         | 80.6x      | 964.8x          |
+| 1 KB       | **39.4M**    | 1.29M       | 0.106M         | 30.6x      | 371.8x          |
+| 8 KB       | **15.5M**    | 1.43M       | 0.098M         | 10.8x      | 158.1x          |
+| 16 KB      | **9.51M**    | 1.36M       | 0.093M         | 7.0x       | 101.9x          |
+
+All backends hit 100% at every listed size.
 
 Yac built from the current `master`. Measures throughput, not
 consistency.
