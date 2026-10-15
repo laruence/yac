@@ -44,14 +44,6 @@ static yac_user_free_t user_free;
 #define YAC_DEBUG_PAUSE_AFTER_RESERVE_US 1000u
 #endif
 
-static inline void yac_ctx_refresh_tv(yac_ctx *ctx) /* {{{ */ {
-	unsigned long now = (unsigned long)time(NULL);
-	if (ctx->tv != now) {
-		ctx->tv = now;
-	}
-}
-/* }}} */
-
 static inline unsigned int yac_storage_align_size(unsigned int size) /* {{{ */ {
 	int bits = 0;
 	while ((size = size >> 1)) {
@@ -302,9 +294,7 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, yac_value 
 	volatile yac_kv_lru *lru;
 	unsigned long tv;
 
-	yac_ctx_refresh_tv(ctx);
 	tv = ctx->tv;
-
 	if (YAC_SG(in_flush)) {
 		++ctx->miss;
 		return YAC_VALUE_MISS;
@@ -325,8 +315,12 @@ int yac_storage_find(yac_ctx *ctx, const char *key, unsigned int len, yac_value 
 		}
 		yac_prefetch(&YAC_SG(keys)[(h + stride) & YAC_SG(slots_mask)]);
 		if (YAC_HASH_MATCH(k.h, hash) && YAC_KEY_KLEN(k) == len && !memcmp(k.key, key, len)) {
-			if (k.ttl && k.ttl <= tv) {
-				break;
+			if (k.ttl) {
+				tv = (unsigned long)time(NULL);
+				ctx->tv = tv;
+				if (k.ttl <= tv) {
+					break;
+				}
 			}
 			if (YAC_IS_EMBED(k.val)) {
 				unsigned int kind = yac_val_decode(&k, out);
@@ -418,8 +412,7 @@ int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl)
 	YAC_SLOT_V yac_kv_meta *m;
 	unsigned long tv;
 
-	yac_ctx_refresh_tv(ctx);
-	tv = ctx->tv;
+	tv = (unsigned long)time(NULL);
 	if (YAC_SG(in_flush)) {
 		return 0;
 	}
@@ -498,10 +491,7 @@ int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_item *
 	yac_kv_meta meta;
 	YAC_SLOT_V yac_kv_key *p;
 	YAC_SLOT_V yac_kv_meta *m;
-	unsigned long tv;
 
-	yac_ctx_refresh_tv(ctx);
-	tv = ctx->tv;
 	if (YAC_SG(in_flush)) {
 		return YAC_VALUE_MISS;
 	}
@@ -520,8 +510,12 @@ int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_item *
 			uintptr_t word = (uintptr_t)k.val;
 			unsigned int kind;
 
-			if (k.ttl && k.ttl <= tv) {
-				return YAC_VALUE_MISS;
+			if (k.ttl) {
+				unsigned long tv = (unsigned long)time(NULL);
+				ctx->tv = tv;
+				if (k.ttl <= tv) {
+					return YAC_VALUE_MISS;
+				}
 			}
 			out->valword = word;
 			out->len = YAC_KEY_VLEN(k);
@@ -580,9 +574,7 @@ static inline unsigned int yac_storage_pick_victim(const yac_kv_key *keys, const
 }
 /* }}} */
 
-static inline int yac_storage_fill_value(yac_ctx *ctx, yac_kv_key *k, yac_kv_meta *meta, volatile yac_kv_lru *lru, unsigned int len, const char *data, unsigned int size, unsigned int kind, unsigned int val_meta, uintptr_t word, uint64_t hash, yac_alloc_ref *alloc) /* {{{ */ {
-	unsigned long tv = ctx->tv;
-
+static inline int yac_storage_fill_value(yac_ctx *ctx, yac_kv_key *k, yac_kv_meta *meta, volatile yac_kv_lru *lru, unsigned int len, const char *data, unsigned int size, unsigned int kind, unsigned int val_meta, uintptr_t word, uint64_t hash, unsigned long tv, yac_alloc_ref *alloc) /* {{{ */ {
 	memset(alloc, 0, sizeof(*alloc));
 	if (word) {
 		if (YAC_IS_EMBED_INLINE(word)) {
@@ -645,8 +637,8 @@ static int yac_storage_store(yac_ctx *ctx, const char *key, unsigned int len, co
 	volatile yac_kv_lru *lru;
 	unsigned long tv;
 
-	yac_ctx_refresh_tv(ctx);
-	tv = ctx->tv;
+	tv = (unsigned long)time(NULL);
+	ctx->tv = tv;
 	if (YAC_SG(in_flush)) {
 		return 0;
 	}
@@ -710,7 +702,7 @@ do_update:
 		return 0;
 	}
 	if (!yac_storage_fill_value(ctx, &k, &meta, lru, len, data, size, kind,
-			val_meta, word, hash, &alloc)) {
+			val_meta, word, hash, tv, &alloc)) {
 		YAC_SLOT_PUBLISH(m);
 		return 0;
 	}
@@ -850,8 +842,7 @@ yac_storage_info* yac_storage_get_info(yac_ctx *ctx) /* {{{ */ {
 	unsigned int i, occupied = 0;
 	unsigned long values_size = 0, recycles = 0, tv;
 
-	yac_ctx_refresh_tv(ctx);
-	tv = ctx->tv;
+	tv = (unsigned long)time(NULL);
 	info = user_alloc(sizeof(yac_storage_info), 0, 0);
 	for (i = 0; i < YAC_SG(segments_num); i++) {
 		yac_shared_segment *segment = YAC_SG(segments)[i];

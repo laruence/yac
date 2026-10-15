@@ -637,8 +637,9 @@ static int yac_item_is_empty(const yac_item *item) /* {{{ */ {
 static zend_object* yac_object_new(zend_class_entry *ce) /* {{{ */ {
 	yac_object *yac = emalloc(sizeof(yac_object) + zend_object_properties_size(ce));
 
-	/* emalloc does not zero; tv=0 forces the first refresh to read the clock */
+	/* emalloc does not zero; a short-lived request reuses this clock for LRU */
 	memset(&yac->ctx, 0, sizeof(yac->ctx));
+	yac->ctx.tv = (unsigned long)time(NULL);
 
 	zend_object_std_init(&yac->std, ce);
 	yac->std.handlers = &yac_obj_handlers;
