@@ -575,8 +575,13 @@ packed_fail:
 	{
 		HashTable *ht = yac_serialize_new_array(count);
 
+#if PHP_VERSION_ID >= 80000
 		zend_hash_real_init_mixed(ht);
 		HT_FLAGS(ht) &= ~HASH_FLAG_STATIC_KEYS;
+#else
+		zend_hash_real_init(ht, 0);
+		ht->u.flags &= ~HASH_FLAG_STATIC_KEYS;
+#endif
 		ZVAL_ARR(rv, ht);
 		for (i = 0; i < count; i++) {
 			Bucket *bucket = ht->arData + i;
