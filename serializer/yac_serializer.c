@@ -571,97 +571,85 @@ packed_fail:
 #endif
 	}
 
-	/* all-string-key hash */
-	if (flags & YAC_SERIALIZE_ARRAY_STRKEY) {
-		HashTable *ht = yac_serialize_new_array(count);
-		ZVAL_ARR(rv, ht);
-		for (i = 0; i < count; i++) {
-			uint32_t klen;
-			zend_string *key;
-			zval tmp;
-
-			if (*p + 4 > end) {
-				return 0;
-			}
-			klen = yac_serialize_read_u32(*p); *p += 4;
-			if (*p + klen > end) {
-				return 0;
-			}
-			key = zend_string_init((const char *)*p, klen, 0);
-			*p += klen;
-
-			if (!yac_serialize_decode_value(p, end, &tmp, depth + 1)) {
-				zend_string_release(key);
-				return 0;
-			}
-			zend_hash_update(ht, key, &tmp);
-			zend_string_release(key);
-		}
-		return 1;
-	}
-
-	/* all-int-key hash */
-	if (flags & YAC_SERIALIZE_ARRAY_INTKEY) {
-		HashTable *ht = yac_serialize_new_array(count);
-		ZVAL_ARR(rv, ht);
-		for (i = 0; i < count; i++) {
-			zval tmp;
-			if (*p + 8 > end) {
-				return 0;
-			}
-			uint64_t h = yac_serialize_read_u64(*p); *p += 8;
-			if (!yac_serialize_decode_value(p, end, &tmp, depth + 1)) {
-				return 0;
-			}
-			zend_hash_index_update(ht, (zend_ulong)h, &tmp);
-		}
-		return 1;
-	}
-
-	/* mixed-key hash: per-key tag */
+	/* hash arrays: fill buckets and hash chains directly. */
 	{
 		HashTable *ht = yac_serialize_new_array(count);
+
+		zend_hash_real_init_mixed(ht);
+		HT_FLAGS(ht) &= ~HASH_FLAG_STATIC_KEYS;
 		ZVAL_ARR(rv, ht);
 		for (i = 0; i < count; i++) {
-			zval tmp;
-			if (*p >= end) {
-				return 0;
-			}
-			if (**p == YAC_SERIALIZE_KEY_STR) {
+			Bucket *bucket = ht->arData + i;
+			uint32_t nIndex;
+
+			if (flags & YAC_SERIALIZE_ARRAY_STRKEY) {
 				uint32_t klen;
-				zend_string *key;
-				(*p)++;
 				if (*p + 4 > end) {
-					return 0;
+					goto hash_fail;
 				}
 				klen = yac_serialize_read_u32(*p); *p += 4;
 				if (*p + klen > end) {
-					return 0;
+					goto hash_fail;
 				}
-				key = zend_string_init((const char *)*p, klen, 0);
+				bucket->key = zend_string_init((const char *)*p, klen, 0);
 				*p += klen;
-				if (!yac_serialize_decode_value(p, end, &tmp, depth + 1)) {
-					zend_string_release(key);
-					return 0;
+				bucket->h = zend_string_hash_val(bucket->key);
+			} else if (flags & YAC_SERIALIZE_ARRAY_INTKEY) {
+				if (*p + 8 > end) {
+					goto hash_fail;
 				}
-				zend_hash_update(ht, key, &tmp);
-				zend_string_release(key);
-			} else if (**p == YAC_SERIALIZE_KEY_INT) {
-				uint64_t h;
+				bucket->key = NULL;
+				bucket->h = (zend_ulong)yac_serialize_read_u64(*p);
+				*p += 8;
+			} else if (*p < end && **p == YAC_SERIALIZE_KEY_STR) {
+				uint32_t klen;
+				(*p)++;
+				if (*p + 4 > end) {
+					goto hash_fail;
+				}
+				klen = yac_serialize_read_u32(*p); *p += 4;
+				if (*p + klen > end) {
+					goto hash_fail;
+				}
+				bucket->key = zend_string_init((const char *)*p, klen, 0);
+				*p += klen;
+				bucket->h = zend_string_hash_val(bucket->key);
+			} else if (*p < end && **p == YAC_SERIALIZE_KEY_INT) {
 				(*p)++;
 				if (*p + 8 > end) {
-					return 0;
+					goto hash_fail;
 				}
-				h = yac_serialize_read_u64(*p); *p += 8;
-				if (!yac_serialize_decode_value(p, end, &tmp, depth + 1)) {
-					return 0;
-				}
-				zend_hash_index_update(ht, (zend_ulong)h, &tmp);
+				bucket->key = NULL;
+				bucket->h = (zend_ulong)yac_serialize_read_u64(*p);
+				*p += 8;
 			} else {
-				return 0;
+				goto hash_fail;
+			}
+			ZVAL_UNDEF(&bucket->val);
+			if (!yac_serialize_decode_value(p, end, &bucket->val, depth + 1)) {
+				zval_ptr_dtor(&bucket->val);
+				if (bucket->key) {
+					zend_string_release(bucket->key);
+				}
+				goto hash_fail;
+			}
+			nIndex = (uint32_t)bucket->h | ht->nTableMask;
+			Z_NEXT(bucket->val) = HT_HASH(ht, nIndex);
+			HT_HASH(ht, nIndex) = HT_IDX_TO_HASH(i);
+			ht->nNumUsed++;
+			ht->nNumOfElements++;
+			if (!bucket->key && bucket->h <= (zend_ulong)ZEND_LONG_MAX
+					&& bucket->h >= ht->nNextFreeElement) {
+				ht->nNextFreeElement = bucket->h < (zend_ulong)ZEND_LONG_MAX
+					? bucket->h + 1 : ZEND_LONG_MAX;
 			}
 		}
 		return 1;
+
+	hash_fail:
+		zval_ptr_dtor(rv);
+		ZVAL_UNDEF(rv);
+		return 0;
 	}
 }
 /* }}} */
