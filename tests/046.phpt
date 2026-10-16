@@ -1,8 +1,8 @@
 --TEST--
 Yac MINFO output via phpinfo()
 --DESCRIPTION--
-Covers PHP_MINFO_FUNCTION: version/shared-memory/serializer table,
-INI entries display and the cache info table.
+Covers PHP_MINFO_FUNCTION: version/shared-memory table, INI entries display
+and the cache info table.
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--
@@ -23,7 +23,6 @@ $out = ob_get_clean();
 var_dump(strpos($out, "yac support") !== false);
 var_dump(strpos($out, "Version => ") !== false);
 var_dump(strpos($out, "Shared Memory => ") !== false);
-var_dump(strpos($out, "Serializer => ") !== false);
 
 /* INI entries are listed; the internal debug pause is never configurable. */
 var_dump(strpos($out, "yac.enable") !== false);
@@ -39,7 +38,6 @@ var_dump(strpos($out, "Size of Shared Memory Segment(segment_size)") !== false);
 var_dump((bool)preg_match("/Total Used Slots\(slots_num\) => [1-9][0-9]*/", $out));
 ?>
 --EXPECT--
-bool(true)
 bool(true)
 bool(true)
 bool(true)

@@ -21,29 +21,59 @@
 #ifndef YAC_SERIALIZER_H
 #define YAC_SERIALIZER_H
 
+#include "Zend/zend_smart_str.h"
+
+#define YAC_SERIALIZE_MAX_DEPTH 512
+
+#define YAC_SERIALIZE_T_NULL     0x00
+#define YAC_SERIALIZE_T_FALSE    0x01
+#define YAC_SERIALIZE_T_TRUE     0x02
+#define YAC_SERIALIZE_T_LONG     0x10
+#define YAC_SERIALIZE_T_DOUBLE   0x11
+#define YAC_SERIALIZE_T_STRING   0x20
+#define YAC_SERIALIZE_T_ARRAY    0x30
+#define YAC_SERIALIZE_T_STDCLASS 0x31
+#define YAC_SERIALIZE_T_ZVALS    0x40
+
+#define YAC_SERIALIZE_ARRAY_PACKED 0x1
+#define YAC_SERIALIZE_ARRAY_INT    0x2
+#define YAC_SERIALIZE_ARRAY_DOUBLE 0x4
+#define YAC_SERIALIZE_ARRAY_STRKEY 0x8
+#define YAC_SERIALIZE_ARRAY_INTKEY 0x10
+#define YAC_SERIALIZE_ARRAY_ZVALS  0x20
+
+#define YAC_SERIALIZE_KEY_STR 0x0
+#define YAC_SERIALIZE_KEY_INT 0x1
+
+#if PHP_VERSION_ID >= 70300
+#define YAC_SERIALIZE_HASH_INIT_PACKED(ht) zend_hash_real_init_packed(ht)
+#else
+#define YAC_SERIALIZE_HASH_INIT_PACKED(ht) zend_hash_real_init((ht), 1)
+#endif
+
+#define YAC_SERIALIZE_HASH_FILL_LONG(v) do { \
+	zval yac_serialize_fill_tmp; \
+	ZVAL_LONG(&yac_serialize_fill_tmp, (zend_long)(v)); \
+	ZEND_HASH_FILL_ADD(&yac_serialize_fill_tmp); \
+} while (0)
+
+#define YAC_SERIALIZE_HASH_FILL_DOUBLE(v) do { \
+	zval yac_serialize_fill_tmp; \
+	ZVAL_DOUBLE(&yac_serialize_fill_tmp, (v)); \
+	ZEND_HASH_FILL_ADD(&yac_serialize_fill_tmp); \
+} while (0)
+
+#if defined(__GNUC__)
+#define YAC_SERIALIZE_PREFETCH(p) __builtin_prefetch((p), 0, 3)
+#else
+#define YAC_SERIALIZE_PREFETCH(p) do { } while (0)
+#endif
+
 #define YAC_UNSERIALIZE_SUPPRESS_BEGIN() int _yac_old_error_reporting = EG(error_reporting); EG(error_reporting) = 0;
 #define YAC_UNSERIALIZE_SUPPRESS_END()   EG(error_reporting) = _yac_old_error_reporting;
 
-typedef int (*yac_serializer_t)(zval*, smart_str*, char**);
-typedef zval* (*yac_unserializer_t)(char *, size_t, char**, zval*);
-
-#ifdef YAC_ENABLE_MSGPACK
-int yac_serializer_msgpack_pack(zval *pzval, smart_str *buf, char **msg);
-zval * yac_serializer_msgpack_unpack(char *content, size_t len, char **msg, zval *rv);
-#endif
-
-int yac_serializer_php_pack(zval *pzval, smart_str *buf, char **msg);
-zval * yac_serializer_php_unpack(char *content, size_t len, char **msg, zval *rv);
-
-#ifdef YAC_ENABLE_IGBINARY
-int yac_serializer_igbinary_pack(zval *pzval, smart_str *buf, char **msg);
-zval * yac_serializer_igbinary_unpack(char *content, size_t len, char **msg, zval *rv);
-#endif
-
-#ifdef YAC_ENABLE_JSON
-int yac_serializer_json_pack(zval *pzval, smart_str *buf, char **msg);
-zval * yac_serializer_json_unpack(char *content, size_t len, char **msg, zval *rv);
-#endif
+int yac_serialize(zval *pzval, smart_str *buf, unsigned int *meta);
+zval *yac_unserialize(char *content, size_t len, unsigned int meta, zval *rv);
 
 #endif	/* YAC_SERIALIZER_H */
 

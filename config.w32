@@ -2,9 +2,6 @@
 
 ARG_ENABLE("yac", "enable yac support", "no");
 ARG_ENABLE("yac-debug", "enable Yac debug instrumentation", "no");
-ARG_ENABLE("json", "use json as yac serializer", "no");
-ARG_ENABLE("msgpack", "use msgpack as yac serializer", "no");
-ARG_ENABLE("igbinary", "use igbinary as yac serializer", "no");
 
 if (PHP_YAC != "no") {
 	if( CHECK_HEADER_ADD_INCLUDE("lz4.h", "CFLAGS_YAC", PHP_YAC + ";" + configure_module_dirname + "\\compressor\\lz4") &&
@@ -15,7 +12,7 @@ if (PHP_YAC != "no") {
 		EXTENSION("yac", "yac.c");
 
 		ADD_SOURCES(configure_module_dirname + "\\compressor\\lz4", "lz4.c", "yac");
-		ADD_SOURCES(configure_module_dirname + "\\serializer", "php.c", "yac");
+		ADD_SOURCES(configure_module_dirname + "\\serializer", "yac_serializer.c", "yac");
 		ADD_SOURCES(configure_module_dirname + "\\storage", "yac_storage.c", "yac");
 		ADD_SOURCES(configure_module_dirname + "\\storage\\crc", "yac_crc32.c", "yac");
 		ADD_SOURCES(configure_module_dirname + "\\storage\\allocator", "yac_allocator.c", "yac");
@@ -26,44 +23,8 @@ if (PHP_YAC != "no") {
 			AC_DEFINE("YAC_DEBUG", 1, "Enable Yac internal debug instrumentation");
 		}
 
-		// SSE4.2 CRC32C: MSVC needs no extra flag for the _mm_crc32
-		// intrinsics, and yac_crc32.c probes the CPU via __cpuid at
-		// runtime before mounting the hardware chain, so this is a
-		// compile-time-only capability (mirrors config.m4).
 		AC_DEFINE("HAVE_SSE_CRC32", 1, "Have SSE4.2 CRC32C support");
-
-		if (PHP_JSON != "no") {
-			if (CHECK_HEADER_ADD_INCLUDE("ext/json/php_json.h", "CFLAGS_YAC")) {
-				AC_DEFINE("YAC_ENABLE_JSON", 1, "enable json serializer");
-				ADD_EXTENSION_DEP("yac", "json", true);
-				ADD_SOURCES(configure_module_dirname + "\\serializer", "json.c", "yac");
-			} else {
-				WARNING("yac json serializer requested, but ext/json/php_json.h not found");
-			}
-		}
-
-		if (PHP_MSGPACK != "no") {
-			if (CHECK_HEADER_ADD_INCLUDE("ext/msgpack/php_msgpack.h", "CFLAGS_YAC")) {
-				AC_DEFINE("YAC_ENABLE_MSGPACK", 1, "enable msgpack serializer");
-				ADD_EXTENSION_DEP("yac", "msgpack", true);
-				ADD_SOURCES(configure_module_dirname + "\\serializer", "msgpack.c", "yac");
-			} else {
-				WARNING("yac msgpack serializer requested, but ext/msgpack/php_msgpack.h not found");
-			}
-		}
-
-		if (PHP_IGBINARY != "no") {
-			if (CHECK_HEADER_ADD_INCLUDE("ext/igbinary/igbinary.h", "CFLAGS_YAC")) {
-				AC_DEFINE("YAC_ENABLE_IGBINARY", 1, "enable igbinary serializer");
-				ADD_EXTENSION_DEP("yac", "igbinary", true);
-				ADD_SOURCES(configure_module_dirname + "\\serializer", "igbinary.c", "yac");
-			} else {
-				WARNING("yac igbinary serializer requested, but ext/igbinary/igbinary.h not found");
-			}
-		}
-
 		ADD_FLAG("CFLAGS_YAC", ' /I "' + configure_module_dirname + '" ');
-
 	} else {
 		WARNING("yac not enabled, headers not found");
 	}

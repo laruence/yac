@@ -22,7 +22,7 @@ var_dump(defined("YAC_VERSION") && is_string(YAC_VERSION) && YAC_VERSION !== "")
 var_dump(YAC_MAX_KEY_LEN);
 var_dump(YAC_MAX_VALUE_RAW_LEN);
 var_dump(YAC_MAX_RAW_COMPRESSED_LEN);
-var_dump(defined("YAC_SERIALIZER"));
+var_dump(!defined("YAC_SERIALIZER"));
 ?>
 --EXPECT--
 yac extension is available

@@ -66,27 +66,15 @@ $ pecl install yac
 $ pie install laruence/yac
 ```
 
-Optional serializers can be enabled at install time:
-
-```bash
-$ pie install laruence/yac --enable-json
-```
-
 See [PIE usage](https://php.github.io/pie/#docs/usage) for more options (e.g. installing a specific version).
 
 ### Compile from source
 
 ```bash
 $ /path/to/phpize
-$ ./configure --enable-yac \
-    [--enable-msgpack] \
-    [--enable-igbinary] \
-    [--enable-json] \
-    --with-php-config=/path/to-php-config
+$ ./configure --enable-yac --with-php-config=/path/to-php-config
 $ make && make install
 ```
-
-The optional `--enable-msgpack`, `--enable-igbinary`, and `--enable-json` flags enable the corresponding serializers. See [Serializer](#serializer) below.
 
 ### Important: CLI mode
 
@@ -125,12 +113,6 @@ yac.compress_threshold = 4K ; -1 disables compression. A positive value N means
                             ; values above the 1M stored-entry limit are clamped to it.
 
 yac.enable_cli = 0  ; whether to enable Yac in CLI mode, default 0
-
-yac.serializer = php ; since Yac 2.2.0, specify which serializer Yac uses.
-                      ; Available: php (always available),
-                      ; json (requires --enable-json),
-                      ; msgpack (requires --enable-msgpack),
-                      ; igbinary (requires --enable-igbinary)
 ```
 
 ## Constants
@@ -144,16 +126,6 @@ YAC_MAX_KEY_LEN = 48
 YAC_MAX_VALUE_RAW_LEN = 67108863    ; (1 << 26) - 1
 
 YAC_MAX_RAW_COMPRESSED_LEN = 1048576  ; 1M in bytes
-
-YAC_SERIALIZER_PHP = 0  ; always available, since Yac 2.2.0
-
-; The following are only defined when the corresponding serializer is compiled in:
-YAC_SERIALIZER_JSON     = 1  ; requires --enable-json
-YAC_SERIALIZER_MSGPACK  = 2  ; requires --enable-msgpack
-YAC_SERIALIZER_IGBINARY = 3  ; requires --enable-igbinary
-
-YAC_SERIALIZER ; the serializer in use, determined by yac.serializer.
-               ; Default is YAC_SERIALIZER_PHP.
 ```
 
 ## Supported Data Types
@@ -167,8 +139,9 @@ Yac can store all PHP types **except resources**:
 | `int` / `long` | Stored directly |
 | `float` / `double` | Stored directly |
 | `string` | Stored directly; compressed if larger than `yac.compress_threshold` |
-| `array` | Serialized (php/msgpack/igbinary/json), then compressed if needed |
-| `object` | Serialized and compressed same as array |
+| `array` | Uses Yac's internal fast serializer when values are supported; otherwise PHP serialization |
+| `stdClass` | Uses the internal fast serializer when properties are supported; restored as `stdClass` |
+| other objects | PHP serialization |
 | `resource` | **Not supported** — triggers a warning |
 
 ### Missing keys

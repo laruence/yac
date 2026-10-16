@@ -76,10 +76,7 @@
    </dir>
    <dir name="serializer">
     <file name="yac_serializer.h" role="src" />
-    <file name="php.c" role="src" />
-    <file name="msgpack.c" role="src" />
-    <file name="json.c" role="src" />
-    <file name="igbinary.c" role="src" />
+    <file name="yac_serializer.c" role="src" />
    </dir>
    <dir name="tests">
     <file name="001.phpt" role="test" />
@@ -158,9 +155,7 @@
  </dependencies> 
  <providesextension>yac</providesextension>
  <extsrcrelease>
-  <configureoption name="enable-igbinary" prompt="enable igbinary serializer support?" default="no"/>
-  <configureoption name="enable-json" prompt="enable json serializer support?" default="no"/>
-  <configureoption name="enable-msgpack" prompt="enable msgpack serializer support?" default="no"/>
+  <configureoption name="enable-debug" prompt="enable debug instrumentation?" default="no"/>
  </extsrcrelease>
  <changelog>
   <release>

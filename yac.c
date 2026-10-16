@@ -50,9 +50,6 @@ static zend_object_handlers yac_obj_handlers;
 
 ZEND_DECLARE_MODULE_GLOBALS(yac);
 
-static yac_serializer_t yac_serializer;
-static yac_unserializer_t yac_unserializer;
-
 typedef struct {
 	yac_ctx ctx;
 	unsigned char prefix[YAC_STORAGE_MAX_KEY_LEN];
@@ -151,7 +148,6 @@ PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("yac.values_memory_size", "64M", PHP_INI_SYSTEM, OnChangeValsMemoryLimit, v_msize, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.compress_threshold", "4K", PHP_INI_SYSTEM, OnChangeCompressThreshold, compress_threshold, zend_yac_globals, yac_globals)
     STD_PHP_INI_ENTRY("yac.enable_cli", "0", PHP_INI_SYSTEM, OnUpdateBool, enable_cli, zend_yac_globals, yac_globals)
-    STD_PHP_INI_ENTRY("yac.serializer", "php", PHP_INI_SYSTEM, OnUpdateString, serializer, zend_yac_globals, yac_globals)
 PHP_INI_END()
 /* }}} */
 
@@ -246,7 +242,6 @@ static int yac_compress(const char *src, size_t src_len, char **out, int *out_le
 
 static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl, int add) /* {{{ */ {
 	int ret = 0;
-	char *msg;
 	const char *key;
 	size_t key_len;
 
@@ -301,23 +296,27 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 		case IS_OBJECT:
 			{
 				smart_str buf = {0};
+				unsigned int serializer_meta;
 
-				if (yac_serializer(value, &buf, &msg)) {
+				if (yac_serialize(value, &buf, &serializer_meta)) {
 					if (buf.s->len > YAC_G(compress_threshold) || buf.s->len > YAC_STORAGE_MAX_ENTRY_LEN) {
 						char *compressed;
 						int compressed_len;
-						unsigned int meta;
+						unsigned int compress_meta;
 
-						if (!yac_compress(ZSTR_VAL(buf.s), ZSTR_LEN(buf.s), &compressed, &compressed_len, &meta)) {
+						if (!yac_compress(ZSTR_VAL(buf.s), ZSTR_LEN(buf.s), &compressed, &compressed_len, &compress_meta)) {
 							smart_str_free(&buf);
 							return ret;
 						}
 						ret = yac_storage_set_blob(&yac->ctx, key, key_len,
-								compressed, compressed_len, meta | YAC_META_COMPRESSED | YAC_META_SERIALIZED, ttl, add);
+								compressed, compressed_len,
+								compress_meta | YAC_META_COMPRESSED | YAC_META_SERIALIZED | serializer_meta,
+								ttl, add);
 						efree(compressed);
 					} else {
 						ret = yac_storage_set_blob(&yac->ctx, key, key_len,
-								ZSTR_VAL(buf.s), (unsigned int)ZSTR_LEN(buf.s), YAC_META_SERIALIZED, ttl, add);
+								ZSTR_VAL(buf.s), (unsigned int)ZSTR_LEN(buf.s),
+								YAC_META_SERIALIZED | serializer_meta, ttl, add);
 					}
 					smart_str_free(&buf);
 				} else {
@@ -494,7 +493,7 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, zval *rv) /* {{{ *
 					}
 				}
 				if (val.u.blob.meta & YAC_META_SERIALIZED) {
-					rv = yac_unserializer(data, size, &msg, rv);
+					rv = yac_unserialize(data, size, val.u.blob.meta, rv);
 				} else {
 					/* a compressed raw string */
 					ZVAL_STRINGL(rv, data, size);
@@ -1069,43 +1068,6 @@ PHP_MINIT_FUNCTION(yac)
 #ifdef YAC_DEBUG
 	REGISTER_BOOL_CONSTANT("YAC_DEBUG", 1, CONST_PERSISTENT | CONST_CS);
 #endif
-	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_PHP", YAC_SERIALIZER_PHP, CONST_PERSISTENT | CONST_CS);
-#if YAC_ENABLE_MSGPACK
-	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_MSGPACK", YAC_SERIALIZER_MSGPACK, CONST_PERSISTENT | CONST_CS);
-#endif
-#if YAC_ENABLE_IGBINARY
-	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_IGBINARY", YAC_SERIALIZER_IGBINARY, CONST_PERSISTENT | CONST_CS);
-#endif
-#if YAC_ENABLE_JSON
-	REGISTER_LONG_CONSTANT("YAC_SERIALIZER_JSON", YAC_SERIALIZER_JSON, CONST_PERSISTENT | CONST_CS);
-#endif
-
-#if YAC_ENABLE_MSGPACK
-	if (strcmp(YAC_G(serializer), "msgpack") == 0) {
-		yac_serializer = yac_serializer_msgpack_pack;
-		yac_unserializer = yac_serializer_msgpack_unpack;
-		REGISTER_LONG_CONSTANT("YAC_SERIALIZER", YAC_SERIALIZER_MSGPACK, CONST_PERSISTENT | CONST_CS);
-	} else
-#endif
-#if YAC_ENABLE_IGBINARY
-	if (strcmp(YAC_G(serializer), "igbinary") == 0) {
-		yac_serializer = yac_serializer_igbinary_pack;
-		yac_unserializer = yac_serializer_igbinary_unpack;
-		REGISTER_LONG_CONSTANT("YAC_SERIALIZER", YAC_SERIALIZER_IGBINARY, CONST_PERSISTENT | CONST_CS);
-	} else
-#endif
-#if YAC_ENABLE_JSON
-	if (strcmp(YAC_G(serializer), "json") == 0) {
-		yac_serializer = yac_serializer_json_pack;
-		yac_unserializer = yac_serializer_json_unpack;
-		REGISTER_LONG_CONSTANT("YAC_SERIALIZER", YAC_SERIALIZER_JSON, CONST_PERSISTENT | CONST_CS);
-	} else
-#endif
-	{
-		yac_serializer = yac_serializer_php_pack;
-		yac_unserializer = yac_serializer_php_unpack;
-		REGISTER_LONG_CONSTANT("YAC_SERIALIZER", YAC_SERIALIZER_PHP, CONST_PERSISTENT | CONST_CS);
-	}
 
 	INIT_CLASS_ENTRY(ce, "Yac", yac_methods);
 	yac_class_ce = zend_register_internal_class(&ce);
@@ -1143,26 +1105,10 @@ PHP_MSHUTDOWN_FUNCTION(yac)
  */
 PHP_MINFO_FUNCTION(yac)
 {
-	smart_str names = {0,};
-
 	php_info_print_table_start();
 	php_info_print_table_header(2, "yac support", "enabled");
 	php_info_print_table_row(2, "Version", PHP_YAC_VERSION);
 	php_info_print_table_row(2, "Shared Memory", yac_storage_shared_memory_name());
-
-	smart_str_appends(&names, "php");
-#if YAC_ENABLE_MSGPACK
-	smart_str_appends(&names, ", msgpack");
-#endif
-#if YAC_ENABLE_IGBINARY
-	smart_str_appends(&names, ", igbinary");
-#endif
-#if YAC_ENABLE_JSON
-	smart_str_appends(&names, ", json");
-#endif
-	smart_str_0(&names);
-	php_info_print_table_row(2, "Serializer", ZSTR_VAL(names.s));
-	smart_str_free(&names);
 
 	php_info_print_table_end();
 
@@ -1206,15 +1152,6 @@ ZEND_GET_MODULE(yac)
 #endif
 
 static zend_module_dep yac_module_deps[] = {
-#if YAC_ENABLE_MSGPACK
-	ZEND_MOD_REQUIRED("msgpack")
-#endif
-#if YAC_ENABLE_IGBINARY
-	ZEND_MOD_REQUIRED("igbinary")
-#endif
-#if YAC_ENABLE_JSON
-	ZEND_MOD_REQUIRED("json")
-#endif
 	{NULL, NULL, NULL, 0}
 };
 

@@ -10,15 +10,6 @@ AC_ARG_ENABLE([debug],
 PHP_ARG_WITH([system-lz4], [whether to use system LZ4 library],
   [AS_HELP_STRING([--with-system-lz4], [Use system LZ4 library])], [no], [no])
 
-PHP_ARG_ENABLE([json], [whether to use json as serializer],
-  [AS_HELP_STRING([--enable-json], [Use json as serializer])], [no], [no])
-
-PHP_ARG_ENABLE([msgpack], [whether to use msgpack as serializer],
-  [AS_HELP_STRING([--enable-msgpack], [Use msgpack as serializer])], [no], [no])
-
-PHP_ARG_ENABLE([igbinary], [whether to use igbinary as serializer],
-  [AS_HELP_STRING([--enable-igbinary], [Use igbinary as serializer])], [no], [no])
-
 dnl ---------------------------------------------------------------------
 dnl Helper macros
 dnl ---------------------------------------------------------------------
@@ -68,16 +59,6 @@ AS_VAR_IF([$2], [yes],
   YAC_EXTRA_CFLAGS="$YAC_EXTRA_CFLAGS $3"])])
 
 dnl
-dnl YAC_CHECK_SERIALIZER(name): --enable-<name> turns on an optional
-dnl serializer backend and registers an optional extension dependency.
-dnl
-AC_DEFUN([YAC_CHECK_SERIALIZER],
-[if test "$PHP_[]translit($1, a-z, A-Z)" != "no"; then
-  AC_DEFINE([YAC_ENABLE_]translit($1, a-z, A-Z), [1],
-    [Define to 1 to use $1 as serializer.])
-  PHP_ADD_EXTENSION_DEP(yac, $1, true)
-fi])
-
 if test "$PHP_YAC" != "no"; then
 
 if test "$yac_debug" = "yes"; then
@@ -242,7 +223,7 @@ dnl ---------------------------------------------------------------------
 dnl Compressor: system LZ4 or the bundled copy
 dnl ---------------------------------------------------------------------
 
-YAC_FILES="yac.c storage/yac_storage.c storage/crc/yac_crc32.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/php.c serializer/msgpack.c serializer/igbinary.c serializer/json.c"
+YAC_FILES="yac.c storage/yac_storage.c storage/crc/yac_crc32.c storage/allocator/yac_allocator.c storage/allocator/allocators/shm.c storage/allocator/allocators/mmap.c serializer/yac_serializer.c"
 if test "$PHP_SYSTEM_LZ4" != "no"; then
   AC_CHECK_HEADERS([lz4.h], [],
     [AC_MSG_ERROR([system LZ4 requested, but lz4.h was not found])])
@@ -268,10 +249,5 @@ PHP_ADD_BUILD_DIR([
   $ext_builddir/compressor
   $ext_builddir/compressor/lz4
 ])
-
-dnl PHP_ADD_EXTENSION_DEP must be called after PHP_NEW_EXTENSION
-YAC_CHECK_SERIALIZER([json])
-YAC_CHECK_SERIALIZER([msgpack])
-YAC_CHECK_SERIALIZER([igbinary])
 
 fi

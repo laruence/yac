@@ -52,19 +52,17 @@ extern zend_module_entry yac_module_entry;
  *
  *   bit 0    compressed (LZ4)
  *   bit 1    serialized: the payload is a serialized value, not a raw string
- *   bit 2+   orig_len, meaningful only when compressed
+ *   bit 2    serializer type: Yac internal serializer (clear means PHP)
+ *   bit 3–28 orig_len, meaningful only when compressed
  */
-#define YAC_META_COMPRESSED      0x1u
-#define YAC_META_SERIALIZED      0x2u
-#define YAC_META_ORIG_SHIFT      2
-#define YAC_META_MAX_ORIG_LEN    ((1u << 26) - 1)
-#define YAC_META_ORIG_LEN(meta)  ((uint32_t)((meta) >> YAC_META_ORIG_SHIFT))
-#define YAC_META_PACK_LEN(orig)  (((uint32_t)(orig) << YAC_META_ORIG_SHIFT))
-
-#define YAC_SERIALIZER_PHP         0
-#define YAC_SERIALIZER_JSON        1
-#define YAC_SERIALIZER_MSGPACK     2
-#define YAC_SERIALIZER_IGBINARY    3
+#define YAC_META_COMPRESSED        0x1u
+#define YAC_META_SERIALIZED        0x2u
+#define YAC_META_SERIALIZER_YAC    0x4u
+#define YAC_META_ORIG_SHIFT        3
+#define YAC_META_ORIG_MASK         YAC_META_MAX_ORIG_LEN
+#define YAC_META_MAX_ORIG_LEN      ((1u << 26) - 1)
+#define YAC_META_ORIG_LEN(meta)    ((uint32_t)(((meta) >> YAC_META_ORIG_SHIFT) & YAC_META_ORIG_MASK))
+#define YAC_META_PACK_LEN(orig)    (((uint32_t)(orig) << YAC_META_ORIG_SHIFT))
 
 #define YAC_BUF_SIZE               1024
 
@@ -74,7 +72,6 @@ ZEND_BEGIN_MODULE_GLOBALS(yac)
 	size_t v_msize;
 	zend_ulong compress_threshold;
 	zend_bool enable_cli;
-	char *serializer;
 	char yac_staging_buf[YAC_BUF_SIZE];
 ZEND_END_MODULE_GLOBALS(yac)
 
