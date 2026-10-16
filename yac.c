@@ -56,7 +56,7 @@ static yac_unserializer_t yac_unserializer;
 typedef struct {
 	yac_ctx ctx;
 	unsigned char prefix[YAC_STORAGE_MAX_KEY_LEN];
-	uint16_t prefix_len;
+	unsigned int  prefix_len;
 	zend_object std;
 } yac_object;
 
@@ -155,7 +155,7 @@ PHP_INI_BEGIN()
 PHP_INI_END()
 /* }}} */
 
-static const char *yac_assemble_key(yac_object *yac, zend_string *name, size_t *len) /* {{{ */ {
+static inline const char* yac_assemble_key(yac_object *yac, zend_string *name, size_t *len) /* {{{ */ {
 	const char *key;
 
 	if (UNEXPECTED((ZSTR_LEN(name) + yac->prefix_len) > YAC_STORAGE_MAX_KEY_LEN)) {
@@ -250,7 +250,7 @@ static int yac_add_impl(yac_object *yac, zend_string *name, zval *value, int ttl
 	const char *key;
 	size_t key_len;
 
-	if ((key = yac_assemble_key(yac, name, &key_len)) == NULL) {
+	if (UNEXPECTED((key = yac_assemble_key(yac, name, &key_len)) == NULL)) {
 		return ret;
 	}
 
@@ -427,7 +427,7 @@ static zval* yac_get_impl(yac_object *yac, zend_string *name, zval *rv) /* {{{ *
 	size_t key_len;
 	unsigned int kind;
 
-	if ((key = yac_assemble_key(yac, name, &key_len)) == NULL) {
+	if (UNEXPECTED((key = yac_assemble_key(yac, name, &key_len)) == NULL)) {
 		return NULL;
 	}
 
@@ -589,7 +589,7 @@ static int yac_has_impl(yac_object *yac, zend_string *name) /* {{{ */ {
 	const char *key;
 	size_t key_len;
 
-	if ((key = yac_assemble_key(yac, name, &key_len)) == NULL) {
+	if (UNEXPECTED((key = yac_assemble_key(yac, name, &key_len)) == NULL)) {
 		return 0;
 	}
 
@@ -750,7 +750,7 @@ static int yac_has_property(void *zobj, void *name, int has_set_exists, void **c
 	member = (zend_string*)name;
 #endif
 
-	if ((key = yac_assemble_key(yac, member, &key_len)) == NULL) {
+	if (UNEXPECTED((key = yac_assemble_key(yac, member, &key_len)) == NULL)) {
 		return 0;
 	}
 

@@ -161,15 +161,30 @@ static inline int yac_slot_snapshot(const YAC_SLOT_V yac_kv_key *p, const YAC_SL
 		unsigned int s2, s1 = YAC_SEQ_LOAD(&m->seq);
 
 		if (!(s1 & 1)) {
-			unsigned int w;
+			unsigned int span, w, head_words = offsetof(yac_kv_key, key) / sizeof(uintptr_t);
 
-			for (w = 0; w < (sizeof(*k) / sizeof(uintptr_t)); w++) {
+			/* the fixed header: h, len, ttl, val */
+			for (w = 0; w < head_words; w++) {
 				uintptr_t word = YAC_LOAD(&((const YAC_SLOT_V uintptr_t *)p)[w]);
 				memcpy((char *)k + w * sizeof(uintptr_t), &word, sizeof(word));
 			}
-			meta->flag = YAC_LOAD(&m->flag);
-			meta->crc = YAC_LOAD(&m->crc);
-			meta->epoch = YAC_LOAD(&m->epoch);
+
+			/* the keys */
+			span = YAC_KEY_KLEN(*k);
+			if (YAC_IS_EMBED_INLINE(k->val)) {
+				span += YAC_KEY_VLEN(*k);
+			}
+			for (w = 0; w < (span + sizeof(uintptr_t) - 1) / sizeof(uintptr_t); w++) {
+				uintptr_t word = YAC_LOAD(&((const YAC_SLOT_V uintptr_t *)p->key)[w]);
+				memcpy(&((uintptr_t *)k->key)[w], &word, sizeof(word));
+			}
+
+			/* the meta */
+			for (w = 0; w < sizeof(yac_kv_meta) / sizeof(uintptr_t); w++) {
+				uintptr_t word = YAC_LOAD(&((const YAC_SLOT_V uintptr_t *)m)[w]);
+				memcpy(&((uintptr_t *)meta)[w], &word, sizeof(word));
+			}
+
 			YAC_READ_BARRIER();
 			s2 = YAC_LOAD(&m->seq);
 			if (s1 == s2) {
