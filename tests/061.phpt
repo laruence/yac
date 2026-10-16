@@ -10,7 +10,6 @@ yac.enable=1
 yac.enable_cli=1
 yac.keys_memory_size=4M
 yac.values_memory_size=32M
-yac.serializer=json
 --FILE--
 <?php
 var_dump(YAC_SERIALIZER === YAC_SERIALIZER_JSON);

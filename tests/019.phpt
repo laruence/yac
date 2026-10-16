@@ -8,7 +8,6 @@ yac.enable=1
 yac.enable_cli=1
 yac.keys_memory_size=4M
 yac.values_memory_size=32M
-yac.serializer=msgpack
 --FILE--
 <?php 
 $yac = new Yac();

@@ -152,7 +152,7 @@ static uint32_t yac_serialize_detect_list_kind(HashTable *ht) /* {{{ */ {
 	zval *val;
 	uint32_t index = 0;
 	zend_bool all_int = 1, all_double = 1;
-#if PHP_VERSION_ID >= 80000
+#if PHP_VERSION_ID >= 80200
 	zend_bool all_zvals = HT_IS_PACKED(ht);
 #endif
 
@@ -166,7 +166,7 @@ static uint32_t yac_serialize_detect_list_kind(HashTable *ht) /* {{{ */ {
 		if (Z_TYPE_P(val) != IS_DOUBLE) {
 			all_double = 0;
 		}
-#if PHP_VERSION_ID >= 80000
+#if PHP_VERSION_ID >= 80200
 		if (!yac_serialize_is_raw_zval(val)) {
 			all_zvals = 0;
 		}
@@ -179,7 +179,7 @@ static uint32_t yac_serialize_detect_list_kind(HashTable *ht) /* {{{ */ {
 	if (all_double) {
 		return YAC_SERIALIZE_ARRAY_DOUBLE;
 	}
-#if PHP_VERSION_ID >= 80000
+#if PHP_VERSION_ID >= 80200
 	if (all_zvals) {
 		return YAC_SERIALIZE_ARRAY_ZVALS;
 	}
@@ -219,7 +219,7 @@ static uint32_t yac_serialize_detect_hash_keys(HashTable *ht) /* {{{ */ {
 static int yac_serialize_encode_packed_values(smart_str *buf, HashTable *ht, int depth) /* {{{ */ {
 	zval *val;
 
-#if PHP_VERSION_ID >= 80000
+#if PHP_VERSION_ID >= 80200
 	uint32_t i = 0;
 	uint32_t count = ht->nNumUsed;
 
@@ -265,7 +265,7 @@ static int yac_serialize_encode_array(smart_str *buf, HashTable *ht, int depth) 
 
 	if (count > 0 && (flags = yac_serialize_detect_list_kind(ht)) != 0) {
 		yac_serialize_append_u32(buf, flags);
-#if PHP_VERSION_ID >= 80000
+#if PHP_VERSION_ID >= 80200
 		if (flags == YAC_SERIALIZE_ARRAY_ZVALS) {
 			smart_str_appendl(buf, (char *)ht->arPacked, count * sizeof(zval));
 			return 1;
@@ -426,7 +426,7 @@ static int yac_serialize_decode_array(const unsigned char **p, const unsigned ch
 		return 0;
 	}
 
-	#if PHP_VERSION_ID >= 80000
+	#if PHP_VERSION_ID >= 80200
 	if (flags & YAC_SERIALIZE_ARRAY_ZVALS) {
 		HashTable *ht;
 		size_t size = (size_t)count * sizeof(zval);
@@ -488,7 +488,7 @@ static int yac_serialize_decode_array(const unsigned char **p, const unsigned ch
 	}
 
 	if (flags & YAC_SERIALIZE_ARRAY_PACKED) {
-#if PHP_VERSION_ID >= 80000
+#if PHP_VERSION_ID >= 80200
 		HashTable *ht = yac_serialize_new_array(count);
 		zval *dst;
 
