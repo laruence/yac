@@ -454,24 +454,26 @@ Dump cache entries for debugging. Returns an array of entries, each containing:
 
 - `index` — slot index in the hash table
 - `hash` — 64-bit hash of the key, used for slot probing
-- `crc` — CRC32 checksum of the value payload; `0` for embedded entries
+- `crc` — CRC32 checksum of the value payload; `0` for in-slot entries
 - `ttl` — expiration timestamp (unix time); `0` means never expires
 - `k_len` — key length
 - `v_len` — value length in bytes; for compressed entries this is the length of the **original** (uncompressed) value
 - `c_len` — length of the compressed payload actually stored in shared memory, in bytes; present **only** for compressed entries (since Yac 2.4.0)
-- `size` — allocated size of the value block in shared memory (bytes); `0` for embedded entries
+- `size` — allocated size of the value block in shared memory (bytes); `0` for in-slot entries
 - `atime` — last access time, updated on successful `get()`; the entry with the oldest `atime` among the candidate slots is evicted first, and when several share the oldest `atime` the one with the fewest `hits` goes (since Yac 2.4.0)
 - `hits` — per-entry hit counter, bumped on every successful `get()`; reset when the entry is overwritten, deleted or expires; among entries with equally old `atime`, the least hit one is evicted first (since Yac 2.4.0)
-- `embedded` — whether the value is stored directly inside the slot (see below) (since Yac 2.4.0)
+- `location` — where the value physically lives: `YAC_LOC_BLOCK` (0, a value block), `YAC_LOC_VALWORD` (1, the slot's value pointer word) or `YAC_LOC_INLINE` (2, the slot's key area, right after the key) (since Yac 3.0.0; reported as `embedded` before 2.4.0)
 - `key` — the cache key
 
-> **Note**: Before 2.4.0, `dump()` did not report `atime`, `hits`, `embedded` or `c_len` — these fields do not exist in older versions — and `v_len` was the stored (compressed) length rather than the original value length.
+> **Note**: Before 2.4.0, `dump()` did not report `atime`, `hits` or `c_len` — these fields do not exist in older versions — and `v_len` was the stored (compressed) length rather than the original value length.
 
 Small values are **embedded** in the slot itself instead of allocating a value
 block: `NULL`, booleans, small integers, strings up to 7 bytes and empty
-arrays live in the slot's value pointer, and values too big for the pointer
-but fitting the slot's unused key area (key length + value size ≤ 48 bytes)
-are stored **inline** right after the key. Embedded entries allocate no value
+arrays live in the slot's value pointer (`YAC_LOC_VALWORD`), and values too
+big for the pointer but fitting the slot's unused key area
+(key length + value size ≤ 48 bytes) are stored **inline** right after the
+key (`YAC_LOC_INLINE`). Everything else gets its own value block
+(`YAC_LOC_BLOCK`). Embedded entries allocate no value
 memory at all, so for them `crc` and `size` are reported as `0`, while
 `atime` and `hits` are kept in the slot and remain meaningful; for inline
 entries `v_len` reports the stored byte count.

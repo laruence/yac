@@ -136,9 +136,9 @@ typedef char yac_kv_lru_must_hold_two_longs[(sizeof(yac_kv_lru) == sizeof(unsign
 #define YAC_VALUE_BLOB            6
 
 /* where the value physically lives */
-#define YAC_EMBED_BLOCK           0
-#define YAC_EMBED_VALWORD         1
-#define YAC_EMBED_INLINE          2
+#define YAC_LOC_BLOCK             0
+#define YAC_LOC_VALWORD           1
+#define YAC_LOC_INLINE            2
 
 typedef struct {
 	union {
@@ -172,7 +172,7 @@ typedef struct {
 #define YAC_INLINE_FITS(len, size) ((len) + (size) <= YAC_STORAGE_MAX_KEY_LEN)
 
 typedef struct _yac_item {
-	unsigned char embed;
+	unsigned char loc;
 	unsigned int  len;
 	unsigned int  meta;
 	uintptr_t     valword;
@@ -324,7 +324,7 @@ int yac_storage_set_string(yac_ctx *ctx, const char *key, unsigned int len, cons
 int yac_storage_set_blob(yac_ctx *ctx, const char *key, unsigned int len, const char *v, unsigned int vlen, unsigned int meta, int ttl, int add);
 int yac_storage_delete(yac_ctx *ctx, const char *key, unsigned int len, int ttl);
 
-/* like find but reads no payload: returns the kind and fills valword/embed/len/meta */
+/* like find but reads no payload: returns the kind and fills valword/loc/len/meta */
 int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_item *out);
 void yac_storage_flush(void);
 /* fold a call context's accumulated hits/miss into the shared stats; the

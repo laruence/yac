@@ -70,7 +70,7 @@ var_dump(dump_find($yac, "e")["hits"]);
 /* ... and block -> embed */
 $yac->set("b", 789);
 var_dump(dump_find($yac, "b")["hits"]);
-var_dump(dump_find($yac, "b")["embed"]);
+var_dump(dump_find($yac, "b")["location"]);
 
 /* expired entries start cold again */
 $yac->set("t", 1, 1);

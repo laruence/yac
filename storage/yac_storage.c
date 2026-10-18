@@ -479,10 +479,10 @@ static inline int yac_item_fill(yac_item_list *item, const yac_kv_key *k, const 
 	if (YAC_IS_EMBED_INLINE(word)) {
 		item->kind = YAC_VAL_PACK_KIND(YAC_VAL_INLINE_PAYLOAD(word));
 		item->val.meta = YAC_VAL_PACK_META(YAC_VAL_INLINE_PAYLOAD(word));
-		item->val.embed = YAC_EMBED_INLINE;
+		item->val.loc = YAC_LOC_INLINE;
 	} else if (YAC_IS_EMBED(word)) {
 		item->kind = yac_val_word_kind(word);
-		item->val.embed = YAC_EMBED_VALWORD;
+		item->val.loc = YAC_LOC_VALWORD;
 	} else {
 		if (!yac_allocator_resolve(k->val, k->h, &segpos) ||
 				!yac_storage_epoch_safe(meta, &segpos)) {
@@ -490,7 +490,7 @@ static inline int yac_item_fill(yac_item_list *item, const yac_kv_key *k, const 
 		}
 		item->kind = YAC_VAL_PACK_KIND(meta->flag);
 		item->val.meta = YAC_VAL_PACK_META(meta->flag);
-		item->val.embed = YAC_EMBED_BLOCK;
+		item->val.loc = YAC_LOC_BLOCK;
 		item->crc = meta->crc;
 		item->size = k->val->capacity;
 	}
@@ -538,14 +538,14 @@ int yac_storage_peek(yac_ctx *ctx, const char *key, unsigned int len, yac_item *
 			if (YAC_IS_EMBED_INLINE(word)) {
 				kind = YAC_VAL_PACK_KIND(YAC_VAL_INLINE_PAYLOAD(word));
 				out->meta = YAC_VAL_PACK_META(YAC_VAL_INLINE_PAYLOAD(word));
-				out->embed = YAC_EMBED_INLINE;
+				out->loc = YAC_LOC_INLINE;
 			} else if (YAC_IS_EMBED(word)) {
 				kind = yac_val_word_kind(word);
-				out->embed = YAC_EMBED_VALWORD;
+				out->loc = YAC_LOC_VALWORD;
 			} else {
 				kind = YAC_VAL_PACK_KIND(meta.flag);
 				out->meta = YAC_VAL_PACK_META(meta.flag);
-				out->embed = YAC_EMBED_BLOCK;
+				out->loc = YAC_LOC_BLOCK;
 			}
 			return kind;
 		}

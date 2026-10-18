@@ -2,7 +2,7 @@
 Inline values (stored in the slot's unused key area)
 --DESCRIPTION--
 Values that miss the val word but fit the slot's key area (klen + size <= 48)
-are stored inline after the key, block-less: dump() shows embed=2 with a real v_len.
+are stored inline after the key, block-less: dump() shows location=2 with a real v_len.
 Covers round-trips, the capacity boundary, form transitions, NUL bytes,
 overwrite, add()/delete()/ttl.
 --SKIPIF--
@@ -40,16 +40,16 @@ var_dump($yac->get("t_arr") == $arr);
 
 /* dump shape: embedded, real v_len, no block metadata */
 $item = dump_find_065($yac, "t_str");
-var_dump($item["embed"], $item["v_len"], $item["size"], $item["crc"]);
+var_dump($item["location"], $item["v_len"], $item["size"], $item["crc"]);
 $item = dump_find_065($yac, "t_arr");
-var_dump($item["embed"], $item["v_len"] > 0, $item["size"]);
+var_dump($item["location"], $item["v_len"] > 0, $item["size"]);
 
 /* boundary: klen(3) + 45 = 48 stores inline, 46 spills to a block */
 var_dump($yac->set("t44", str_repeat("x", 45)));
-var_dump(dump_find_065($yac, "t44")["embed"]);
+var_dump(dump_find_065($yac, "t44")["location"]);
 var_dump($yac->get("t44") === str_repeat("x", 45));
 var_dump($yac->set("t44", str_repeat("x", 46)));
-var_dump(dump_find_065($yac, "t44")["embed"]);
+var_dump(dump_find_065($yac, "t44")["location"]);
 var_dump($yac->get("t44") === str_repeat("x", 46));
 
 /* NUL bytes survive the inline copy */
@@ -62,13 +62,13 @@ var_dump($yac->set("t_flip", "abc"));
 var_dump(dump_find_065($yac, "t_flip")["v_len"]);
 var_dump($yac->set("t_flip", str_repeat("y", 20)));
 var_dump($yac->get("t_flip") === str_repeat("y", 20));
-var_dump(dump_find_065($yac, "t_flip")["embed"]);
+var_dump(dump_find_065($yac, "t_flip")["location"]);
 var_dump($yac->set("t_flip", str_repeat("z", 64)));
 var_dump($yac->get("t_flip") === str_repeat("z", 64));
-var_dump(dump_find_065($yac, "t_flip")["embed"]);
+var_dump(dump_find_065($yac, "t_flip")["location"]);
 var_dump($yac->set("t_flip", str_repeat("w", 12)));
 var_dump($yac->get("t_flip") === str_repeat("w", 12));
-var_dump(dump_find_065($yac, "t_flip")["embed"]);
+var_dump(dump_find_065($yac, "t_flip")["location"]);
 
 /* overwrite an inline value with a different size */
 var_dump($yac->set("t_grow", str_repeat("g", 10)));

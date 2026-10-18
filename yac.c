@@ -605,7 +605,7 @@ static int yac_item_is_empty(const yac_item *item) /* {{{ */ {
 	/* every falsy value rides the val word, so a peek can answer empty() from it */
 	uintptr_t word = item->valword;
 
-	if (item->embed != YAC_EMBED_VALWORD) {
+	if (item->loc != YAC_LOC_VALWORD) {
 		return 0;
 	}
 	switch (YAC_VAL_TAG(word)) {
@@ -982,7 +982,7 @@ PHP_METHOD(yac, dump) {
 				add_assoc_long(&item, "size", l->size);
 				add_assoc_long(&item, "atime", l->atime);
 				add_assoc_long(&item, "hits", l->hits);
-				add_assoc_long(&item, "embed", l->val.embed);
+				add_assoc_long(&item, "location", l->val.loc);
 				add_assoc_stringl(&item, "key", (char*)l->key + prefix_len, l->k_len - prefix_len);
 				ZEND_HASH_FILL_ADD(&item);
 			}
@@ -1054,7 +1054,7 @@ PHP_MINIT_FUNCTION(yac)
 	REGISTER_LONG_CONSTANT("YAC_MAX_KEY_LEN", YAC_STORAGE_MAX_KEY_LEN, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_MAX_VALUE_RAW_LEN", YAC_META_MAX_ORIG_LEN, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_MAX_RAW_COMPRESSED_LEN", YAC_STORAGE_MAX_ENTRY_LEN, CONST_PERSISTENT | CONST_CS);
-	/* expose dump()'s kind/embed int enums by name; MISS is part of the kind
+	/* expose dump()'s kind/location int enums by name; MISS is part of the kind
 	 * enum though it never appears as a stored entry */
 	REGISTER_LONG_CONSTANT("YAC_KIND_MISS", YAC_VALUE_MISS, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_KIND_FLAG", YAC_VALUE_FLAG, CONST_PERSISTENT | CONST_CS);
@@ -1062,9 +1062,9 @@ PHP_MINIT_FUNCTION(yac)
 	REGISTER_LONG_CONSTANT("YAC_KIND_DOUBLE", YAC_VALUE_DOUBLE, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_KIND_STRING", YAC_VALUE_STRING, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_KIND_BLOB", YAC_VALUE_BLOB, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("YAC_EMBED_BLOCK", YAC_EMBED_BLOCK, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("YAC_EMBED_VALWORD", YAC_EMBED_VALWORD, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("YAC_EMBED_INLINE", YAC_EMBED_INLINE, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_LOC_BLOCK", YAC_LOC_BLOCK, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_LOC_VALWORD", YAC_LOC_VALWORD, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_LOC_INLINE", YAC_LOC_INLINE, CONST_PERSISTENT | CONST_CS);
 #ifdef YAC_DEBUG
 	REGISTER_BOOL_CONSTANT("YAC_DEBUG", 1, CONST_PERSISTENT | CONST_CS);
 #endif
