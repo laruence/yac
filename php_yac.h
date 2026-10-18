@@ -64,6 +64,11 @@ extern zend_module_entry yac_module_entry;
 #define YAC_META_ORIG_LEN(meta)    ((uint32_t)(((meta) >> YAC_META_ORIG_SHIFT) & YAC_META_ORIG_MASK))
 #define YAC_META_PACK_LEN(orig)    (((uint32_t)(orig) << YAC_META_ORIG_SHIFT))
 
+/* which encoder produced a payload */
+#define YAC_ENC_NONE              0
+#define YAC_ENC_PHP               1
+#define YAC_ENC_YAC               2
+
 #define YAC_BUF_SIZE               1024
 
 ZEND_BEGIN_MODULE_GLOBALS(yac)

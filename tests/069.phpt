@@ -33,8 +33,37 @@ $ref = 42;
 $with_ref = [&$ref];
 var_dump($yac->set("reference", $with_ref));
 var_dump($yac->get("reference") == $with_ref);
+
+/* refs no longer disqualify the fast serializer: dump()'s enc field
+ * says which encoder produced the payload */
+function dump_find_069($yac, $key) {
+	foreach ($yac->dump(100000) as $item) {
+		if ($item["key"] === $key) {
+			return $item;
+		}
+	}
+	return NULL;
+}
+$ref2 = 1;
+$with_ref2 = [&$ref2, 2, 3, 4];
+var_dump($yac->set("withref", $with_ref2));
+var_dump(dump_find_069($yac, "withref")["enc"] === YAC_ENC_YAC);
+var_dump($yac->get("withref") == [1, 2, 3, 4]);
+
+/* the custom object fell back to PHP's serialize() */
+var_dump(dump_find_069($yac, "custom")["enc"] === YAC_ENC_PHP);
+
+/* an in-slot scalar was never serialized at all */
+var_dump($yac->set("plain", 42));
+var_dump(dump_find_069($yac, "plain")["enc"] === YAC_ENC_NONE);
 ?>
 --EXPECT--
+bool(true)
+bool(true)
+bool(true)
+bool(true)
+bool(true)
+bool(true)
 bool(true)
 bool(true)
 bool(true)

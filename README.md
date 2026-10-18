@@ -462,7 +462,8 @@ Dump cache entries for debugging. Returns an array of entries, each containing:
 - `size` — allocated size of the value block in shared memory (bytes); `0` for in-slot entries
 - `atime` — last access time, updated on successful `get()`; the entry with the oldest `atime` among the candidate slots is evicted first, and when several share the oldest `atime` the one with the fewest `hits` goes (since Yac 2.4.0)
 - `hits` — per-entry hit counter, bumped on every successful `get()`; reset when the entry is overwritten, deleted or expires; among entries with equally old `atime`, the least hit one is evicted first (since Yac 2.4.0)
-- `location` — where the value physically lives: `YAC_LOC_BLOCK` (0, a value block), `YAC_LOC_VALWORD` (1, the slot's value pointer word) or `YAC_LOC_INLINE` (2, the slot's key area, right after the key) (since Yac 3.0.0; reported as `embedded` before 2.4.0)
+- `loc` — where the value physically lives: `YAC_LOC_BLOCK` (0, a value block), `YAC_LOC_VALWORD` (1, the slot's value pointer word) or `YAC_LOC_INLINE` (2, the slot's key area, right after the key) (since Yac 3.0.0; reported as `embedded` before 2.4.0)
+- `enc` — which encoder produced the payload: `YAC_ENC_NONE` (0, stored raw), `YAC_ENC_PHP` (1, PHP's `serialize()`), `YAC_ENC_YAC` (2, Yac's fast serializer) (since Yac 3.0.0)
 - `key` — the cache key
 
 > **Note**: Before 2.4.0, `dump()` did not report `atime`, `hits` or `c_len` — these fields do not exist in older versions — and `v_len` was the stored (compressed) length rather than the original value length.

@@ -965,7 +965,7 @@ PHP_METHOD(yac, dump) {
 			for (; l; l = l->next) {
 				zval item;
 
-				array_init_size(&item, 12 /* 12 fields, pre-allocate */);
+				array_init_size(&item, 13 /* up to 13 fields, pre-allocate */);
 
 				add_assoc_long(&item, "index", l->index);
 				add_assoc_long(&item, "hash", l->h);
@@ -982,7 +982,12 @@ PHP_METHOD(yac, dump) {
 				add_assoc_long(&item, "size", l->size);
 				add_assoc_long(&item, "atime", l->atime);
 				add_assoc_long(&item, "hits", l->hits);
-				add_assoc_long(&item, "location", l->val.loc);
+				add_assoc_long(&item, "loc", l->val.loc);
+				add_assoc_long(&item, "enc",
+					(l->val.meta & YAC_META_SERIALIZED) ?
+						((l->val.meta & YAC_META_SERIALIZER_YAC) ?
+							YAC_ENC_YAC : YAC_ENC_PHP)
+						: YAC_ENC_NONE);
 				add_assoc_stringl(&item, "key", (char*)l->key + prefix_len, l->k_len - prefix_len);
 				ZEND_HASH_FILL_ADD(&item);
 			}
@@ -1054,8 +1059,6 @@ PHP_MINIT_FUNCTION(yac)
 	REGISTER_LONG_CONSTANT("YAC_MAX_KEY_LEN", YAC_STORAGE_MAX_KEY_LEN, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_MAX_VALUE_RAW_LEN", YAC_META_MAX_ORIG_LEN, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_MAX_RAW_COMPRESSED_LEN", YAC_STORAGE_MAX_ENTRY_LEN, CONST_PERSISTENT | CONST_CS);
-	/* expose dump()'s kind/location int enums by name; MISS is part of the kind
-	 * enum though it never appears as a stored entry */
 	REGISTER_LONG_CONSTANT("YAC_KIND_MISS", YAC_VALUE_MISS, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_KIND_FLAG", YAC_VALUE_FLAG, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_KIND_LONG", YAC_VALUE_LONG, CONST_PERSISTENT | CONST_CS);
@@ -1065,6 +1068,9 @@ PHP_MINIT_FUNCTION(yac)
 	REGISTER_LONG_CONSTANT("YAC_LOC_BLOCK", YAC_LOC_BLOCK, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_LOC_VALWORD", YAC_LOC_VALWORD, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("YAC_LOC_INLINE", YAC_LOC_INLINE, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_ENC_NONE", YAC_ENC_NONE, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_ENC_PHP", YAC_ENC_PHP, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("YAC_ENC_YAC", YAC_ENC_YAC, CONST_PERSISTENT | CONST_CS);
 #ifdef YAC_DEBUG
 	REGISTER_BOOL_CONSTANT("YAC_DEBUG", 1, CONST_PERSISTENT | CONST_CS);
 #endif

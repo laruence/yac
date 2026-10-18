@@ -1,7 +1,7 @@
 --TEST--
 Yac::dump() reports kind and location by the exposed enum constants
 --DESCRIPTION--
-dump() adds a "kind" field alongside "location". kind is the value's logical type
+dump() adds a "kind" field alongside "loc". kind is the value's logical type
 (YAC_KIND_*), location is where its bytes physically live (YAC_LOC_*). The two
 are orthogonal: a LONG can sit in the val word (small) or key-inline (PHP_INT_MAX
 needs 63 bits), a STRING can be a val word (<=7 bytes), inline, or a block.
@@ -30,7 +30,7 @@ function dump_find($yac, $key) {
 function check($yac, $key, $value, $kind, $loc) {
 	$yac->set($key, $value);
 	$item = dump_find($yac, $key);
-	var_dump($item["kind"] === $kind, $item["location"] === $loc);
+	var_dump($item["kind"] === $kind, $item["loc"] === $loc);
 }
 
 $yac = new Yac();
@@ -62,7 +62,7 @@ check($yac, "k_obj",  (object)array("p" => 1), YAC_KIND_BLOB, YAC_LOC_INLINE);
  * nothing else. Assert kind, and that it is embedded some way. */
 $yac->set("k_dbl", 3.14159);
 $d = dump_find($yac, "k_dbl");
-var_dump($d["kind"] === YAC_KIND_DOUBLE, $d["location"] > YAC_LOC_BLOCK);
+var_dump($d["kind"] === YAC_KIND_DOUBLE, $d["loc"] > YAC_LOC_BLOCK);
 
 /* the MISS enum is exposed but never appears as a stored entry's kind */
 var_dump(YAC_KIND_MISS === 0);

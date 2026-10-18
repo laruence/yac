@@ -96,7 +96,7 @@ static HashTable *yac_serialize_stdclass_properties(zval *zv) /* {{{ */ {
 static zend_bool yac_serialize_can_encode_value(zval *zv, int depth) /* {{{ */ {
 	zval *val;
 
-	if (depth > YAC_SERIALIZE_MAX_DEPTH || Z_ISREF_P(zv)) {
+	if (depth > YAC_SERIALIZE_MAX_DEPTH) {
 		return 0;
 	}
 	ZVAL_DEREF(zv);
@@ -157,17 +157,20 @@ static uint32_t yac_serialize_detect_list_kind(HashTable *ht) /* {{{ */ {
 #endif
 
 	ZEND_HASH_FOREACH_KEY_VAL(ht, h, key, val) {
+		zval *v = val;
+
 		if (key || h != index++) {
 			return 0;
 		}
-		if (Z_TYPE_P(val) != IS_LONG) {
+		ZVAL_DEREF(v);
+		if (Z_TYPE_P(v) != IS_LONG) {
 			all_int = 0;
 		}
-		if (Z_TYPE_P(val) != IS_DOUBLE) {
+		if (Z_TYPE_P(v) != IS_DOUBLE) {
 			all_double = 0;
 		}
 #if PHP_VERSION_ID >= 80200
-		if (!yac_serialize_is_raw_zval(val)) {
+		if (!yac_serialize_is_raw_zval(v)) {
 			all_zvals = 0;
 		}
 #endif
@@ -275,6 +278,7 @@ static int yac_serialize_encode_array(smart_str *buf, HashTable *ht, int depth) 
 			return yac_serialize_encode_packed_values(buf, ht, depth);
 		}
 		ZEND_HASH_FOREACH_VAL(ht, val) {
+			ZVAL_DEREF(val);
 			if (flags == YAC_SERIALIZE_ARRAY_INT) {
 				yac_serialize_append_u64(buf, (uint64_t)Z_LVAL_P(val));
 			} else {
