@@ -8,7 +8,7 @@ Yac 3.0.0 is a major performance release that redesigns the shared-memory read p
 - **Lock-free key-slot reads.** Key slots now use versioned snapshots instead of a per-slot mutex: readers copy a stable snapshot, verify its sequence number, and retry only when a writer changed the slot concurrently.
 - **Fewer CRC-32 checks for value blocks.** Epoch tracking identifies blocks that are stable across a read. Those reads skip CRC-32 validation on the fast path; reads that race with recycling retain CRC-32 as the correctness fallback.
 - **More values avoid the value pool.** Small scalars remain in the slot, while short strings use unused key-slot space as inline storage. Both paths avoid value-pool allocation and copying.
-- **Faster compound values.** Arrays and supported `stdClass` values use Yac's internal fast serializer, with PHP serialization retained as a fallback.
+- **Faster compound values.** Arrays and supported `stdClass` values, including values containing references, use Yac's internal fast serializer, with PHP serialization retained as a fallback.
 
 ## API and compatibility
 
