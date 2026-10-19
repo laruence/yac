@@ -12,11 +12,11 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2026-09-10</date>
- <time>10:30:00</time>
+ <date>2026-10-19</date>
+ <time>11:39:15</time>
  <version>
-  <release>2.4.2</release>
-  <api>2.4.0</api>
+  <release>3.0.0</release>
+  <api>3.0.0</api>
  </version>
  <stability>
   <release>stable</release>
@@ -24,19 +24,11 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - String values are decoded straight into the zend_string handed back to PHP, no second copy per read
-  - Copying a value and checksumming it are a single pass on writes as well as reads
-  - The next probe slot is prefetched while the current one's lock, load and compare are in flight
-  - Faster argument parsing for add/set/get/delete/dump
-  - dump() builds its result array in bulk instead of one insert per entry
-  - Overwriting an entry whose value outgrew its block skips the checksum of the block being replaced
-  - CRC-32C picks its implementation by probing the CPU at runtime, so a binary built with -msse4.2 still runs on older hardware
-  - Fixed get() crashing under concurrency: find() bumped the hit count and access time without holding the slot, overwriting the type flag a concurrent write had just published
-  - flush() now takes every slot before clearing the table; it could previously land mid-publish and leave a slot permanently unusable
-  - dump() returns an empty result while a flush() is in progress instead of reporting half-cleared slots
-  - Fixed a wild-pointer read in the block-value guard of find()
-  - Fixed dump() on PHP older than 7.4
-  - Fixed the packaged tarball missing storage/crc, which made it fail to build
+  - Major performance release: reworked the lock-free storage engine with versioned reads, recyclable value blocks, and reduced shared-memory contention
+  - Small scalars stay in the slot and short strings are stored inline in its unused key area, avoiding value-pool allocation and copies
+  - Arrays and supported stdClass values use Yac's internal fast serializer, with PHP serialization retained as a fallback
+  - Added Yac::has() for non-destructive existence checks; isset(), empty(), and property_exists() no longer affect LRU state
+  - dump() adds an offset parameter and reports value location metadata; optional json, msgpack, and igbinary serializers were removed
  </notes>
  <contents> 
   <dir name="/"> 
@@ -138,6 +130,16 @@
     <file name="057.phpt" role="test" />
     <file name="058.phpt" role="test" />
     <file name="059.phpt" role="test" />
+    <file name="060.phpt" role="test" />
+    <file name="061.phpt" role="test" />
+    <file name="062.phpt" role="test" />
+    <file name="063.phpt" role="test" />
+    <file name="064.phpt" role="test" />
+    <file name="065.phpt" role="test" />
+    <file name="066.phpt" role="test" />
+    <file name="067.phpt" role="test" />
+    <file name="068.phpt" role="test" />
+    <file name="069.phpt" role="test" />
     <file name="issue012.phpt" role="test" />
     <file name="CONFLICTS" role="test" />
    </dir>
@@ -158,6 +160,26 @@
   <configureoption name="enable-debug" prompt="enable debug instrumentation?" default="no"/>
  </extsrcrelease>
  <changelog>
+  <release>
+   <date>2026-10-19</date>
+   <version>
+    <release>3.0.0</release>
+    <api>3.0.0</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
+   <notes>
+    - Major performance release: reworked the lock-free storage engine with versioned reads, recyclable value blocks, and reduced shared-memory contention
+    - Small scalars stay in the slot and short strings are stored inline in its unused key area, avoiding value-pool allocation and copies
+    - Arrays and supported stdClass values use Yac's internal fast serializer, with PHP serialization retained as a fallback
+    - Added Yac::has() for non-destructive existence checks; isset(), empty(), and property_exists() no longer affect LRU state
+    - dump() adds an offset parameter and reports value location metadata; optional json, msgpack, and igbinary serializers were removed
+   </notes>
+  </release>
+
   <release>
    <date>2026-09-10</date>
    <version>

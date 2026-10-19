@@ -1,6 +1,22 @@
-Yac 2.4.2 was released on 2026-09-10; these notes mirror the GitHub release.
+# What's New in 3.0.0
 
-## What's New in 2.4.2
+Yac 3.0.0 is a major performance release that redesigns the shared-memory read path.
+
+## Performance
+
+- **About 42% higher throughput for common values.** Across the matched 6B–8KB benchmark workloads, Yac 3.0.0 delivers a 42.3% geometric-mean throughput improvement over 2.4.2; for common PHP scalar, switch, and short-value workloads on the val-word path, the improvement reaches 95.4%. See [bench/README.md](bench/README.md) for the environment and reproduction details.
+- **Lock-free key-slot reads.** Key slots now use versioned snapshots instead of a per-slot mutex: readers copy a stable snapshot, verify its sequence number, and retry only when a writer changed the slot concurrently.
+- **Fewer CRC-32 checks for value blocks.** Epoch tracking identifies blocks that are stable across a read. Those reads skip CRC-32 validation on the fast path; reads that race with recycling retain CRC-32 as the correctness fallback.
+- **More values avoid the value pool.** Small scalars remain in the slot, while short strings use unused key-slot space as inline storage. Both paths avoid value-pool allocation and copying.
+- **Faster compound values.** Arrays and supported `stdClass` values use Yac's internal fast serializer, with PHP serialization retained as a fallback.
+
+## API and compatibility
+
+- Added `Yac::has()` for non-destructive existence checks. `isset()`, `empty()`, and `property_exists()` no longer update LRU state.
+- `dump()` accepts an offset and reports value-location metadata.
+- Optional JSON, MsgPack, and igbinary serializers were removed; `yac.serializer` and their configure switches are no longer available.
+
+# What's New in 2.4.2
 
 ### Performance
 
