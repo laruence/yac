@@ -42,6 +42,13 @@ static yac_user_alloc_t user_alloc;
 static yac_user_free_t user_free;
 #ifdef YAC_DEBUG
 #define YAC_DEBUG_PAUSE_AFTER_RESERVE_US 1000u
+static void yac_storage_debug_pause_after_reserve(void) {
+#if defined(_WIN32)
+	Sleep((YAC_DEBUG_PAUSE_AFTER_RESERVE_US + 999) / 1000);
+#else
+	usleep(YAC_DEBUG_PAUSE_AFTER_RESERVE_US);
+#endif
+}
 #endif
 
 static inline unsigned int yac_storage_align_size(unsigned int size) /* {{{ */ {
@@ -95,16 +102,6 @@ void yac_storage_shutdown(void) /* {{{ */ {
 	yac_allocator_shutdown();
 }
 /* }}} */
-
-#ifdef YAC_DEBUG
-static void yac_storage_debug_pause_after_reserve(void) {
-#if defined(_WIN32)
-	Sleep((YAC_DEBUG_PAUSE_AFTER_RESERVE_US + 999) / 1000);
-#else
-	usleep(YAC_DEBUG_PAUSE_AFTER_RESERVE_US);
-#endif
-}
-#endif
 
 /* {{{ MurmurHash64A (Austin Appleby, public domain).
  *

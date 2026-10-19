@@ -73,7 +73,7 @@
 #define YAC_UNSERIALIZE_SUPPRESS_END()   EG(error_reporting) = _yac_old_error_reporting;
 
 int yac_serialize(zval *pzval, smart_str *buf, unsigned int *meta);
-zval *yac_unserialize(char *content, size_t len, unsigned int meta, zval *rv);
+zval* yac_unserialize(char *content, size_t len, unsigned int meta, zval *rv);
 
 #endif	/* YAC_SERIALIZER_H */
 
