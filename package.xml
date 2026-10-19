@@ -13,9 +13,9 @@
   <active>yes</active>
  </lead>
  <date>2026-10-19</date>
- <time>11:39:15</time>
+ <time>13:36:09</time>
  <version>
-  <release>3.0.0</release>
+  <release>3.0.1</release>
   <api>3.0.0</api>
  </version>
  <stability>
@@ -24,11 +24,8 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - Major performance release: reworked the lock-free storage engine with versioned reads, recyclable value blocks, and reduced shared-memory contention
-  - Small scalars stay in the slot and short strings are stored inline in its unused key area, avoiding value-pool allocation and copies
-  - Arrays and supported stdClass values, including values containing references, use Yac's internal fast serializer, with PHP serialization retained as a fallback
-  - Added Yac::has() for non-destructive existence checks; isset(), empty(), and property_exists() no longer affect LRU state
-  - dump() adds an offset parameter and reports value location metadata; optional json, msgpack, and igbinary serializers were removed
+  - Keep reference-containing values on the internal fast serializer when their contents are supported, falling back to PHP serialization otherwise
+  - dump() reports encoder details and names the storage location field consistently
  </notes>
  <contents> 
   <dir name="/"> 
@@ -160,6 +157,23 @@
   <configureoption name="enable-debug" prompt="enable debug instrumentation?" default="no"/>
  </extsrcrelease>
  <changelog>
+  <release>
+   <date>2026-10-19</date>
+   <version>
+    <release>3.0.1</release>
+    <api>3.0.0</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
+   <notes>
+    - Keep reference-containing values on the internal fast serializer when their contents are supported, falling back to PHP serialization otherwise
+    - dump() reports encoder details and names the storage location field consistently
+   </notes>
+  </release>
+
   <release>
    <date>2026-10-19</date>
    <version>

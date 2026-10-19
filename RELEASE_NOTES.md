@@ -1,3 +1,8 @@
+# What's New in 3.0.1
+
+- Values containing references remain on Yac's internal fast serializer when their contents are supported; unsupported values still fall back to PHP serialization.
+- `dump()` now reports encoder details and consistently names the storage location field.
+
 # What's New in 3.0.0
 
 Yac 3.0.0 is a major performance release that redesigns the shared-memory read path.
