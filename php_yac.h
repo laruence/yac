@@ -34,7 +34,7 @@ extern zend_module_entry yac_module_entry;
 #include "TSRM.h"
 #endif
 
-#define PHP_YAC_VERSION "3.0.1"
+#define PHP_YAC_VERSION "3.0.2-dev"
 
 #if PHP_VERSION_ID < 70400
 #define YAC_WHANDLER            void
