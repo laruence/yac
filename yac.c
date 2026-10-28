@@ -371,6 +371,10 @@ static inline void yac_add_update_internal(INTERNAL_FUNCTION_PARAMETERS, int add
 	zval *keys, *value = NULL;
 	int ret;
 
+	if (!YAC_G(enable)) {
+		RETURN_FALSE;
+	}
+
 	/* set(array, ttl) and set(key, value) share arity 2 */
 	switch (ZEND_NUM_ARGS()) {
 		case 1:
@@ -785,7 +789,8 @@ PHP_METHOD(yac, __construct) {
 	}
 
 	if (!YAC_G(enable)) {
-		zend_throw_exception(NULL, "Yac is not enabled", 0);
+		/* The extension may be loaded while CLI caching is disabled. Keep the
+		 * legacy behavior: construction succeeds and cache operations fail. */
 		return;
 	}
 
@@ -822,6 +827,10 @@ PHP_METHOD(yac, set) {
 PHP_METHOD(yac, get) {
 	zval *ret, *keys, *def = NULL;
 
+	if (!YAC_G(enable)) {
+		RETURN_FALSE;
+	}
+
 	ZEND_PARSE_PARAMETERS_START(1, 2)
 		Z_PARAM_ZVAL(keys)
 		Z_PARAM_OPTIONAL
@@ -854,6 +863,10 @@ PHP_METHOD(yac, delete) {
 	zval *keys;
 	int ret;
 
+	if (!YAC_G(enable)) {
+		RETURN_FALSE;
+	}
+
 	ZEND_PARSE_PARAMETERS_START(1, 2)
 		Z_PARAM_ZVAL(keys)
 		Z_PARAM_OPTIONAL
@@ -879,6 +892,10 @@ PHP_METHOD(yac, delete) {
 PHP_METHOD(yac, has) {
 	zend_string *key;
 
+	if (!YAC_G(enable)) {
+		RETURN_FALSE;
+	}
+
 	ZEND_PARSE_PARAMETERS_START(1, 1)
 		Z_PARAM_STR(key)
 	ZEND_PARSE_PARAMETERS_END();
@@ -890,6 +907,9 @@ PHP_METHOD(yac, has) {
 /** {{{ proto public Yac::flush(void)
 */
 PHP_METHOD(yac, flush) {
+	if (!YAC_G(enable)) {
+		RETURN_FALSE;
+	}
 
 	yac_storage_flush();
 
@@ -902,6 +922,10 @@ PHP_METHOD(yac, flush) {
 PHP_METHOD(yac, info) {
 	yac_storage_info *inf;
 	yac_object *yac = Z_YACOBJ_P(getThis());
+
+	if (!YAC_G(enable)) {
+		RETURN_FALSE;
+	}
 
 	yac_object_commit_stats(yac);
 	inf = yac_storage_get_info(&yac->ctx);
@@ -944,6 +968,10 @@ PHP_METHOD(yac, dump) {
 	yac_object *yac = Z_YACOBJ_P(getThis());
 	yac_dump_filter_t filter = NULL;
 	yac_item_list *list, *l;
+
+	if (!YAC_G(enable)) {
+		RETURN_FALSE;
+	}
 
 	ZEND_PARSE_PARAMETERS_START(0, 2)
 		Z_PARAM_OPTIONAL

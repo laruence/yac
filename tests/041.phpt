@@ -1,5 +1,5 @@
 --TEST--
-Yac constructor throws in CLI when yac.enable_cli=0
+Yac is a no-op in CLI when yac.enable_cli=0
 --SKIPIF--
 <?php if (!extension_loaded("yac")) print "skip"; ?>
 --INI--
@@ -7,13 +7,23 @@ yac.enable=1
 yac.enable_cli=0
 --FILE--
 <?php
-try {
-    $yac = new Yac();
-    echo "constructed\n";
-} catch (Exception $e) {
-    var_dump(get_class($e), $e->getMessage());
-}
+$yac = new Yac("prefix:");
+
+var_dump($yac->add("key", "value"));
+var_dump($yac->set("key", "value"));
+var_dump($yac->get("key", "default"));
+var_dump($yac->delete("key"));
+var_dump($yac->has("key"));
+var_dump($yac->flush());
+var_dump($yac->info());
+var_dump($yac->dump(10));
 ?>
---EXPECTF--
-string(9) "Exception"
-string(18) "Yac is not enabled"
+--EXPECT--
+bool(false)
+bool(false)
+bool(false)
+bool(false)
+bool(false)
+bool(false)
+bool(false)
+bool(false)

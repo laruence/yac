@@ -5,15 +5,15 @@ Check for yac::__construct with yac.enable=0
 --INI--
 yac.enable=0
 --FILE--
-<?php 
-try {
-	$yac = new Yac("prefix");
-} catch (Exception $e) {
-	var_dump($e->getMessage());
-}
-
-@var_dump($yac);
+<?php
+$yac = new Yac("prefix");
+var_dump($yac instanceof Yac);
+var_dump($yac->set("key", "value"));
+var_dump($yac->get("key"));
+var_dump($yac->info());
 ?>
---EXPECTF--
-string(18) "Yac is not enabled"
-NULL
+--EXPECT--
+bool(true)
+bool(false)
+bool(false)
+bool(false)
