@@ -356,11 +356,6 @@ static uint32_t snapshot_interleaved(char *dst, const char *buf, unsigned int si
  * bit for bit; tables in yac_crc32_tab.h, verified against RFC 3720 B.4
  * ("123456789" -> 0xe3069283)
  *
- * the table indexing below assumes the word is laid out little-endian
- * (first byte in memory == low byte of w); byteswap on big-endian so the
- * checksum matches hardware builds and, crucially, does not depend on
- * the buffer's alignment (issue #134)
- *
  * x86 needs this at runtime (the SSE4.2 probe can fail) and a build with
  * neither ISA has nothing else, but an ARM build is arch-gated rather than
  * probed, so yac_crc32_startup() below cannot reach the fallback there --
