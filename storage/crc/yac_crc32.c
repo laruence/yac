@@ -381,13 +381,13 @@ static uint32_t slice8_core(char *dst, const char *data, unsigned int size) {
 		uint64_t w;
 
 		memcpy(&w, p, sizeof(uint64_t));
-#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-		w = __builtin_bswap64(w);
-#endif
 		if (dst) {
 			memcpy(dst, &w, sizeof(uint64_t));
 			dst += sizeof(uint64_t);
 		}
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+		w = __builtin_bswap64(w);
+#endif
 		crc ^= (uint32_t)w;
 		crc = yac_crc32c_tab[7][crc & 0xFF]
 			^ yac_crc32c_tab[6][(crc >> 8) & 0xFF]
