@@ -1,0 +1,42 @@
+name: s390x
+on:
+  workflow_dispatch:
+
+jobs:
+  s390x:
+    name: "Linux s390x (big endian, QEMU)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          submodules: true
+      - name: Setup QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static binfmt-support
+          # register the s390x interpreter for the host kernel
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes || true
+      - name: Build and test in an s390x container
+        run: |
+          docker run --rm --platform linux/s390x \
+            -v "$PWD:/yac" -w /yac \
+            ubuntu:24.04 \
+            bash -euxc '
+              uname -m;
+              echo -e "deb [trusted=yes] https://ports.ubuntu.com/ubuntu-ports noble main universe\n\
+          deb [trusted=yes] https://ports.ubuntu.com/ubuntu-ports noble-updates main universe" \
+                > /etc/apt/sources.list;
+              apt-get update;
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                php-cli php-dev liblz4-dev re2c build-essential pkg-config;
+              php -v | head -1;
+              phpize;
+              ./configure;
+              make -j"$(nproc)";
+              php -n -d extension=$PWD/modules/yac.so -m | grep -qx yac;
+              TEST_PHP_EXECUTABLE=$(which php) \
+              NO_INTERACTION=1 REPORT_EXIT_STATUS=1 \
+              php run-tests.php -q -n -p "$(which php)" -d extension=$PWD/modules/yac.so --show-diff
+            '
