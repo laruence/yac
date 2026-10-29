@@ -12,10 +12,10 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2026-10-19</date>
- <time>13:36:09</time>
+ <date>2026-10-29</date>
+ <time>14:25:28</time>
  <version>
-  <release>3.0.1</release>
+  <release>3.0.2</release>
   <api>3.0.0</api>
  </version>
  <stability>
@@ -24,8 +24,7 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - Keep reference-containing values on the internal fast serializer when their contents are supported, falling back to PHP serialization otherwise
-  - dump() reports encoder details and names the storage location field consistently
+  - Fixed big-endian CRC-32C in the software slicing-by-8 fallback, which made values read as misses on s390x (issue #134)
  </notes>
  <contents> 
   <dir name="/"> 
@@ -157,6 +156,22 @@
   <configureoption name="enable-debug" prompt="enable debug instrumentation?" default="no"/>
  </extsrcrelease>
  <changelog>
+  <release>
+   <date>2026-10-29</date>
+   <version>
+    <release>3.0.2</release>
+    <api>3.0.0</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
+   <notes>
+    - Fixed big-endian CRC-32C in the software slicing-by-8 fallback, which made values read as misses on s390x (issue #134)
+   </notes>
+  </release>
+
   <release>
    <date>2026-10-19</date>
    <version>
