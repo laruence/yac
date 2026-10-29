@@ -381,7 +381,7 @@ static uint32_t slice8_core(char *dst, const char *data, unsigned int size) {
 		uint64_t w;
 
 		memcpy(&w, p, sizeof(uint64_t));
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 		w = __builtin_bswap64(w);
 #endif
 		if (dst) {
