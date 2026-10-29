@@ -24,8 +24,8 @@ jobs:
             bash -euxc '
               uname -m;
               rm -f /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list;
-              printf "deb https://ports.ubuntu.com/ubuntu-ports noble main universe\n\
-          deb https://ports.ubuntu.com/ubuntu-ports noble-updates main universe\n" \
+              printf "deb http://ports.ubuntu.com/ubuntu-ports noble main universe\n\
+          deb http://ports.ubuntu.com/ubuntu-ports noble-updates main universe\n" \
                 > /etc/apt/sources.list;
               apt-get update;
               DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
