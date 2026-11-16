@@ -74,6 +74,13 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, yac_user_alloc_
 	/* the CRC chains probe the CPU and mount themselves */
 	yac_crc32_startup();
 
+#if defined(USE_FILE_MAPPING)
+	if (yac_file_mapping_is_attached()) {
+		/* The creator has already initialized all shared state. */
+		return 1;
+	}
+#endif
+
 	size = YAC_SG(first_seg).size - ((char *)YAC_SG(keys) - (char *)yac_storage);
 	/* rounds down to a power of two, so all slot arrays fit the first segment */
 	real_size = yac_storage_align_size(size / (sizeof(yac_kv_key) +
@@ -94,6 +101,9 @@ int yac_storage_startup(unsigned long fsize, unsigned long size, yac_user_alloc_
 	memset(YAC_SG(metas), 0, sizeof(yac_kv_meta) * real_size);
 	memset((void *)YAC_SG(lrus), 0, sizeof(yac_kv_lru) * real_size);
 
+#if defined(USE_FILE_MAPPING)
+	yac_file_mapping_finish_startup();
+#endif
 	return 1;
 }
 /* }}} */

@@ -74,6 +74,14 @@ int yac_allocator_startup(unsigned long k_size, unsigned long size, char **msg) 
 
 	segments_num--;
 	yac_storage = segments[0].p;
+
+#if defined(USE_FILE_MAPPING)
+	if (yac_file_mapping_is_attached()) {
+		free(segments);
+		return 1;
+	}
+#endif
+
 	YAC_SG(first_seg) = segments[0];
 	YAC_SG(segments_num) = segments_num;
 	YAC_SG(segments_num_mask) = segments_num - 1;

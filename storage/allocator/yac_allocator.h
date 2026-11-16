@@ -127,6 +127,8 @@ extern yac_shared_memory_handlers yac_alloc_shm_handlers;
 #define YAC_SHARED_MEMORY_HANDLER_NAME "shm"
 #elif defined(USE_FILE_MAPPING)
 extern yac_shared_memory_handlers yac_alloc_create_file_handlers;
+int yac_file_mapping_is_attached(void);
+void yac_file_mapping_finish_startup(void);
 #define yac_shared_memory_handler yac_alloc_create_file_handlers
 #define YAC_SHARED_MEMORY_HANDLER_NAME "file_mapping"
 #endif

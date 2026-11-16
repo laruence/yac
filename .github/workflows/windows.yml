@@ -31,10 +31,12 @@ jobs:
           arch: x64
           ts: ${{ matrix.ts }}
           args: ${{ matrix.args }}
-          # yac's Windows shared memory is a per-user named file mapping, so
-          # parallel test workers attach to the same region and corrupt each
-          # other; tests must run serially
+          # Windows workers attach the same named mapping; keep the test runner
+          # serial until its parallel-worker behavior is validated separately.
           test-workers: 1
+      - name: Verify file-mapping sharing
+        shell: pwsh
+        run: .\.github\workflows\scripts\windows-file-mapping.ps1
 
   windows-x86:
     name: "Windows PHP ${{ matrix.php }} (${{ matrix.ts }}, x86)"
@@ -53,9 +55,11 @@ jobs:
           php-version: ${{ matrix.php }}
           arch: x86
           ts: ${{ matrix.ts }}
-          # x86 PHP CLI is capped at 128M, and yac's shared memory forbids
-          # parallel workers anyway; run serially
+          # x86 PHP CLI is capped at 128M; keep the test runner serial.
           test-workers: 1
+      - name: Verify file-mapping sharing
+        shell: pwsh
+        run: .\.github\workflows\scripts\windows-file-mapping.ps1
       # run-tests.php on x86 dies at tests/043.phpt with a 4MB allocation;
       # keep the failed test's evidence (.out/.exp/.diff) to see what the
       # test actually produced before the runner crashed
